@@ -392,8 +392,11 @@ def markdown_anchor(value: str) -> str:
     return value
 
 
-def hash_targets_for_path(path: Path, cache: dict[Path, set[str]]) -> set[str]:
-    """Return valid hash targets for an HTML or Markdown file."""
+def hash_targets_for_path(path: Path, cache: dict[Path, set[str] | None]) -> set[str] | None:
+    """Return valid hash targets for an HTML or Markdown file.
+
+    Returns None when the target cannot be read (distinguishes "unverifiable"
+    from "readable but has no anchors", which is a broken hash)."""
     resolved = path.resolve()
     if resolved in cache:
         return cache[resolved]
@@ -401,9 +404,9 @@ def hash_targets_for_path(path: Path, cache: dict[Path, set[str]]) -> set[str]:
     targets: set[str] = set()
     try:
         content = resolved.read_text(encoding="utf-8")
-    except OSError:
-        cache[resolved] = targets
-        return targets
+    except (UnicodeDecodeError, OSError):
+        cache[resolved] = None
+        return None
 
     suffix = resolved.suffix.lower()
     if suffix in {".html", ".htm"}:
@@ -449,7 +452,7 @@ def _validate_local_reference(
     label: str,
     errors: list[str],
     source_ids: set[str] | None = None,
-    hash_target_cache: dict[Path, set[str]] | None = None,
+    hash_target_cache: dict[Path, set[str] | None] | None = None,
 ) -> None:
     ref = raw_ref.strip()
     if not ref:
@@ -485,7 +488,12 @@ def _validate_local_reference(
             targets = source_ids
         else:
             targets = hash_targets_for_path(resolved, hash_target_cache)
-        if targets and fragment not in targets:
+        if targets is None:
+            target_rel = resolved.relative_to(root)
+            errors.append(
+                f"{rel}: could not read {label} target {target_rel} to verify hash {ref!r}"
+            )
+        elif fragment not in targets:
             target_rel = resolved.relative_to(root)
             errors.append(f"{rel}: broken {label} hash {ref!r} (no #{fragment} in {target_rel})")
 
@@ -544,6 +552,12 @@ _READ_MAP_KINDS = {"architecture", "decision", "review", "plan", "incident"}
 # legitimate "Before → After" / warning headings don't trip it).
 _SLOP_VIOLET_HEXES = ("#8b5cf6", "#7c3aed", "#a78bfa")
 _SLOP_EMOJI_RE = re.compile(r"[\U0001F000-\U0001FAFF]")
+
+# House style: no em/en dashes in artifact prose (use a comma, colon,
+# parentheses, or " - "). Code-bearing regions are exempt: dashes inside
+# <pre>/<code>/<script>/<style> are often syntax, not prose.
+_DASH_EXEMPT_RE = re.compile(r"<(pre|code|script|style)\b.*?</\1\s*>", re.I | re.S)
+_EM_EN_DASH_RE = re.compile(r"[–—]")
 
 # Token-aware constraint: a single self-contained artifact past this size is slow
 # to load and expensive to feed back to a model. WARN (not block) - some legitimate
@@ -719,6 +733,15 @@ def content_shape_violations(
             warnings, parser, "slop-signal",
             f"{rel}: AI-default ('slop') signal(s): {'; '.join(slop_hits)} "
             "(see the Anti-slop checklist in SKILL.md)",
+        )
+
+    dash_count = len(_EM_EN_DASH_RE.findall(_DASH_EXEMPT_RE.sub("", content)))
+    if dash_count:
+        _add(
+            warnings, parser, "em-dash",
+            f"{rel}: {dash_count} em/en dash(es) in prose -- replace with a comma, "
+            "colon, parentheses, or ' - ' (dashes inside <pre>/<code>/<script>/<style> "
+            "are exempt)",
         )
 
     if len(content.encode("utf-8")) > _SIZE_BUDGET_BYTES:
@@ -1232,14 +1255,18 @@ def derive_keywords(
 def read_artifacts(root: Path) -> tuple[list[Artifact], list[str]]:
     artifacts: list[Artifact] = []
     errors: list[str] = []
-    hash_target_cache: dict[Path, set[str]] = {}
+    hash_target_cache: dict[Path, set[str] | None] = {}
 
     for path in iter_html_files(root):
         rel = path.relative_to(root)
         rel_from_artifacts = path.relative_to(artifact_dir(root))
         is_top_level = path.parent == artifact_dir(root)
         match = NAME_RE.match(path.name)
-        content = path.read_text(encoding="utf-8")
+        try:
+            content = path.read_text(encoding="utf-8")
+        except (UnicodeDecodeError, OSError) as exc:
+            errors.append(f"{rel}: unreadable as UTF-8 HTML ({exc.__class__.__name__}); skipped")
+            continue
         parser = ArtifactHTMLParser()
         parser.feed(content)
         meta = parser.meta
@@ -1315,10 +1342,26 @@ def read_artifacts(root: Path) -> tuple[list[Artifact], list[str]]:
 
 
 def root_html_errors(root: Path) -> list[str]:
-    return [
-        f"{p.relative_to(root)}: HTML artifacts are not allowed at workspace root"
-        for p in sorted(root.glob("*.html"))
-    ]
+    """Flag root-level HTML only when it LOOKS like a human-html artifact.
+
+    A plain root index.html (a static site's landing page, this repo's own
+    gallery) is legitimate; only artifact-shaped files belong in the lane."""
+    errors: list[str] = []
+    for p in sorted(root.glob("*.html")):
+        looks_like_artifact = bool(NAME_RE.match(p.name))
+        if not looks_like_artifact:
+            try:
+                head = p.read_text(encoding="utf-8", errors="ignore")[:4096]
+            except OSError:
+                continue
+            looks_like_artifact = (
+                "data-human-html-artifact" in head or 'name="artifact-kind"' in head
+            )
+        if looks_like_artifact:
+            errors.append(
+                f"{p.relative_to(root)}: HTML artifacts are not allowed at workspace root"
+            )
+    return errors
 
 
 # Muted, distinguishable per-kind dot colours for the gallery (categorical legend,
@@ -2406,7 +2449,11 @@ def gather_content_findings(
     warnings: list[str] = []
     for artifact in artifacts:
         rel = artifact.path.relative_to(root)
-        content = artifact.path.read_text(encoding="utf-8")
+        try:
+            content = artifact.path.read_text(encoding="utf-8")
+        except (UnicodeDecodeError, OSError) as exc:
+            warnings.append(f"{rel}: unreadable during content check ({exc.__class__.__name__}); skipped")
+            continue
         art_errs, art_warns = content_shape_violations(
             rel, content, artifact.date, root, artifact.kind
         )

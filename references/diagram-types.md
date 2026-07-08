@@ -42,7 +42,7 @@ flowchart TB
     <strong>After</strong>
     <div class="mermaid">
 flowchart TB
-  A[server.py ~600 LOC] --> R[register_composite_tool]
+  A[server.py ~600 LOC] --> R[register_tool_bundle]
   R --> I1[impl 1]
   R --> I2[impl 2]
     </div>
@@ -122,10 +122,10 @@ Pattern (enumeration of helpers being relocated):
   </thead>
   <tbody>
     <tr>
-      <td>Composite lifecycle</td>
-      <td><code>_start_composite</code>, <code>_end_composite</code>, <code>_phase</code></td>
+      <td>Bundle lifecycle</td>
+      <td><code>_start_bundle</code>, <code>_end_bundle</code>, <code>_phase</code></td>
       <td><code>_helpers.py</code></td>
-      <td>a <em>CompositeSpan</em> context manager</td>
+      <td>a <em>BundleSpan</em> context manager</td>
     </tr>
     <tr>
       <td>Company resolution</td>

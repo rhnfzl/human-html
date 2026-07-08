@@ -1,5 +1,13 @@
 # human-html
 
+[![Release](https://img.shields.io/github/v/release/rhnfzl/human-html)](https://github.com/rhnfzl/human-html/releases)
+[![License](https://img.shields.io/github/license/rhnfzl/human-html)](LICENSE)
+[![Python](https://img.shields.io/badge/python-stdlib%20only-3776ab)](#requirements)
+[![Examples](https://img.shields.io/badge/examples-live%20gallery-2ea44f)](https://rhnfzl.github.io/human-html/)
+<!-- Enable once skills.sh indexes this repo (it serves "resource not found" until install activity registers):
+[![skills.sh](https://skills.sh/b/rhnfzl/human-html)](https://skills.sh/rhnfzl/human-html)
+-->
+
 An agent skill that makes the next document a teammate can actually read, instead of a wall of Markdown that gets skimmed.
 
 When an agent produces something a human is meant to read to make a decision (a plan, a code review, an architecture explainer, an understanding doc, a research synthesis, a decision aid, a prototype, a status report, or an incident postmortem) this skill lands it as a single self-contained HTML page: a plain-language summary at the top, a diagram in every before/after section, color-coded risks, the key snippets inline. Markdown stays for what it is good at (scratch notes, durable references, ticket drafts, meeting transcripts, agent-to-agent handoffs); HTML becomes the human review layer. A small offline validator enforces that split as a content contract, so the surfaces stay readable rather than drifting back into skimmable walls. Everything runs locally: no network calls in the core loop, no telemetry, no uploads.
@@ -49,7 +57,7 @@ https://rhnfzl.github.io/human-html/
 
 ## Sharing (local-first)
 
-Every artifact is a single self-contained HTML file. Nothing leaves your machine unless you decide to share it, and sharing is an opt-in menu, not a default:
+Every artifact is a single HTML file, self-contained by default. One qualifier: artifacts with Mermaid diagram blocks load the Mermaid renderer from a CDN at view time; render diagrams to inline SVG (the recommendation for shipped artifacts) and they are fully offline. Nothing leaves your machine unless you decide to share it, and sharing is an opt-in menu, not a default:
 
 - **GitHub Pages**: serve `docs/human-html/` (or the repo root) and link the gallery.
 - **S3 (bring your own bucket)**: `scripts/publish-s3.sh` is env-driven with zero baked-in defaults. It uploads nothing until you set `HUMAN_HTML_S3_BUCKET` and run it yourself.
@@ -59,7 +67,7 @@ The skill never uploads on your behalf. The publish script is the only path to t
 
 ## Requirements
 
-- Python 3, standard library only. No `pip install`, no dependencies.
+- Python 3.8 or newer, standard library only. No `pip install`, no dependencies.
 - Optional: `jq` (the two hooks degrade to silent no-ops without it), `mermaid-cli` (`mmdc`) to render diagrams to inline SVG, `excalidraw-mcp` for hand-drawn diagrams.
 
 ## Trust

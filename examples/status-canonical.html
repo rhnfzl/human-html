@@ -106,7 +106,7 @@
       <h2>Recent changes</h2>
       <ul>
         <li><strong>PROJ-2271 chat resilience shipped to staging</strong> (Mon). User chat now bounded by an 8s timeout per turn with structured fallback instead of silent hang.</li>
-        <li><strong>MCP composite tool throughput +38% p95</strong> (Wed). Phase 2 of the perf rollout landed; the tracing dashboard shows the improvement holds under prod-like load.</li>
+        <li><strong>MCP tool bundle throughput +38% p95</strong> (Wed). Phase 2 of the perf rollout landed; the tracing dashboard shows the improvement holds under prod-like load.</li>
         <li><strong>Approval flow HITL edge case found</strong> (Thu). Resume-after-pause re-fires the approval prompt if the user's permissions changed mid-pause; fix in PR review.</li>
       </ul>
     </section>
@@ -114,7 +114,7 @@
     <section id="blockers" class="section">
       <h2>Blockers</h2>
       <ul>
-        <li><strong>PROJ-24105 schema mismatch:</strong> Gateway Service's <code>/api/conversation-log</code> endpoint expects a field shape the Agent Service doesn't produce. Priya owns the GW side. Action: 30-min sync Monday to align on the shape before either side writes code.</li>
+        <li><strong>PROJ-24105 schema mismatch:</strong> Gateway Service's <code>/api/chat-audit-log</code> endpoint expects a field shape the Agent Service doesn't produce. Priya owns the GW side. Action: 30-min sync Monday to align on the shape before either side writes code.</li>
         <li><strong>Mobile auth header verification:</strong> mobile team's first integration test failed because the <code>X-Acme-Token</code> header is empty when the mobile client signs in via the dev SSO flow. Reproducing locally; fix likely in the SSO middleware.</li>
       </ul>
     </section>
@@ -125,7 +125,7 @@
         <li>Land the PROJ-1871 resume edge case fix and bench it against the regression scenario suite.</li>
         <li>Unblock PROJ-24105 with Priya Monday; if blocked beyond Tuesday, escalate to Marcus for architecture call.</li>
         <li>Mobile auth fix verified locally and merged by Wednesday; mobile team re-runs their smoke tests.</li>
-        <li>Begin MCP perf Phase 3 design doc (likely candidate: composite-tool sub-call coalescing).</li>
+        <li>Begin MCP perf Phase 3 design doc (likely candidate: bundle sub-call coalescing).</li>
       </ul>
     </section>
 

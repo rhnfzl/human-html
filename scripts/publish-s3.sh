@@ -92,6 +92,16 @@ fi
 key="${2:-$(basename "$file")}"
 [[ -n "$PREFIX" ]] && key="${PREFIX%/}/$key"
 
+# 0) The aws CLI must exist at all (distinct from auth, checked next).
+if ! command -v aws >/dev/null 2>&1; then
+  {
+    echo "aws CLI not found on PATH. Install it (https://aws.amazon.com/cli/)"
+    echo "or use another sharing option (references/patterns.md, Sharing & hosting)."
+    echo "The artifact stays local: $file"
+  } >&2
+  exit 2
+fi
+
 # 1) AWS auth must be active on this machine.
 if ! aws sts get-caller-identity >/dev/null 2>&1; then
   cat >&2 <<EOF
