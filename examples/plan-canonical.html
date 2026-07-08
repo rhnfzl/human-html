@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="artifact-kind" content="plan">
+  <meta name="artifact-audience" content="human">
+  <meta name="artifact-created" content="2026-05-25">
+  <meta name="artifact-source" content="canonical-example">
+  <title>Plan &mdash; Canonical Example</title>
+  <script type="module">
+    import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.esm.min.mjs";
+    mermaid.initialize({ startOnLoad: true, theme: "default", securityLevel: "loose" });
+  </script>
+  <style>
+    :root { --ink:#172033; --muted:#5d6b7f; --line:#dce3ec; --soft:#f6f8fb; --blue:#226fb2; --orange:#c5542d; --green:#2d7a55; font-family:Inter,system-ui,-apple-system,sans-serif; }
+    * { box-sizing: border-box; }
+    body { margin:0; color:var(--ink); background:#fff; }
+    main { width:min(1180px, calc(100vw - 40px)); margin:0 auto; padding:42px 0 70px; }
+    header { border-bottom:1px solid var(--line); padding-bottom:24px; margin-bottom:28px; }
+    .eyebrow { color:var(--blue); font-size:.78rem; font-weight:750; text-transform:uppercase; letter-spacing:.12em; }
+    h1 { margin:10px 0 12px; font-size:clamp(2rem,4.4vw,3.4rem); line-height:1.05; }
+    h2 { margin:0 0 12px; font-size:1.35rem; }
+    p { color:var(--ink); line-height:1.6; max-width:78ch; }
+    .pm-summary { background:var(--soft); border-left:4px solid var(--blue); padding:20px 22px; border-radius:8px; margin:16px 0 32px; }
+    .pm-summary h2 { color:var(--blue); margin-bottom:12px; }
+    .pm-summary ul { margin:0; padding-left:20px; } .pm-summary li { margin-bottom:8px; }
+    .pm-summary strong { color:var(--blue); }
+    nav.toc { background:var(--soft); border:1px solid var(--line); border-radius:8px; padding:14px 20px; margin:16px 0 32px; }
+    nav.toc strong { display:block; margin-bottom:8px; font-size:.8rem; text-transform:uppercase; color:var(--ink); }
+    nav.toc ol { margin:0; padding-left:22px; columns:2; column-gap:24px; }
+    nav.toc a { color:var(--blue); text-decoration:none; }
+    section.section { margin-top:32px; }
+    table { width:100%; border-collapse:collapse; border:1px solid var(--line); border-radius:8px; overflow:hidden; }
+    th, td { padding:12px 14px; border-bottom:1px solid var(--line); text-align:left; vertical-align:top; }
+    th { background:var(--soft); color:var(--muted); font-size:.78rem; text-transform:uppercase; }
+    code { background:var(--soft); border:1px solid var(--line); border-radius:6px; padding:2px 5px; }
+    .mermaid svg { max-width:100%; height:auto; }
+    .meta-ribbon { display:flex; flex-wrap:wrap; gap:18px; padding:12px 18px; margin:0 0 24px; background:var(--soft); border:1px solid var(--line); border-radius:8px; font-size:.85rem; color:var(--muted); }
+    .meta-ribbon strong { color:var(--ink); margin-right:6px; }
+    .read-map { background:#fff; border:1px solid var(--line); border-radius:8px; padding:14px 18px; margin:0 0 24px; font-size:.88rem; }
+    .read-map div { margin:4px 0; } .read-map strong { color:var(--blue); margin-right:6px; }
+    .read-map a { color:var(--blue); text-decoration:none; }
+    .provenance { margin-top:48px; padding-top:18px; border-top:1px solid var(--line); font-size:.82rem; color:var(--muted); }
+    .provenance code { background:transparent; border:0; color:var(--ink); font-family:ui-monospace,Menlo,monospace; }
+    .provenance a { color:var(--blue); text-decoration:none; }
+  
+    /* responsive table treatment: horizontal scroll on narrow screens */
+    @media (max-width: 820px) { table { display: block; overflow-x: auto; } }
+  </style>
+</head>
+<body data-human-html-artifact="true">
+  <main>
+    <header>
+      <p class="eyebrow">plan &middot; 2026-05-25 &middot; canonical example</p>
+      <h1>Migrate authentication from session cookies to JWT</h1>
+    </header>
+
+    <div class="meta-ribbon" data-meta-ribbon="true" aria-label="Artifact metadata">
+      <span><strong>Kind</strong> plan</span>
+      <span><strong>Created</strong> 2026-05-25</span>
+      <span><strong>Owner</strong> Jordan Ellis</span>
+      <span><strong>Status</strong> Draft</span>
+      <span><strong>Read time</strong> ~5 min</span>
+      <span><strong>Source</strong> canonical-example</span>
+    </div>
+
+    <section data-audience="pm" class="pm-summary">
+      <h2>In plain terms</h2>
+      <ul>
+        <li><strong>What this does for the user:</strong> Users stay logged in across both web and mobile without the surprise session timeouts they get today.</li>
+        <li><strong>Why it matters:</strong> Mobile launch in June needs cross-device auth; the current cookie scheme only works on the desktop browser.</li>
+        <li><strong>What's being asked:</strong> Approve the 3-week migration plan and the 1-week dual-running window before retiring the cookie path.</li>
+      </ul>
+    </section>
+
+    <aside class="read-map" aria-label="Reading map">
+      <div><strong>Exec (2 min):</strong> <a href="#outcome">Outcome</a> &middot; <a href="#rollback">Rollback</a></div>
+      <div><strong>PM (5 min):</strong> <a href="#outcome">Outcome</a> &middot; <a href="#approach">Approach</a> &middot; <a href="#sequence">Sequence</a></div>
+      <div><strong>Engineer (15 min):</strong> All sections</div>
+    </aside>
+
+    <nav class="toc" aria-label="On this page">
+      <strong>On this page</strong>
+      <ol>
+        <li><a href="#outcome">Outcome</a></li>
+        <li><a href="#approach">Approach</a></li>
+        <li><a href="#sequence">Sequence</a></li>
+        <li><a href="#risks">Risks</a></li>
+        <li><a href="#rollback">Rollback</a></li>
+      </ol>
+    </nav>
+
+    <section id="outcome" class="section">
+      <h2>Outcome</h2>
+      <p>By the end of the plan, all clients (web, iOS, Android) authenticate via JWT issued by a single auth service, with refresh tokens stored client-side and revocation managed via a small blocklist. Cookie-based sessions are retired and removed from the codebase.</p>
+    </section>
+
+    <section id="approach" class="section">
+      <h2>Approach</h2>
+      <p>Three stages with a deliberate dual-running window between stage 2 and stage 3. The auth service exists today as a Django app and grows new JWT endpoints; clients are migrated one at a time; the cookie middleware is removed last.</p>
+      <div class="mermaid">
+flowchart LR
+  A[Stage 1: JWT endpoints land] --> B[Stage 2: Web client migrates]
+  B --> C[Dual-running window<br/>both schemes accepted]
+  C --> D[Stage 3: Mobile launches on JWT]
+  D --> E[Stage 4: Cookie path removed]
+      </div>
+    </section>
+
+    <section id="sequence" class="section">
+      <h2>Sequence</h2>
+      <table>
+        <thead><tr><th>Stage</th><th>Step</th><th>Owner</th><th>Done when</th></tr></thead>
+        <tbody>
+          <tr><td>1</td><td>Add JWT issue / refresh / revoke endpoints to auth service</td><td>Priya</td><td>Endpoints accept happy-path; covered by integration tests</td></tr>
+          <tr><td>2</td><td>Web client switches token storage to JWT, adds refresh interceptor</td><td>Elena</td><td>Logged-in session works for &gt; 7 days across browser sessions</td></tr>
+          <tr><td>3</td><td>Mobile launch ships JWT-only</td><td>Mobile team</td><td>App passes auth flow on iOS + Android beta</td></tr>
+          <tr><td>4</td><td>Remove cookie middleware + session store</td><td>Priya</td><td>No 4xx spike for one week post-removal</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="risks" class="section">
+      <h2>Risks</h2>
+      <ul>
+        <li><strong>Refresh storm:</strong> if refresh tokens have a short TTL and the web client retries on 401, we can hit auth-service throughput limits. Mitigation: 7-day refresh window and exponential back-off on the client.</li>
+        <li><strong>Stale cookie sessions during dual-running:</strong> a user might end up authenticated on cookie AND JWT simultaneously. Mitigation: cookie-issued requests get a deprecation header; clients prefer JWT.</li>
+        <li><strong>Mobile rollback complexity:</strong> if the mobile launch is delayed past July, the dual-running window extends and the cookie removal slips. Mitigation: cookie removal is gated on a green metric, not a calendar date.</li>
+      </ul>
+    </section>
+
+    <section id="rollback" class="section">
+      <h2>Rollback</h2>
+      <p>Each stage rolls back independently. If stage 1 endpoints are broken: feature-flag them off, no client impact. If stage 2 web migration regresses login flow: re-enable cookie middleware (still present), revert client. If stage 3 mobile launches and breaks: mobile clients fall back to cookie-on-WebView until fixed forward. Stage 4 cookie removal is non-trivial to roll back; it gates explicitly on one week of clean auth metrics.</p>
+    </section>
+
+    <footer class="provenance" data-provenance="true">
+      <p>Generated by <code>claude-opus-4-7</code> on 2026-05-25 &middot; reviewed by <code>Jordan Ellis</code> &middot; source: canonical-example.</p>
+      <script type="application/ld+json" id="provenance">
+        {
+          "@context": "https://schema.org/",
+          "@type": "CreativeWork",
+          "@id": "urn:human-html:2026-05-25:plan:canonical-example",
+          "additionalType": "ai-generated-artifact",
+          "artifactKind": "plan",
+          "dateCreated": "2026-05-25",
+          "creator": { "@type": "SoftwareApplication", "name": "claude-opus-4-7" },
+          "promptHash": "<sha256 of prompt; canonical example, no real prompt>",
+          "reviewer": "Jordan Ellis",
+          "source": "canonical-example"
+        }
+      </script>
+    </footer>
+  </main>
+</body>
+</html>

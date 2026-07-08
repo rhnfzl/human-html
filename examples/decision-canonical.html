@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="artifact-kind" content="decision">
+  <meta name="artifact-audience" content="human">
+  <meta name="artifact-created" content="2026-05-25">
+  <meta name="artifact-source" content="canonical-example">
+  <title>Decision &mdash; Canonical Example</title>
+  <style>
+    :root { --ink:#172033; --muted:#5d6b7f; --line:#dce3ec; --soft:#f6f8fb; --blue:#226fb2; --orange:#c5542d; --green:#2d7a55; font-family:Inter,system-ui,-apple-system,sans-serif; }
+    * { box-sizing: border-box; }
+    body { margin:0; color:var(--ink); background:#fff; }
+    main { width:min(1180px, calc(100vw - 40px)); margin:0 auto; padding:42px 0 70px; }
+    header { border-bottom:1px solid var(--line); padding-bottom:24px; margin-bottom:28px; }
+    .eyebrow { color:var(--blue); font-size:.78rem; font-weight:750; text-transform:uppercase; letter-spacing:.12em; }
+    h1 { margin:10px 0 12px; font-size:clamp(2rem,4.4vw,3.4rem); line-height:1.05; }
+    h2 { margin:0 0 12px; font-size:1.35rem; }
+    p { color:var(--ink); line-height:1.6; max-width:78ch; }
+    .pm-summary { background:var(--soft); border-left:4px solid var(--blue); padding:20px 22px; border-radius:8px; margin:16px 0 32px; }
+    .pm-summary h2 { color:var(--blue); margin-bottom:12px; }
+    .pm-summary ul { margin:0; padding-left:20px; } .pm-summary li { margin-bottom:8px; }
+    .pm-summary strong { color:var(--blue); }
+    nav.toc { background:var(--soft); border:1px solid var(--line); border-radius:8px; padding:14px 20px; margin:16px 0 32px; }
+    nav.toc strong { display:block; margin-bottom:8px; font-size:.8rem; text-transform:uppercase; color:var(--ink); }
+    nav.toc ol { margin:0; padding-left:22px; columns:2; column-gap:24px; }
+    nav.toc a { color:var(--blue); text-decoration:none; }
+    section.section { margin-top:32px; }
+    table { width:100%; border-collapse:collapse; border:1px solid var(--line); border-radius:8px; overflow:hidden; }
+    th, td { padding:12px 14px; border-bottom:1px solid var(--line); text-align:left; vertical-align:top; }
+    th { background:var(--soft); color:var(--muted); font-size:.78rem; text-transform:uppercase; }
+    code { background:var(--soft); border:1px solid var(--line); border-radius:6px; padding:2px 5px; }
+    .y-statement { background:#fff7ed; border-left:4px solid var(--orange); padding:18px 22px; border-radius:8px; font-size:1.05rem; line-height:1.65; }
+    .y-statement em { color:var(--orange); font-style:normal; font-weight:650; }
+    .meta-ribbon { display:flex; flex-wrap:wrap; gap:18px; padding:12px 18px; margin:0 0 24px; background:var(--soft); border:1px solid var(--line); border-radius:8px; font-size:.85rem; color:var(--muted); }
+    .meta-ribbon strong { color:var(--ink); margin-right:6px; }
+    .read-map { background:#fff; border:1px solid var(--line); border-radius:8px; padding:14px 18px; margin:0 0 24px; font-size:.88rem; }
+    .read-map div { margin:4px 0; } .read-map strong { color:var(--blue); margin-right:6px; }
+    .read-map a { color:var(--blue); text-decoration:none; }
+    .provenance { margin-top:48px; padding-top:18px; border-top:1px solid var(--line); font-size:.82rem; color:var(--muted); }
+    .provenance code { background:transparent; border:0; color:var(--ink); font-family:ui-monospace,Menlo,monospace; }
+    .provenance a { color:var(--blue); text-decoration:none; }
+  
+    /* responsive table treatment: horizontal scroll on narrow screens */
+    @media (max-width: 820px) { table { display: block; overflow-x: auto; } }
+  </style>
+</head>
+<body data-human-html-artifact="true">
+  <main>
+    <header>
+      <p class="eyebrow">decision &middot; 2026-05-25 &middot; canonical example</p>
+      <h1>Adopt a single shared Redis cache vs per-service caches</h1>
+    </header>
+
+    <div class="meta-ribbon" data-meta-ribbon="true" aria-label="Artifact metadata">
+      <span><strong>Kind</strong> decision</span>
+      <span><strong>Created</strong> 2026-05-25</span>
+      <span><strong>Owner</strong> Jordan Ellis</span>
+      <span><strong>Status</strong> Draft</span>
+      <span><strong>Read time</strong> ~5 min</span>
+      <span><strong>Source</strong> canonical-example</span>
+    </div>
+
+    <section data-audience="pm" class="pm-summary">
+      <h2>In plain terms</h2>
+      <ul>
+        <li><strong>What this does for the user:</strong> Faster chat responses and consistent reference data (currency codes, location names) across every AI feature.</li>
+        <li><strong>Why it matters:</strong> Three services duplicate the same caching code today; bugs in one don't get the fix the other already shipped. A shared cache also lets us cut the Redis bill by ~40%.</li>
+        <li><strong>What's being asked:</strong> Approve consolidation onto a single shared <code>LazyRedisCache</code> module, accepting a one-sprint migration window.</li>
+      </ul>
+    </section>
+
+    <aside class="read-map" aria-label="Reading map">
+      <div><strong>Exec (2 min):</strong> <a href="#decision">Decision</a> &middot; <a href="#reversibility">Reversibility</a></div>
+      <div><strong>PM (5 min):</strong> <a href="#decision">Decision</a> &middot; <a href="#context">Context</a> &middot; <a href="#options">Current vs proposed</a></div>
+      <div><strong>Engineer (15 min):</strong> All sections</div>
+    </aside>
+
+    <nav class="toc" aria-label="On this page">
+      <strong>On this page</strong>
+      <ol>
+        <li><a href="#decision">Decision</a></li>
+        <li><a href="#context">Context</a></li>
+        <li><a href="#options">Current vs proposed</a></li>
+        <li><a href="#consequences">Consequences</a></li>
+        <li><a href="#reversibility">Reversibility</a></li>
+      </ol>
+    </nav>
+
+    <section id="decision" class="section">
+      <h2>Decision</h2>
+      <p class="y-statement">
+        <strong>In the context of</strong> <em>three services duplicating Redis client setup, cooldown semantics, and test escape hatches</em>,
+        <strong>facing</strong> <em>recurring bug-fix-replay cost and a duplicated infrastructure spend</em>,
+        <strong>we decided</strong> <em>to extract a single shared <code>LazyRedisCache</code> module and have all three services compose it</em>
+        <strong>to achieve</strong> <em>one place to fix bugs and a ~40% Redis cost reduction</em>,
+        <strong>accepting</strong> <em>a one-sprint migration window and one new shared module to govern.</em>
+      </p>
+    </section>
+
+    <section id="context" class="section">
+      <h2>Context</h2>
+      <p>Currently <code>idempotency.py</code>, <code>reference.py</code>, and <code>session_cache.py</code> each implement their own lazy Redis client with cooldown-based retry. The pattern is the same; the implementations have drifted. A bug fix shipped to one (cooldown jitter) had to be replayed in the others by hand, and one missed the fix for two weeks. The shared cache also reduces Redis connection count by ~3&times;.</p>
+    </section>
+
+    <section id="options" class="section">
+      <h2>Current vs proposed</h2>
+      <table>
+        <thead><tr><th>Aspect</th><th>Current (three lazy clients)</th><th>Proposed (one shared cache)</th></tr></thead>
+        <tbody>
+          <tr><td>Bug fix surface</td><td>3 files, replay required</td><td>1 file, fix applies everywhere</td></tr>
+          <tr><td>Redis connections</td><td>~12 per pod (3 clients &times; 4 pods)</td><td>~4 per pod (shared)</td></tr>
+          <tr><td>Test substitution</td><td>Each test resets module globals</td><td>Inject a fake; no globals to clear</td></tr>
+          <tr><td>Service ownership</td><td>Each service owns its cache</td><td>One module owned by platform team</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="consequences" class="section">
+      <h2>Consequences</h2>
+      <ul>
+        <li><strong>Positive:</strong> single place to fix Redis bugs; ~40% Redis cost reduction; cleaner test substitution via injection.</li>
+        <li><strong>Neutral:</strong> the shared module needs an owner (platform team); cache observability dashboards split into one shared view + per-service breakdowns.</li>
+        <li><strong>Negative:</strong> a bug in the shared cache breaks three services at once; ownership transitions during incidents need clearer escalation.</li>
+      </ul>
+    </section>
+
+    <section id="reversibility" class="section">
+      <h2>Reversibility</h2>
+      <p>Mostly reversible. If the shared cache proves to be wrong, each service can re-add its own lazy client by re-vendoring the file. The blocker would be data shape changes (cache keys we share that would diverge again); none planned. Decision can be revisited at the end of Q3 based on incident frequency.</p>
+    </section>
+
+    <section id="decisions" class="section" data-decisions="true" style="border-top:2px dashed var(--line); margin-top:42px; padding-top:24px;">
+      <h2>Decisions captured (for coding-agent handoff)</h2>
+      <p style="font-size:.92rem; color:var(--muted);">After an adversarial plan-review session against this artifact, the resolved decisions land here. The visible list is human-readable; the embedded JSON-LD below is what a coding agent (Claude Code / Cursor / Aider / Codex) reads to implement them. Drop this artifact into <code>.claude/</code>, reference from <code>CLAUDE.md</code>, and the agent picks up the decisions on its next run.</p>
+      <ol>
+        <li>
+          <p><strong>DR-001 &mdash; Extract <code>runtime/redis_cache.py</code> as the shared lazy-cache module.</strong> <em>Rationale:</em> the three current callers (<code>idempotency.py</code>, <code>reference.py</code>, <code>session_cache.py</code>) all duplicate the cooldown + lazy-client pattern. <em>Implementation note:</em> create the module with <code>LazyRedisCache.get/set/reset</code>; migrate one caller; ship under feature flag; migrate the other two.</p>
+        </li>
+        <li>
+          <p><strong>DR-002 &mdash; Preserve module-global escape hatches for tests during the one-sprint dual-running window.</strong> <em>Rationale:</em> existing tests reset module globals; keeping the escape hatches stops the migration from also rewriting 40+ tests at once.</p>
+        </li>
+        <li>
+          <p><strong>DR-003 &mdash; Revisit per-service cache breakdown dashboards in Q3.</strong> <em>Rationale:</em> consolidating onto one cache means the existing per-service Grafana panels need to split into "shared cache health" + per-service slices; defer until after migration to avoid pre-optimisation.</p>
+        </li>
+      </ol>
+      <script type="application/ld+json" id="decisions-data">
+      [
+        {
+          "@context": "https://schema.org/",
+          "@type": "Decision",
+          "id": "urn:decision:DR-001",
+          "summary": "Extract runtime/redis_cache.py as the shared lazy-cache module",
+          "task": "Create runtime/redis_cache.py exposing LazyRedisCache with get/set/reset methods that wrap the cooldown + lazy-client pattern currently duplicated across three callers. Migrate idempotency.py first behind a feature flag, then reference.py, then session_cache.py.",
+          "constraints": [
+            "Preserve the existing public API of each caller",
+            "Keep the module-global escape hatches in place during the dual-running window",
+            "No major version bump"
+          ],
+          "languages": ["Python"],
+          "priority": "high",
+          "acceptanceCriteria": [
+            "uv run pytest runtime/tests/test_redis_cache.py passes",
+            "All three callers compose the shared module",
+            "Redis connection count drops from ~12 to ~4 per pod"
+          ],
+          "targets": [
+            {"path": "runtime/redis_cache.py", "purpose": "new module"},
+            {"path": "runtime/idempotency.py", "purpose": "migrate first"},
+            {"path": "runtime/composite_tools/reference.py", "purpose": "migrate second"},
+            {"path": "runtime/session_cache.py", "purpose": "migrate third"}
+          ],
+          "patchPreferences": { "format": "unified-diff", "perHunk": true },
+          "status": "accepted",
+          "author": "Jordan Ellis",
+          "dateCreated": "2026-05-25"
+        },
+        {
+          "@context": "https://schema.org/",
+          "@type": "Decision",
+          "id": "urn:decision:DR-002",
+          "summary": "Preserve module-global escape hatches for tests during the one-sprint dual-running window",
+          "task": "Keep _reset_redis_state_for_tests() escape hatches in each caller during migration; do NOT refactor the 40+ tests that depend on them in the same PR.",
+          "status": "accepted",
+          "author": "Jordan Ellis",
+          "dateCreated": "2026-05-25"
+        },
+        {
+          "@context": "https://schema.org/",
+          "@type": "Decision",
+          "id": "urn:decision:DR-003",
+          "summary": "Revisit per-service cache breakdown dashboards in Q3",
+          "task": "Add to Q3 backlog: split existing per-service Grafana panels into shared-cache-health + per-service slices once migration is complete.",
+          "status": "deferred",
+          "author": "Jordan Ellis",
+          "dateCreated": "2026-05-25"
+        }
+      ]
+      </script>
+    </section>
+
+    <footer class="provenance" data-provenance="true">
+      <p>Generated by <code>claude-opus-4-7</code> on 2026-05-25 &middot; reviewed by <code>Jordan Ellis</code> &middot; source: canonical-example.</p>
+      <script type="application/ld+json" id="provenance">
+        {
+          "@context": "https://schema.org/",
+          "@type": "CreativeWork",
+          "@id": "urn:human-html:2026-05-25:decision:canonical-example",
+          "additionalType": "ai-generated-artifact",
+          "artifactKind": "decision",
+          "dateCreated": "2026-05-25",
+          "creator": { "@type": "SoftwareApplication", "name": "claude-opus-4-7" },
+          "promptHash": "<sha256 of prompt; canonical example, no real prompt>",
+          "reviewer": "Jordan Ellis",
+          "source": "canonical-example"
+        }
+      </script>
+    </footer>
+  </main>
+</body>
+</html>

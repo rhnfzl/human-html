@@ -1,0 +1,11 @@
+{
+  "name": "human-html",
+  "description": "HTML review surfaces humans actually read, enforced by a validated content contract: plans, reviews, architecture, decisions, incidents, and more.",
+  "version": "1.0.0",
+  "author": {
+    "name": "rhnfzl"
+  },
+  "homepage": "https://github.com/rhnfzl/human-html",
+  "license": "MIT",
+  "keywords": ["skill", "agent-skills", "html", "review", "documentation"]
+}

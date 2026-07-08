@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="artifact-kind" content="review">
+  <meta name="artifact-audience" content="human">
+  <meta name="artifact-created" content="2026-05-25">
+  <meta name="artifact-source" content="canonical-example">
+  <title>Review &mdash; Canonical Example</title>
+  <style>
+    :root { --ink:#172033; --muted:#5d6b7f; --line:#dce3ec; --soft:#f6f8fb; --blue:#226fb2; --orange:#c5542d; --green:#2d7a55; font-family:Inter,system-ui,-apple-system,sans-serif; }
+    * { box-sizing: border-box; }
+    body { margin:0; color:var(--ink); background:#fff; }
+    main { width:min(1180px, calc(100vw - 40px)); margin:0 auto; padding:42px 0 70px; }
+    header { border-bottom:1px solid var(--line); padding-bottom:24px; margin-bottom:28px; }
+    .eyebrow { color:var(--blue); font-size:.78rem; font-weight:750; text-transform:uppercase; letter-spacing:.12em; }
+    h1 { margin:10px 0 12px; font-size:clamp(2rem,4.4vw,3.4rem); line-height:1.05; }
+    h2 { margin:0 0 12px; font-size:1.35rem; }
+    h3 { margin:18px 0 8px; font-size:1.05rem; }
+    p { color:var(--ink); line-height:1.6; max-width:78ch; }
+    .pm-summary { background:var(--soft); border-left:4px solid var(--blue); padding:20px 22px; border-radius:8px; margin:16px 0 32px; }
+    .pm-summary h2 { color:var(--blue); margin-bottom:12px; }
+    .pm-summary ul { margin:0; padding-left:20px; } .pm-summary li { margin-bottom:8px; }
+    .pm-summary strong { color:var(--blue); }
+    nav.toc { background:var(--soft); border:1px solid var(--line); border-radius:8px; padding:14px 20px; margin:16px 0 32px; }
+    nav.toc strong { display:block; margin-bottom:8px; font-size:.8rem; text-transform:uppercase; color:var(--ink); }
+    nav.toc ol { margin:0; padding-left:22px; columns:2; column-gap:24px; }
+    nav.toc a { color:var(--blue); text-decoration:none; }
+    section.section { margin-top:32px; }
+    .verdict { background:#fef3c7; border-left:4px solid #d97706; padding:14px 18px; border-radius:8px; font-size:1.05rem; font-weight:600; }
+    .verdict.approve { background:#dcfce7; border-color:var(--green); }
+    .verdict.block { background:#fee2e2; border-color:#dc2626; }
+    code { background:var(--soft); border:1px solid var(--line); border-radius:6px; padding:2px 5px; }
+    pre { background:#0f172a; color:#e2e8f0; border-radius:8px; padding:14px; overflow:auto; }
+    .grid-cols-2 { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+    .compare-before { background:#fff7ed; border-left:4px solid #f97316; border-radius:8px; padding:16px; }
+    .compare-after { background:#ecfdf5; border-left:4px solid #10b981; border-radius:8px; padding:16px; }
+    .meta-ribbon { display:flex; flex-wrap:wrap; gap:18px; padding:12px 18px; margin:0 0 24px; background:var(--soft); border:1px solid var(--line); border-radius:8px; font-size:.85rem; color:var(--muted); }
+    .meta-ribbon strong { color:var(--ink); margin-right:6px; }
+    .read-map { background:#fff; border:1px solid var(--line); border-radius:8px; padding:14px 18px; margin:0 0 24px; font-size:.88rem; }
+    .read-map div { margin:4px 0; } .read-map strong { color:var(--blue); margin-right:6px; }
+    .read-map a { color:var(--blue); text-decoration:none; }
+    .provenance { margin-top:48px; padding-top:18px; border-top:1px solid var(--line); font-size:.82rem; color:var(--muted); }
+    .provenance code { background:transparent; border:0; color:var(--ink); font-family:ui-monospace,Menlo,monospace; }
+    .provenance a { color:var(--blue); text-decoration:none; }
+  </style>
+</head>
+<body data-human-html-artifact="true">
+  <main>
+    <header>
+      <p class="eyebrow">review &middot; 2026-05-25 &middot; canonical example</p>
+      <h1>PR #847 &mdash; Add idempotency middleware to MCP composite tools</h1>
+    </header>
+
+    <div class="meta-ribbon" data-meta-ribbon="true" aria-label="Artifact metadata">
+      <span><strong>Kind</strong> review</span>
+      <span><strong>Created</strong> 2026-05-25</span>
+      <span><strong>Owner</strong> Jordan Ellis</span>
+      <span><strong>Status</strong> Draft</span>
+      <span><strong>Read time</strong> ~4 min</span>
+      <span><strong>Source</strong> canonical-example</span>
+    </div>
+
+    <section data-audience="pm" class="pm-summary">
+      <h2>In plain terms</h2>
+      <ul>
+        <li><strong>What this does for the user:</strong> If a user retries a chat action (network glitch, double-click), the system no longer creates duplicate records.</li>
+        <li><strong>Why it matters:</strong> Three production incidents in May involved duplicate records from network retries. This PR addresses the root cause and unblocks the mobile rollout.</li>
+        <li><strong>What's being asked:</strong> Approve with required changes (cache TTL hardcoded to 5 minutes &mdash; needs config); optional improvements can land later.</li>
+      </ul>
+    </section>
+
+    <aside class="read-map" aria-label="Reading map">
+      <div><strong>Exec (2 min):</strong> <a href="#verdict">Verdict</a> &middot; <a href="#optional">Optional</a></div>
+      <div><strong>PM (5 min):</strong> <a href="#verdict">Verdict</a> &middot; <a href="#strengths">Strengths</a> &middot; <a href="#concerns">Concerns</a></div>
+      <div><strong>Engineer (15 min):</strong> All sections</div>
+    </aside>
+
+    <nav class="toc" aria-label="On this page">
+      <strong>On this page</strong>
+      <ol>
+        <li><a href="#verdict">Verdict</a></li>
+        <li><a href="#strengths">Strengths</a></li>
+        <li><a href="#concerns">Concerns &amp; before / after</a></li>
+        <li><a href="#required">Required changes</a></li>
+        <li><a href="#optional">Optional changes</a></li>
+      </ol>
+    </nav>
+
+    <section id="verdict" class="section">
+      <h2>Verdict</h2>
+      <p class="verdict approve">Approve with required changes. The core design is right; one config-shape change must land before merge.</p>
+    </section>
+
+    <section id="strengths" class="section">
+      <h2>Strengths</h2>
+      <ul>
+        <li>Two-tier cache (in-memory + Redis) handles single-pod cache miss without re-hitting the API.</li>
+        <li>Tenant fingerprinting (user id + tool args hash) means tenant A's retry never short-circuits tenant B's call.</li>
+        <li>Test coverage includes both happy-path replay and 401-retry edge case.</li>
+      </ul>
+    </section>
+
+    <section id="concerns" class="section">
+      <h2>Concerns</h2>
+      <p>One structural concern around the cache key composition. Today's PR hashes <code>(tool_name, args_dict)</code>. Proposed: include <code>tenant_id</code> explicitly in the key tuple, not just via the args dict, to make tenant isolation explicit at the key level.</p>
+
+      <h3>Before / after &mdash; cache key shape</h3>
+      <div class="grid-cols-2">
+        <div class="compare-before">
+          <strong>BEFORE (PR as-is)</strong>
+          <pre><code>def cache_key(tool, args):
+  return hashlib.sha256(
+    json.dumps({
+      "t": tool,
+      "a": args,  # tenant_id is buried in here
+    }, sort_keys=True).encode()
+  ).hexdigest()</code></pre>
+        </div>
+        <div class="compare-after">
+          <strong>AFTER (suggested)</strong>
+          <pre><code>def cache_key(tool, tenant_id, args):
+  return hashlib.sha256(
+    json.dumps({
+      "tenant": tenant_id,   # explicit
+      "tool": tool,
+      "args": args,
+    }, sort_keys=True).encode()
+  ).hexdigest()</code></pre>
+        </div>
+      </div>
+    </section>
+
+    <section id="required" class="section">
+      <h2>Required changes</h2>
+      <ul>
+        <li><strong>Cache TTL is hardcoded</strong> at <code>runtime/idempotency.py:42</code>. Move to <code>settings.IDEMPOTENCY_TTL_SECONDS</code> so we can tune it per environment without redeploying.</li>
+        <li>Above before/after: lift <code>tenant_id</code> out of the args dict into an explicit key field. Cleaner audit trail.</li>
+      </ul>
+    </section>
+
+    <section id="optional" class="section">
+      <h2>Optional changes</h2>
+      <ul>
+        <li>Consider exposing a metric for cache hit / miss / cold-start at <code>runtime/idempotency.py:88</code>. Useful but not blocking.</li>
+        <li>The docstring at <code>runtime/idempotency.py:1</code> would benefit from a one-paragraph deletion test note (if you delete this module, what reappears at every call site?).</li>
+      </ul>
+    </section>
+
+    <footer class="provenance" data-provenance="true">
+      <p>Generated by <code>claude-opus-4-7</code> on 2026-05-25 &middot; reviewed by <code>Jordan Ellis</code> &middot; source: canonical-example.</p>
+      <script type="application/ld+json" id="provenance">
+        {
+          "@context": "https://schema.org/",
+          "@type": "CreativeWork",
+          "@id": "urn:human-html:2026-05-25:review:canonical-example",
+          "additionalType": "ai-generated-artifact",
+          "artifactKind": "review",
+          "dateCreated": "2026-05-25",
+          "creator": { "@type": "SoftwareApplication", "name": "claude-opus-4-7" },
+          "promptHash": "<sha256 of prompt; canonical example, no real prompt>",
+          "reviewer": "Jordan Ellis",
+          "source": "canonical-example"
+        }
+      </script>
+    </footer>
+  </main>
+</body>
+</html>

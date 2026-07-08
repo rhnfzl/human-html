@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="artifact-kind" content="status">
+  <meta name="artifact-audience" content="human">
+  <meta name="artifact-created" content="2026-05-25">
+  <meta name="artifact-source" content="canonical-example">
+  <title>Status &mdash; Canonical Example</title>
+  <style>
+    :root { --ink:#172033; --muted:#5d6b7f; --line:#dce3ec; --soft:#f6f8fb; --blue:#226fb2; --orange:#c5542d; --green:#2d7a55; font-family:Inter,system-ui,-apple-system,sans-serif; }
+    * { box-sizing: border-box; }
+    body { margin:0; color:var(--ink); background:#fff; }
+    main { width:min(1180px, calc(100vw - 40px)); margin:0 auto; padding:42px 0 70px; }
+    header { border-bottom:1px solid var(--line); padding-bottom:24px; margin-bottom:28px; }
+    .eyebrow { color:var(--blue); font-size:.78rem; font-weight:750; text-transform:uppercase; letter-spacing:.12em; }
+    h1 { margin:10px 0 12px; font-size:clamp(2rem,4.4vw,3.4rem); line-height:1.05; }
+    h2 { margin:0 0 12px; font-size:1.35rem; }
+    p { color:var(--ink); line-height:1.6; max-width:78ch; }
+    .pm-summary { background:var(--soft); border-left:4px solid var(--blue); padding:20px 22px; border-radius:8px; margin:16px 0 32px; }
+    .pm-summary h2 { color:var(--blue); margin-bottom:12px; }
+    .pm-summary ul { margin:0; padding-left:20px; } .pm-summary li { margin-bottom:8px; }
+    .pm-summary strong { color:var(--blue); }
+    nav.toc { background:var(--soft); border:1px solid var(--line); border-radius:8px; padding:14px 20px; margin:16px 0 32px; }
+    nav.toc strong { display:block; margin-bottom:8px; font-size:.8rem; text-transform:uppercase; color:var(--ink); }
+    nav.toc ol { margin:0; padding-left:22px; columns:2; column-gap:24px; }
+    nav.toc a { color:var(--blue); text-decoration:none; }
+    section.section { margin-top:32px; }
+    table { width:100%; border-collapse:collapse; border:1px solid var(--line); border-radius:8px; overflow:hidden; }
+    th, td { padding:12px 14px; border-bottom:1px solid var(--line); text-align:left; vertical-align:top; }
+    th { background:var(--soft); color:var(--muted); font-size:.78rem; text-transform:uppercase; }
+    .pill { display:inline-block; padding:3px 10px; border-radius:999px; font-size:.78rem; font-weight:600; }
+    .pill-green { background:#dcfce7; color:var(--green); }
+    .pill-yellow { background:#fef3c7; color:#92400e; }
+    .pill-red { background:#fee2e2; color:#991b1b; }
+    .meta-ribbon { display:flex; flex-wrap:wrap; gap:18px; padding:12px 18px; margin:0 0 24px; background:var(--soft); border:1px solid var(--line); border-radius:8px; font-size:.85rem; color:var(--muted); }
+    .meta-ribbon strong { color:var(--ink); margin-right:6px; }
+    .read-map { background:#fff; border:1px solid var(--line); border-radius:8px; padding:14px 18px; margin:0 0 24px; font-size:.88rem; }
+    .read-map div { margin:4px 0; } .read-map strong { color:var(--blue); margin-right:6px; }
+    .read-map a { color:var(--blue); text-decoration:none; }
+    .provenance { margin-top:48px; padding-top:18px; border-top:1px solid var(--line); font-size:.82rem; color:var(--muted); }
+    .provenance code { background:transparent; border:0; color:var(--ink); font-family:ui-monospace,Menlo,monospace; }
+    .provenance a { color:var(--blue); text-decoration:none; }
+  
+    /* responsive table treatment: horizontal scroll on narrow screens */
+    @media (max-width: 820px) { table { display: block; overflow-x: auto; } }
+  </style>
+</head>
+<body data-human-html-artifact="true">
+  <main>
+    <header>
+      <p class="eyebrow">status &middot; 2026-05-25 &middot; canonical example</p>
+      <h1>Agent Service &amp; MCP &mdash; weekly status</h1>
+    </header>
+
+    <div class="meta-ribbon" data-meta-ribbon="true" aria-label="Artifact metadata">
+      <span><strong>Kind</strong> status</span>
+      <span><strong>Created</strong> 2026-05-25</span>
+      <span><strong>Owner</strong> Jordan Ellis</span>
+      <span><strong>Status</strong> Draft</span>
+      <span><strong>Read time</strong> ~4 min</span>
+      <span><strong>Source</strong> canonical-example</span>
+    </div>
+
+    <section data-audience="pm" class="pm-summary">
+      <h2>In plain terms</h2>
+      <ul>
+        <li><strong>What this does for the user:</strong> Recap of where the Agent Service and MCP workstreams sit after this sprint, so non-engineering stakeholders (leadership, product, mobile team) know what landed, what's stuck, and what's next.</li>
+        <li><strong>Why it matters:</strong> Two parallel workstreams (chat resilience, data-pipeline rewrite) feed into the mobile launch. Slippage in either pushes the launch.</li>
+        <li><strong>What's being asked:</strong> Read the blockers list. If you own one (Priya, Marcus), confirm the unblocker action by Monday standup.</li>
+      </ul>
+    </section>
+
+    <aside class="read-map" aria-label="Reading map">
+      <div><strong>Exec (2 min):</strong> <a href="#where-we-are">Where we are</a> &middot; <a href="#next">Next</a></div>
+      <div><strong>PM (5 min):</strong> <a href="#where-we-are">Where we are</a> &middot; <a href="#changes">Recent changes</a> &middot; <a href="#blockers">Blockers</a></div>
+      <div><strong>Engineer (15 min):</strong> All sections</div>
+    </aside>
+
+    <nav class="toc" aria-label="On this page">
+      <strong>On this page</strong>
+      <ol>
+        <li><a href="#where-we-are">Where we are</a></li>
+        <li><a href="#changes">Recent changes</a></li>
+        <li><a href="#blockers">Blockers</a></li>
+        <li><a href="#next">Next</a></li>
+      </ol>
+    </nav>
+
+    <section id="where-we-are" class="section">
+      <h2>Where we are</h2>
+      <table>
+        <thead><tr><th>Workstream</th><th>Status</th><th>Owner</th><th>ETA</th></tr></thead>
+        <tbody>
+          <tr><td>PROJ-2271 Chat resilience (silent SSE non-response)</td><td><span class="pill pill-green">Green</span> Shipped to staging</td><td>Jordan</td><td>Done</td></tr>
+          <tr><td>PROJ-2083 MCP latency optimization (Phase 2)</td><td><span class="pill pill-green">Green</span> 38% p95 reduction</td><td>Sam</td><td>Phase 3 in 2 weeks</td></tr>
+          <tr><td>PROJ-1871 Approval flow HITL edge case</td><td><span class="pill pill-yellow">Yellow</span> Resume edge case</td><td>Jordan</td><td>May 30</td></tr>
+          <tr><td>PROJ-24105 Gateway Service integration</td><td><span class="pill pill-red">Red</span> Schema mismatch</td><td>Priya (GW)</td><td>Blocked, see below</td></tr>
+          <tr><td>Mobile launch integration smoke tests</td><td><span class="pill pill-yellow">Yellow</span> Auth header shape</td><td>Mobile + Jordan</td><td>June 10</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="changes" class="section">
+      <h2>Recent changes</h2>
+      <ul>
+        <li><strong>PROJ-2271 chat resilience shipped to staging</strong> (Mon). User chat now bounded by an 8s timeout per turn with structured fallback instead of silent hang.</li>
+        <li><strong>MCP composite tool throughput +38% p95</strong> (Wed). Phase 2 of the perf rollout landed; the tracing dashboard shows the improvement holds under prod-like load.</li>
+        <li><strong>Approval flow HITL edge case found</strong> (Thu). Resume-after-pause re-fires the approval prompt if the user's permissions changed mid-pause; fix in PR review.</li>
+      </ul>
+    </section>
+
+    <section id="blockers" class="section">
+      <h2>Blockers</h2>
+      <ul>
+        <li><strong>PROJ-24105 schema mismatch:</strong> Gateway Service's <code>/api/conversation-log</code> endpoint expects a field shape the Agent Service doesn't produce. Priya owns the GW side. Action: 30-min sync Monday to align on the shape before either side writes code.</li>
+        <li><strong>Mobile auth header verification:</strong> mobile team's first integration test failed because the <code>X-Acme-Token</code> header is empty when the mobile client signs in via the dev SSO flow. Reproducing locally; fix likely in the SSO middleware.</li>
+      </ul>
+    </section>
+
+    <section id="next" class="section">
+      <h2>Next</h2>
+      <ul>
+        <li>Land the PROJ-1871 resume edge case fix and bench it against the regression scenario suite.</li>
+        <li>Unblock PROJ-24105 with Priya Monday; if blocked beyond Tuesday, escalate to Marcus for architecture call.</li>
+        <li>Mobile auth fix verified locally and merged by Wednesday; mobile team re-runs their smoke tests.</li>
+        <li>Begin MCP perf Phase 3 design doc (likely candidate: composite-tool sub-call coalescing).</li>
+      </ul>
+    </section>
+
+    <footer class="provenance" data-provenance="true">
+      <p>Generated by <code>claude-opus-4-7</code> on 2026-05-25 &middot; reviewed by <code>Jordan Ellis</code> &middot; source: canonical-example.</p>
+      <script type="application/ld+json" id="provenance">
+        {
+          "@context": "https://schema.org/",
+          "@type": "CreativeWork",
+          "@id": "urn:human-html:2026-05-25:status:canonical-example",
+          "additionalType": "ai-generated-artifact",
+          "artifactKind": "status",
+          "dateCreated": "2026-05-25",
+          "creator": { "@type": "SoftwareApplication", "name": "claude-opus-4-7" },
+          "promptHash": "<sha256 of prompt; canonical example, no real prompt>",
+          "reviewer": "Jordan Ellis",
+          "source": "canonical-example"
+        }
+      </script>
+    </footer>
+  </main>
+</body>
+</html>

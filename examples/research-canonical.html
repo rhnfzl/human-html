@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="artifact-kind" content="research">
+  <meta name="artifact-audience" content="human">
+  <meta name="artifact-created" content="2026-05-25">
+  <meta name="artifact-source" content="canonical-example">
+  <title>Research &mdash; Canonical Example</title>
+  <style>
+    :root { --ink:#172033; --muted:#5d6b7f; --line:#dce3ec; --soft:#f6f8fb; --blue:#226fb2; --orange:#c5542d; --green:#2d7a55; font-family:Inter,system-ui,-apple-system,sans-serif; }
+    * { box-sizing: border-box; }
+    body { margin:0; color:var(--ink); background:#fff; }
+    main { width:min(1180px, calc(100vw - 40px)); margin:0 auto; padding:42px 0 70px; }
+    header { border-bottom:1px solid var(--line); padding-bottom:24px; margin-bottom:28px; }
+    .eyebrow { color:var(--blue); font-size:.78rem; font-weight:750; text-transform:uppercase; letter-spacing:.12em; }
+    h1 { margin:10px 0 12px; font-size:clamp(2rem,4.4vw,3.4rem); line-height:1.05; }
+    h2 { margin:0 0 12px; font-size:1.35rem; }
+    p { color:var(--ink); line-height:1.6; max-width:78ch; }
+    .pm-summary { background:var(--soft); border-left:4px solid var(--blue); padding:20px 22px; border-radius:8px; margin:16px 0 32px; }
+    .pm-summary h2 { color:var(--blue); margin-bottom:12px; }
+    .pm-summary ul { margin:0; padding-left:20px; } .pm-summary li { margin-bottom:8px; }
+    .pm-summary strong { color:var(--blue); }
+    nav.toc { background:var(--soft); border:1px solid var(--line); border-radius:8px; padding:14px 20px; margin:16px 0 32px; }
+    nav.toc strong { display:block; margin-bottom:8px; font-size:.8rem; text-transform:uppercase; color:var(--ink); }
+    nav.toc ol { margin:0; padding-left:22px; columns:2; column-gap:24px; }
+    nav.toc a { color:var(--blue); text-decoration:none; }
+    section.section { margin-top:32px; }
+    table { width:100%; border-collapse:collapse; border:1px solid var(--line); border-radius:8px; overflow:hidden; }
+    th, td { padding:12px 14px; border-bottom:1px solid var(--line); text-align:left; vertical-align:top; }
+    th { background:var(--soft); color:var(--muted); font-size:.78rem; text-transform:uppercase; }
+    code { background:var(--soft); border:1px solid var(--line); border-radius:6px; padding:2px 5px; }
+    .confidence-high { color:var(--green); font-weight:600; }
+    .confidence-med { color:#d97706; font-weight:600; }
+    .confidence-low { color:var(--muted); font-weight:600; }
+    .meta-ribbon { display:flex; flex-wrap:wrap; gap:18px; padding:12px 18px; margin:0 0 24px; background:var(--soft); border:1px solid var(--line); border-radius:8px; font-size:.85rem; color:var(--muted); }
+    .meta-ribbon strong { color:var(--ink); margin-right:6px; }
+    .read-map { background:#fff; border:1px solid var(--line); border-radius:8px; padding:14px 18px; margin:0 0 24px; font-size:.88rem; }
+    .read-map div { margin:4px 0; } .read-map strong { color:var(--blue); margin-right:6px; }
+    .read-map a { color:var(--blue); text-decoration:none; }
+    .provenance { margin-top:48px; padding-top:18px; border-top:1px solid var(--line); font-size:.82rem; color:var(--muted); }
+    .provenance code { background:transparent; border:0; color:var(--ink); font-family:ui-monospace,Menlo,monospace; }
+    .provenance a { color:var(--blue); text-decoration:none; }
+  
+    /* responsive table treatment: horizontal scroll on narrow screens */
+    @media (max-width: 820px) { table { display: block; overflow-x: auto; } }
+  </style>
+</head>
+<body data-human-html-artifact="true">
+  <main>
+    <header>
+      <p class="eyebrow">research &middot; 2026-05-25 &middot; canonical example</p>
+      <h1>Vector database options for semantic search of user notes</h1>
+    </header>
+
+    <div class="meta-ribbon" data-meta-ribbon="true" aria-label="Artifact metadata">
+      <span><strong>Kind</strong> research</span>
+      <span><strong>Created</strong> 2026-05-25</span>
+      <span><strong>Owner</strong> Jordan Ellis</span>
+      <span><strong>Status</strong> Draft</span>
+      <span><strong>Read time</strong> ~5 min</span>
+      <span><strong>Source</strong> canonical-example</span>
+    </div>
+
+    <section data-audience="pm" class="pm-summary">
+      <h2>In plain terms</h2>
+      <ul>
+        <li><strong>What this does for the user:</strong> Users search their own notes naturally ("the design docs I read last quarter about React"), not by exact keyword.</li>
+        <li><strong>Why it matters:</strong> Our roadmap has natural-language search across notes as a Q3 feature. The choice of vector store affects price, latency, and how easily we can keep it consistent across regions.</li>
+        <li><strong>What's being asked:</strong> Read the findings. Pick a candidate (synthesis recommends Postgres + pgvector). Greenlight a 1-week prototype.</li>
+      </ul>
+    </section>
+
+    <aside class="read-map" aria-label="Reading map">
+      <div><strong>Exec (2 min):</strong> <a href="#question">Question</a> &middot; <a href="#open">Open threads</a></div>
+      <div><strong>PM (5 min):</strong> <a href="#question">Question</a> &middot; <a href="#method">Method</a> &middot; <a href="#findings">Findings</a></div>
+      <div><strong>Engineer (15 min):</strong> All sections</div>
+    </aside>
+
+    <nav class="toc" aria-label="On this page">
+      <strong>On this page</strong>
+      <ol>
+        <li><a href="#question">Question</a></li>
+        <li><a href="#method">Method</a></li>
+        <li><a href="#findings">Findings</a></li>
+        <li><a href="#synthesis">Synthesis</a></li>
+        <li><a href="#open">Open threads</a></li>
+      </ol>
+    </nav>
+
+    <section id="question" class="section">
+      <h2>Question</h2>
+      <p>Which vector database fits a 1M-vector / sub-100ms / single-region / Python-first workload best for user-note semantic search, given that we already run Postgres in production?</p>
+    </section>
+
+    <section id="method" class="section">
+      <h2>Method</h2>
+      <p>One week of investigation: read each vendor's docs, run a 100k-vector benchmark with our embedding model on a single instance, check data-residency options, estimate cost at 1M vectors and 200 queries/min.</p>
+    </section>
+
+    <section id="findings" class="section">
+      <h2>Findings</h2>
+      <table>
+        <thead>
+          <tr><th>Option</th><th>p95 latency (100k vec)</th><th>Monthly cost (1M vec)</th><th>Data residency</th><th>Confidence</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Postgres + pgvector</td><td>22ms</td><td>~$180 (existing RDS)</td><td>Yes, our region</td><td class="confidence-high">High</td></tr>
+          <tr><td>Pinecone</td><td>14ms</td><td>~$380</td><td>Dedicated pod available</td><td class="confidence-high">High</td></tr>
+          <tr><td>Weaviate Cloud</td><td>18ms</td><td>~$250</td><td>Residency controls in beta</td><td class="confidence-med">Medium</td></tr>
+          <tr><td>Qdrant Cloud</td><td>16ms</td><td>~$210</td><td>Residency controls GA</td><td class="confidence-med">Medium</td></tr>
+          <tr><td>Elasticsearch (kNN)</td><td>34ms</td><td>~$420</td><td>Self-hosted</td><td class="confidence-low">Low</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="synthesis" class="section">
+      <h2>Synthesis</h2>
+      <p>Postgres + pgvector wins on three of four axes: lowest cost, data residency confirmed, no new vendor to onboard. Latency is acceptable (22ms vs Pinecone's 14ms; both well inside the 100ms target). The trade-off is operational: scaling vector indexes on a transactional Postgres needs care (separate read replica recommended at &gt; 5M vectors).</p>
+      <p>For Q3 ship-by-July: <strong>pgvector on existing RDS</strong>. Revisit at 5M+ vectors or if p95 drifts past 60ms.</p>
+    </section>
+
+    <section id="open" class="section">
+      <h2>Open threads</h2>
+      <ul>
+        <li>Embedding model choice (text-embedding-3-small vs Cohere multilingual) is its own decision; not blocked by vector store choice.</li>
+        <li>Multi-region replication of vector indexes once we add a second region: pgvector handles via logical replication, but write throughput needs validation.</li>
+        <li>Privacy review of user notes (PII handling) before any of this ships.</li>
+      </ul>
+    </section>
+
+    <footer class="provenance" data-provenance="true">
+      <p>Generated by <code>claude-opus-4-7</code> on 2026-05-25 &middot; reviewed by <code>Jordan Ellis</code> &middot; source: canonical-example.</p>
+      <script type="application/ld+json" id="provenance">
+        {
+          "@context": "https://schema.org/",
+          "@type": "CreativeWork",
+          "@id": "urn:human-html:2026-05-25:research:canonical-example",
+          "additionalType": "ai-generated-artifact",
+          "artifactKind": "research",
+          "dateCreated": "2026-05-25",
+          "creator": { "@type": "SoftwareApplication", "name": "claude-opus-4-7" },
+          "promptHash": "<sha256 of prompt; canonical example, no real prompt>",
+          "reviewer": "Jordan Ellis",
+          "source": "canonical-example"
+        }
+      </script>
+    </footer>
+  </main>
+</body>
+</html>
