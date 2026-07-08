@@ -70,17 +70,26 @@ Python 3.11+ is all you need. The tools below are optional, but each one unlocks
 
 | Tool | Enables | Install |
 |---|---|---|
-| `jq` | the two hooks (they no-op silently without it) | `brew install jq` (or your package manager) |
-| `mmdc` | rendering Mermaid diagrams to inline SVG for offline artifacts | `npm i -g @mermaid-js/mermaid-cli` |
-| `excalidraw-mcp` | hand-drawn diagrams | install the companion skill, or run `python3 <skill-dir>/human_html_artifacts.py deps --fix` |
+| [`jq`](https://jqlang.github.io/jq/) | the two hooks (they no-op silently without it) | `brew install jq` (or your package manager) |
+| [`mmdc`](https://github.com/mermaid-js/mermaid-cli) | rendering Mermaid diagrams to inline SVG for offline artifacts | `npm i -g @mermaid-js/mermaid-cli` |
+| [`excalidraw-mcp`](https://github.com/excalidraw/excalidraw-mcp) | hand-drawn diagrams | install the companion skill, or run `python3 <skill-dir>/human_html_artifacts.py deps --fix` |
 
 Run `python3 <skill-dir>/human_html_artifacts.py deps` to see what is present.
 
 ## Trust
 
-No postinstall scripts, no telemetry, no network calls in the core loop; the validator runs fully offline. Review `SKILL.md` before installing, as with any skill.
+The skill does nothing behind your back:
 
-Claude Code, Codex, OpenCode, and Gemini CLI read Agent Skills natively; Cursor and others via the universal installers.
+- No telemetry, no analytics, no phone-home.
+- No postinstall scripts; installing copies files, it does not execute code.
+- No network calls in the core loop, and the validator runs fully offline.
+- The hooks are advisory-only and always exit 0.
+
+As with any skill, read `SKILL.md` before you install.
+
+## Agent support
+
+Claude Code, Codex, OpenCode, and Gemini CLI read Agent Skills natively. Cursor and others are covered by the universal installers (`npx skills add`, `openskills`).
 
 ## License
 
