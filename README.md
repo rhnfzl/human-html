@@ -1,10 +1,8 @@
 # human-html
 
+[![skills.sh](https://skills.sh/b/rhnfzl/human-html)](https://skills.sh/rhnfzl/human-html)
 [![Release](https://img.shields.io/github/v/release/rhnfzl/human-html)](https://github.com/rhnfzl/human-html/releases)
 [![License](https://img.shields.io/github/license/rhnfzl/human-html)](LICENSE)
-<!-- Listed at https://skills.sh/rhnfzl/human-html; re-add this badge once its endpoint stops serving "resource not found" (install-count data lags the listing page):
-[![skills.sh](https://skills.sh/b/rhnfzl/human-html)](https://skills.sh/rhnfzl/human-html)
--->
 
 
 Make the next document a teammate actually reads.
