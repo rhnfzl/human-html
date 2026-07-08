@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.1.2 - 2026-07-08
+
+- Migrated all nine canonical examples onto one shared house design system, so the gallery reads as a single consistent set. Each kept its content, metadata, comparison visuals, and (for prototype) its interactive sandbox; only the presentation was re-based onto the current scaffold.
+- Reconciled a number inconsistency in the architecture example (the helper-count tile now agrees with the prose and the stat line).
+
 ## 1.1.1 - 2026-07-08
 
 - `em-dash` rule now catches HTML entities and numeric refs (`&mdash;`, `&ndash;`, `&#8212;`, `&#8211;`, `&#x2014;`, `&#x2013;`), not just the literal characters. The prior rule missed entity-encoded dashes entirely, so artifacts could carry visible em dashes that `check` never flagged.
