@@ -7,7 +7,7 @@
   <meta name="artifact-audience" content="human">
   <meta name="artifact-created" content="2026-05-25">
   <meta name="artifact-source" content="canonical-example">
-  <title>Understanding &mdash; Canonical Example</title>
+  <title>Understanding - Canonical Example</title>
   <script type="module">
     import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.esm.min.mjs";
     mermaid.initialize({ startOnLoad: true, theme: "default", securityLevel: "loose" });
@@ -116,7 +116,7 @@ flowchart LR
       </ul>
 
       <details style="margin-top:18px; border:1px solid var(--line); border-radius:8px; padding:12px 16px; background:var(--soft);">
-        <summary style="cursor:pointer; font-weight:600; color:var(--ink);">Deep dive &mdash; JWT claim shape and how the extraction happens in each layer</summary>
+        <summary style="cursor:pointer; font-weight:600; color:var(--ink);">Deep dive - JWT claim shape and how the extraction happens in each layer</summary>
         <p style="margin-top:12px;">Gateway Service receives the SSO JWT in the <code>Authorization: Bearer &lt;jwt&gt;</code> header. Inside the JWT payload, the <code>service_tokens</code> claim is an object:</p>
         <pre style="background:#0f172a; color:#e2e8f0; padding:14px; border-radius:8px; overflow:auto; font-size:.85rem;"><code>{
   "sub": "user-1234",
@@ -129,7 +129,7 @@ flowchart LR
 }</code></pre>
         <p>Gateway Service extracts <code>service_tokens</code> on each chat call and forwards the three values as the three <code>X-Acme-*</code> headers when calling Agent Service's <code>/chat/completions</code> endpoint. Agent Service then re-presents them to MCP, which proxies to the Platform API as basic auth. This is why a "missing client_id" error in MCP almost always originates in Gateway Service's JWT extraction, not in Agent Service.</p>
 
-        <p style="margin-top:18px;"><strong>Extract and forward, by language</strong> &mdash; same operation, three client perspectives. Use Tab to enter the tablist; arrow keys to switch.</p>
+        <p style="margin-top:18px;"><strong>Extract and forward, by language</strong> - same operation, three client perspectives. Use Tab to enter the tablist; arrow keys to switch.</p>
         <style>
           .tabs { display:flex; gap:4px; border-bottom:1px solid var(--line); margin-top:8px; }
           .tabs [role="tab"] { background:transparent; border:0; padding:8px 14px; cursor:pointer; font-family:inherit; font-size:.9rem; color:var(--muted); border-bottom:2px solid transparent; }
@@ -227,10 +227,10 @@ curl -sS "$AGENT_SERVICE_URL/chat/completions" \
     <section id="where-to-dig" class="section">
       <h2>Where to dig</h2>
       <ul>
-        <li><code>gateway/app/views.py</code> &mdash; Gateway Service proxy entry point</li>
-        <li><code>acme-agent-service/agent_service/api/routers/chat.py</code> &mdash; Agent Service chat router</li>
-        <li><code>acme-mcp/server.py</code> &mdash; MCP tool dispatch surface</li>
-        <li><code>docs/references/full-request-chain.md</code> &mdash; deeper reference covering auth header extraction and error envelopes</li>
+        <li><code>gateway/app/views.py</code> - Gateway Service proxy entry point</li>
+        <li><code>acme-agent-service/agent_service/api/routers/chat.py</code> - Agent Service chat router</li>
+        <li><code>acme-mcp/server.py</code> - MCP tool dispatch surface</li>
+        <li><code>docs/references/full-request-chain.md</code> - deeper reference covering auth header extraction and error envelopes</li>
       </ul>
     </section>
 

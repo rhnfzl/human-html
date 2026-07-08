@@ -66,7 +66,15 @@ Each kind has its own scaffold and a canonical example showing what good looks l
 
 ## Requirements
 
-Python 3.11+ (stdlib only, no dependencies; older 3.x generally works but is untested). Optional: `jq` for the hooks, `mmdc` for offline diagram rendering, `excalidraw-mcp` for hand-drawn diagrams.
+Python 3.11+ is all you need. The tools below are optional, but each one unlocks a nicer experience and gets more out of the skill:
+
+| Tool | Enables | Install |
+|---|---|---|
+| `jq` | the two hooks (they no-op silently without it) | `brew install jq` (or your package manager) |
+| `mmdc` | rendering Mermaid diagrams to inline SVG for offline artifacts | `npm i -g @mermaid-js/mermaid-cli` |
+| `excalidraw-mcp` | hand-drawn diagrams | install the companion skill, or run `python3 <skill-dir>/human_html_artifacts.py deps --fix` |
+
+Run `python3 <skill-dir>/human_html_artifacts.py deps` to see what is present.
 
 ## Trust
 

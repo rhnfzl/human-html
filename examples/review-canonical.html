@@ -7,7 +7,7 @@
   <meta name="artifact-audience" content="human">
   <meta name="artifact-created" content="2026-05-25">
   <meta name="artifact-source" content="canonical-example">
-  <title>Review &mdash; Canonical Example</title>
+  <title>Review: Canonical Example</title>
   <style>
     :root { --ink:#172033; --muted:#5d6b7f; --line:#dce3ec; --soft:#f6f8fb; --blue:#226fb2; --orange:#c5542d; --green:#2d7a55; font-family:Inter,system-ui,-apple-system,sans-serif; }
     * { box-sizing: border-box; }
@@ -33,6 +33,7 @@
     .verdict.block { background:#fee2e2; border-color:#dc2626; }
     code { background:var(--soft); border:1px solid var(--line); border-radius:6px; padding:2px 5px; }
     pre { background:#0f172a; color:#e2e8f0; border-radius:8px; padding:14px; overflow:auto; }
+    pre code { background: transparent; border: 0; color: inherit; }
     .grid-cols-2 { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
     .compare-before { background:#fff7ed; border-left:4px solid #f97316; border-radius:8px; padding:16px; }
     .compare-after { background:#ecfdf5; border-left:4px solid #10b981; border-radius:8px; padding:16px; }
@@ -50,7 +51,7 @@
   <main>
     <header>
       <p class="eyebrow">review &middot; 2026-05-25 &middot; canonical example</p>
-      <h1>PR #847 &mdash; Add idempotency middleware to MCP tool bundles</h1>
+      <h1>PR #847: Add idempotency middleware to MCP tool bundles</h1>
     </header>
 
     <div class="meta-ribbon" data-meta-ribbon="true" aria-label="Artifact metadata">
@@ -67,7 +68,7 @@
       <ul>
         <li><strong>What this does for the user:</strong> If a user retries a chat action (network glitch, double-click), the system no longer creates duplicate records.</li>
         <li><strong>Why it matters:</strong> Three production incidents in May involved duplicate records from network retries. This PR addresses the root cause and unblocks the mobile rollout.</li>
-        <li><strong>What's being asked:</strong> Approve with required changes (cache TTL hardcoded to 5 minutes &mdash; needs config); optional improvements can land later.</li>
+        <li><strong>What's being asked:</strong> Approve with required changes (cache TTL hardcoded to 5 minutes - needs config); optional improvements can land later.</li>
       </ul>
     </section>
 
@@ -106,7 +107,7 @@
       <h2>Concerns</h2>
       <p>One structural concern around the cache key composition. Today's PR hashes <code>(tool_name, args_dict)</code>. Proposed: include <code>tenant_id</code> explicitly in the key tuple, not just via the args dict, to make tenant isolation explicit at the key level.</p>
 
-      <h3>Before / after &mdash; cache key shape</h3>
+      <h3>Before / after: cache key shape</h3>
       <div class="grid-cols-2">
         <div class="compare-before">
           <strong>BEFORE (PR as-is)</strong>

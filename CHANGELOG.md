@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.1.1 - 2026-07-08
+
+- `em-dash` rule now catches HTML entities and numeric refs (`&mdash;`, `&ndash;`, `&#8212;`, `&#8211;`, `&#x2014;`, `&#x2013;`), not just the literal characters. The prior rule missed entity-encoded dashes entirely, so artifacts could carry visible em dashes that `check` never flagged.
+- Fixed the code-panel rendering in the review and prototype canonical examples: their frozen styles predated the `pre code` background reset, so code showed as faint text on light boxes over the dark panel.
+- Rebuilt the architecture canonical example onto the current house design system. It previously loaded Tailwind from a CDN (not self-contained, blank offline) and used gradients the anti-slop checklist bans.
+- Scrubbed em dashes from all nine canonical examples.
+- README: cleaner quickstart (one command), a catalog of the nine kinds linked to live examples, and a Requirements table with install hints.
+
 ## 1.1.0 - 2026-07-08
 
 - New `em-dash` WARN rule: the validator flags em/en dashes in artifact prose (dashes inside `pre`/`code`/`script`/`style` are exempt) and suggests a comma, colon, parentheses, or " - " instead. Suppressible per artifact like every rule.

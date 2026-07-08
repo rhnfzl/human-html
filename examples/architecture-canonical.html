@@ -7,163 +7,320 @@
   <meta name="artifact-audience" content="human">
   <meta name="artifact-created" content="2026-05-25">
   <meta name="artifact-source" content="canonical-example">
-  <title>Architecture Deepening Review &mdash; Canonical Example</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script type="module">
-    import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.esm.min.mjs";
-    mermaid.initialize({ startOnLoad: true, theme: "default", securityLevel: "loose" });
-  </script>
+  <meta name="artifact-read-time" content="10 min">
+  <!-- Gallery card text. Leave empty to auto-derive from the PM-summary; fill for a sharper one-liner. -->
+  <meta name="artifact-summary" content="">
+  <meta name="artifact-keywords" content="">
+  <title>Architecture Deepening Review: Canonical Example</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ctext y='13' font-size='13'%3E🏛️%3C/text%3E%3C/svg%3E">
   <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, sans-serif; }
-    .badge-strong { background: #064e3b; color: #d1fae5; }
-    .badge-worth  { background: #1e3a8a; color: #dbeafe; }
-    .badge-spec   { background: #713f12; color: #fef3c7; }
-    .file-chip {
-      font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-      font-size: 0.78rem; background: #0f172a; color: #e2e8f0;
-      padding: 2px 8px; border-radius: 4px; display: inline-block; margin: 2px 4px 2px 0;
+:root {
+      color-scheme: light;                     /* light-only scaffold; NO dark media query anywhere */
+      /* surfaces: cool off-white, slight blue-grey hue bias (never pure grey/white) */
+      --bg: #f6f8fb; --surface: #ffffff; --surface-2: #f2f5f9; --surface-3: #e9eef4;
+      /* ink: navy-biased grey ramp (never pure black) */
+      --ink: #172033; --ink-2: #3c4657; --muted: #5a6577; --faint: #66707f;  /* --faint is text-safe AA (4.7:1 on --bg) */
+      /* structure */
+      --line: #dbe2ec; --line-strong: #c6cfdc;
+      /* brand accent (#226fb2) + tint */
+      --accent: #226fb2; --accent-2: #1b5e97; --accent-bg: #eef5fb; --accent-line: #b9d5ec;
+      /* severity: fg / tint-bg / tint-line triples (semantic color only) */
+      --crit: #c0342a; --crit-bg: #fbeae8; --crit-line: #f0c4be;
+      --high: #a84522; --high-bg: #fbeee6; --high-line: #f0cdba;  /* fg contrast-locked to tint (5.2:1) */
+      --warn: #845d06; --warn-bg: #f9f1d8; --warn-line: #e8d69a;  /* fg contrast-locked to tint (5.2:1) */
+      --good: #2d7a55; --good-bg: #e9f5ee; --good-line: #b6ddc6;
+      --info: #226fb2; --info-bg: #eef5fb; --info-line: #b9d5ec;
+      --neutral: #5a6577; --neutral-bg: #eef1f5; --neutral-line: #d7dde6;
+      /* legacy aliases: keep every existing selector below valid (safe incremental migration) */
+      --blue: var(--accent); --soft: var(--surface-2);
+      --orange: var(--high); --green: var(--good);
+      --rose-bg: var(--high-bg); --rose-line: var(--high);
+      --emerald-bg: var(--good-bg); --emerald-line: var(--good);
+      /* elevation */
+      --shadow-sm: 0 1px 2px rgba(23,32,51,.05);
+      --shadow: 0 1px 2px rgba(23,32,51,.05), 0 8px 24px rgba(23,32,51,.06);
+      /* radius */
+      --radius: 10px; --radius-sm: 6px; --radius-lg: 14px;
+      /* spacing scale */
+      --s-1:4px; --s-2:6px; --s-3:8px; --s-4:12px; --s-5:14px; --s-6:16px; --s-7:18px; --s-8:20px; --s-9:24px; --s-10:32px; --s-12:48px;
+      /* families: display serif for h1/numbers, sans body (NOT led by Inter), mono kickers */
+      --display: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, ui-serif, serif;
+      --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", "Helvetica Neue", sans-serif;
+      --mono: ui-monospace, "SF Mono", "Cascadia Code", Menlo, Consolas, monospace;
+      /* fluid type scale: only the 3 biggest levels clamp; body & below fixed so copy never wobbles */
+      --fs-h1: clamp(2rem, 1.35rem + 2.6vw, 3.2rem);
+      --fs-h2: clamp(1.3rem, 1.15rem + .7vw, 1.6rem);
+      --fs-h3: 1.05rem; --fs-lede: clamp(1.05rem, 1rem + .35vw, 1.18rem);
+      --fs-body: 1rem; --fs-sm: .875rem; --fs-cap: .72rem;
+      --lh-body: 1.62; --ls-caps: .1em;
+      font-family: var(--sans);
     }
-    .num { font-variant-numeric: tabular-nums; }
-    .mermaid svg { max-width: 100%; height: auto; }
-    pre code { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 0.82rem; }
-    .stat-tile { background: linear-gradient(135deg, #0f172a, #1e293b); }
-    .pm-summary { background: linear-gradient(135deg, #eff6ff, #dbeafe); border-left: 6px solid #2563eb; padding: 24px 28px; border-radius: 10px; margin: 0 0 32px; }
-    .pm-summary h2 { color: #1e40af; margin: 0 0 14px; font-size: 1.4rem; font-weight: 700; }
-    .pm-summary ul { margin: 0; padding-left: 22px; }
-    .pm-summary li { margin-bottom: 10px; color: #1e293b; line-height: 1.55; }
-    .pm-summary strong { color: #1e40af; }
-    nav.toc { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 18px 24px; margin: 0 0 36px; }
-    nav.toc strong { display: block; margin-bottom: 8px; color: #0f172a; font-size: .8rem; text-transform: uppercase; letter-spacing: .08em; }
-    nav.toc ol { columns: 2; column-gap: 32px; margin: 0; padding-left: 22px; }
-    nav.toc li { margin-bottom: 6px; }
-    nav.toc a { color: #2563eb; text-decoration: none; }
+    * { box-sizing: border-box; }
+    body { margin: 0; color: var(--ink); background: var(--bg); font-family: var(--sans); line-height: var(--lh-body); accent-color: var(--accent); text-rendering: optimizeLegibility; -webkit-font-smoothing: antialiased; font-feature-settings: "kern", "liga"; }
+    main { width: min(1060px, calc(100vw - clamp(2rem, 8vw, 5rem))); margin: 0 auto; padding: clamp(28px,5vw,56px) 0 clamp(64px,10vw,96px); }
+    header { border-bottom: 1px solid var(--line); padding-bottom: var(--s-9); margin-bottom: var(--s-10); }
+    .eyebrow { font-family: var(--mono); color: var(--accent); font-size: var(--fs-cap); font-weight: 600; text-transform: uppercase; letter-spacing: .14em; }
+    h1 { margin: 10px 0 12px; font-family: var(--display); font-size: var(--fs-h1); font-weight: 800; line-height: 1.05; letter-spacing: -.02em; }
+    h2 { margin: 0 0 12px; font-size: var(--fs-h2); font-weight: 700; letter-spacing: -.01em; }
+    h3 { margin: 18px 0 8px; font-size: var(--fs-h3); font-weight: 600; color: var(--ink); }
+    h1, h2, h3 { text-wrap: balance; }
+    p { color: var(--ink-2); line-height: var(--lh-body); max-width: 72ch; text-wrap: pretty; }
+    li { max-width: 72ch; }
+    a { color: var(--accent); }
+    :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+    .pm-summary { background: var(--surface-2); border-left: 4px solid var(--accent); padding: 20px 22px; border-radius: var(--radius); margin: 16px 0 32px; box-shadow: var(--shadow-sm); }
+    .pm-summary h2 { color: var(--accent); margin-bottom: 12px; }
+    .pm-summary ul { margin: 0; padding-left: 20px; }
+    .pm-summary li { margin-bottom: 8px; color: var(--ink-2); line-height: 1.55; }
+    .pm-summary li strong { color: var(--accent); }
+    nav.toc { background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 20px; margin: 16px 0 32px; }
+    nav.toc ol { margin: 8px 0 0; padding-left: 22px; columns: 2; column-gap: 24px; }
+    nav.toc li { margin-bottom: 4px; }
+    nav.toc a { color: var(--accent); text-decoration: none; }
     nav.toc a:hover { text-decoration: underline; }
-    .deletion-result { border-left: 4px solid #f97316; padding-left: 12px; }
-    .leverage-note { border-left: 4px solid #10b981; padding-left: 12px; }
+    section.section { margin-top: clamp(32px,5vw,52px); }
+    section[id] { scroll-margin-top: var(--s-9); }
+    section:target > h2 { color: var(--accent-2); }
+    .grid-cols-2, .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s-6); }
+    .grid-3 { display: grid; grid-template-columns: repeat(3,1fr); gap: var(--s-6); }
+    .compare-before { background: var(--high-bg); border-left: 4px solid var(--high); border-radius: var(--radius); padding: 16px; }
+    .compare-after { background: var(--good-bg); border-left: 4px solid var(--good); border-radius: var(--radius); padding: 16px; }
+    .compare-before > strong:first-child, .compare-after > strong:first-child { display: block; margin-bottom: 8px; font-family: var(--mono); font-size: var(--fs-cap); letter-spacing: .08em; text-transform: uppercase; }
+    .compare-before > strong:first-child { color: var(--high); }
+    .compare-after > strong:first-child { color: var(--good); }
+    table { width: 100%; border-collapse: collapse; border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
+    th, td { padding: 12px 14px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; font-variant-numeric: tabular-nums; }
+    th { background: var(--surface-2); color: var(--muted); font-family: var(--mono); font-size: var(--fs-cap); text-transform: uppercase; letter-spacing: .08em; }
+    tr:last-child td { border-bottom: 0; }
+    .table-scroll { overflow-x: auto; border-radius: var(--radius); }
+    .table-scroll table { display: table; }
+    code { background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 2px 5px; font-family: var(--mono); font-size: .88em; }
+    pre { background: #0f172a; color: #e2e8f0; border-radius: var(--radius); padding: 14px; overflow: auto; }
+    pre code { background: transparent; border: 0; color: inherit; }
+    .mermaid svg { max-width: 100%; height: auto; }
+    .mermaid:not([data-processed]) { font-family: var(--mono); font-size: var(--fs-sm); white-space: pre; overflow-x: auto; background: var(--surface-2); border: 1px dashed var(--line-strong); border-radius: var(--radius); padding: var(--s-6); color: var(--muted); }
+    .needs-verification { display: inline-block; font-family: var(--mono); padding: 2px 8px; border-radius: var(--radius-sm); font-size: var(--fs-cap); font-weight: 700; background: var(--warn-bg); color: var(--warn); border: 1px solid var(--warn-line); }
+    /* responsive overrides for components live next to the component (in _EXTRA_SCAFFOLD_STYLE) */
+    @media (max-width: 820px) {
+      .grid-cols-2, .grid-2, .grid-3 { grid-template-columns: 1fr; }
+      nav.toc ol { columns: 1; }
+      table { display: block; overflow-x: auto; }
+    }
+.meta-ribbon { display:flex; flex-wrap:wrap; gap:var(--s-4) var(--s-9); padding:var(--s-5) var(--s-7); margin:0 0 var(--s-9); background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); box-shadow:var(--shadow-sm); font-size:var(--fs-sm); color:var(--muted); }
+    .meta-ribbon span { white-space:nowrap; }
+    .meta-ribbon strong { color:var(--faint); font-family:var(--mono); font-size:var(--fs-cap); letter-spacing:.1em; text-transform:uppercase; font-weight:600; margin-right:var(--s-2); }
+    .read-map { background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:var(--s-5) var(--s-7); margin:0 0 var(--s-9); font-size:var(--fs-sm); color:var(--ink); box-shadow:var(--shadow-sm); }
+    .read-map div { margin:var(--s-1) 0; }
+    .read-map strong { color:var(--accent); font-family:var(--mono); font-size:var(--fs-cap); letter-spacing:.08em; text-transform:uppercase; margin-right:var(--s-2); }
+    .read-map a { color:var(--accent); }
+    .provenance { margin-top:var(--s-12); padding-top:var(--s-7); border-top:1px solid var(--line); font-size:var(--fs-sm); color:var(--faint); }
+    .provenance code { background:transparent; border:0; color:var(--ink); font-family:var(--mono); }
+    .provenance a { color:var(--accent); text-decoration:none; }
+    .callout { border:1px solid var(--line); border-left:4px solid var(--muted); background:var(--surface-2); border-radius:var(--radius); padding:var(--s-4) var(--s-6); margin:var(--s-6) 0; }
+    .callout > strong:first-child { display:block; margin-bottom:var(--s-1); font-family:var(--mono); font-size:var(--fs-cap); text-transform:uppercase; letter-spacing:.08em; }
+    .callout-note { border-left-color:var(--accent); background:var(--accent-bg); }
+    .callout-note > strong:first-child { color:var(--accent); }
+    .callout-note > strong:first-child::before { content:"📌 "; content:"📌 " / ""; }
+    .callout-tip { border-left-color:var(--good); background:var(--good-bg); }
+    .callout-tip > strong:first-child { color:var(--good); }
+    .callout-tip > strong:first-child::before { content:"💡 "; content:"💡 " / ""; }
+    .callout-warning { border-left-color:var(--warn); background:var(--warn-bg); }
+    .callout-warning > strong:first-child { color:var(--warn); }
+    .callout-warning > strong:first-child::before { content:"⚠️ "; content:"⚠️ " / ""; }
+    .callout-important { border-left-color:var(--crit); background:var(--crit-bg); }
+    .callout-important > strong:first-child { color:var(--crit); }
+    .callout-important > strong:first-child::before { content:"❗ "; content:"❗ " / ""; }
+    /* ---- collapsible (appendix lane) ---- */
+    details { background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:0 var(--s-6); margin:var(--s-6) 0; }
+    summary { cursor:pointer; padding:var(--s-4) 0; font-weight:600; color:var(--accent); }
+    summary:hover { color:var(--accent-2); }
+    details[open] > summary { border-bottom:1px solid var(--line); margin-bottom:var(--s-4); }
+    #layout-audit { position:fixed; left:0; right:0; bottom:0; z-index:9999; margin:0; padding:var(--s-3) var(--s-5); background:var(--warn-bg); color:var(--warn); border-top:1px solid var(--warn-line); font-size:var(--fs-sm); text-align:center; }
+    #layout-audit[hidden] { display:none; }
+    #layout-audit code { background:var(--surface); }
+    .confidence { display:inline-block; font-family:var(--mono); padding:2px 8px; border-radius:var(--radius-sm); font-size:var(--fs-cap); font-weight:700; border:1px solid transparent; }
+    .confidence-high { background:var(--good-bg); color:var(--good); border-color:var(--good-line); }
+    .confidence-medium { background:var(--accent-bg); color:var(--accent); border-color:var(--accent-line); }
+    .confidence-low { background:var(--warn-bg); color:var(--warn); border-color:var(--warn-line); }
+    /* components own their measure via grid tracks; the 72ch cap applies to open prose only */
+    .keycard p, .card p, .tile p, .metric p, .compare-before p, .compare-after p, .callout p { max-width:none; }
+    /* ---- KPI tiles (shared: incident .metrics/.metric inherit these) ---- */
+    .tiles, .metrics { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:var(--s-5); margin:var(--s-8) 0; }
+    .tile, .metric { position:relative; overflow:hidden; background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:var(--s-7) var(--s-7) var(--s-6); box-shadow:var(--shadow-sm); }
+    .tile::before { content:""; position:absolute; inset:0 auto 0 0; width:4px; background:var(--sv,var(--accent)); }
+    .tile .n, .metric strong { display:block; font-family:var(--display); font-size:clamp(1.8rem,4vw,2.4rem); font-weight:800; line-height:1; color:var(--sv,var(--ink)); font-variant-numeric:tabular-nums; }
+    .tile .k, .metric span { display:block; font-family:var(--mono); font-size:var(--fs-cap); letter-spacing:.12em; text-transform:uppercase; color:var(--muted); font-weight:600; margin-top:var(--s-3); }
+    .tile .d { font-size:.8rem; color:var(--faint); margin-top:var(--s-1); }
+    .tile.crit{--sv:var(--crit);} .tile.high{--sv:var(--high);} .tile.warn{--sv:var(--warn);} .tile.good{--sv:var(--good);} .tile.info{--sv:var(--accent);} .tile.neutral{--sv:var(--neutral);}
+    /* ---- stripe / accent cards ---- */
+    .card { background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:var(--s-7) var(--s-8); box-shadow:var(--shadow-sm); }
+    .card.tint-info { background:var(--info-bg); border-color:var(--info-line); }
+    .card.tint-good { background:var(--good-bg); border-color:var(--good-line); }
+    .card.tint-high { background:var(--high-bg); border-color:var(--high-line); }
+    .card.tint-crit { background:var(--crit-bg); border-color:var(--crit-line); }
+    .stripe { position:relative; padding-left:var(--s-7); }
+    .stripe::before { content:""; position:absolute; left:0; top:.35rem; bottom:.35rem; width:3px; border-radius:3px; background:var(--accent); }
+    .stripe.crit::before{background:var(--crit);} .stripe.high::before{background:var(--high);} .stripe.warn::before{background:var(--warn);} .stripe.good::before{background:var(--good);}
+    /* ---- keycard: big number + prose ---- */
+    .keycard { display:grid; grid-template-columns:auto 1fr; gap:var(--s-8); align-items:center; margin:var(--s-9) 0; padding:var(--s-8) var(--s-9); background:var(--surface); border:1px solid var(--line-strong); border-left:4px solid var(--sv,var(--accent)); border-radius:var(--radius); box-shadow:var(--shadow); }
+    .keycard .big { font-family:var(--display); font-size:clamp(2.4rem,7vw,3.4rem); font-weight:800; line-height:.95; color:var(--sv,var(--accent)); font-variant-numeric:tabular-nums; }
+    .keycard .big small { display:block; margin-top:var(--s-2); font-family:var(--mono); font-size:var(--fs-sm); font-weight:600; letter-spacing:.04em; text-transform:uppercase; color:var(--muted); }
+    .keycard p b { color:var(--ink); }
+    .keycard.crit{--sv:var(--crit);} .keycard.high{--sv:var(--high);} .keycard.good{--sv:var(--good);} .keycard.info{--sv:var(--accent);}
+    /* ---- severity / status chips ---- */
+    .chip { display:inline-block; font-family:var(--mono); font-size:var(--fs-cap); font-weight:700; padding:2px 8px; border-radius:var(--radius-sm); letter-spacing:.04em; font-variant-numeric:tabular-nums; border:1px solid transparent; }
+    .chip.crit{color:var(--crit);background:var(--crit-bg);border-color:var(--crit-line);}
+    .chip.high{color:var(--high);background:var(--high-bg);border-color:var(--high-line);}
+    .chip.warn{color:var(--warn);background:var(--warn-bg);border-color:var(--warn-line);}
+    .chip.good{color:var(--good);background:var(--good-bg);border-color:var(--good-line);}
+    .chip.info{color:var(--accent);background:var(--accent-bg);border-color:var(--accent-line);}
+    .chip.neutral{color:var(--muted);background:var(--neutral-bg);border-color:var(--neutral-line);font-weight:600;}
+    /* ---- cross-links / chain caption / inline mono ---- */
+    .chain { font-family:var(--mono); font-size:.8rem; color:var(--accent); font-weight:600; margin-top:var(--s-4); }
+    .crosslink { font-weight:600; }
+    .crosslink::before { content:"→ "; color:var(--accent); }
+    code.m { font-family:var(--mono); color:var(--muted); background:var(--surface-2); padding:1px 6px; border-radius:var(--radius-sm); }
+    /* ---- opt-in sticky nav rail: author wraps {nav}{body} in <div class="railed"> ---- */
+    .railed { display:grid; grid-template-columns:220px minmax(0,1fr); gap:clamp(24px,4vw,48px); align-items:start; }
+    .railed nav.toc { position:sticky; top:24px; margin:0; }
+    .railed nav.toc ol { columns:1; }
+    @media (max-width:900px) { .railed { grid-template-columns:1fr; } .railed nav.toc { position:static; } }
+    /* component responsive overrides live HERE (after the base rules, in the later-injected _EXTRA) so they win the cascade */
+    @media (max-width:820px) {
+      .keycard { grid-template-columns:1fr; gap:var(--s-5); }
+      .tiles, .metrics { grid-template-columns:1fr 1fr; }
+    }
+    @media (max-width:460px) { .tiles, .metrics { grid-template-columns:1fr; } }
+    /* ---- sparkline: area fill, faint grid, emphasized endpoint ---- */
+    .spark { color:var(--accent); overflow:visible; }
+    .spark .line { stroke:currentColor; stroke-width:2; fill:none; }
+    .spark .fill { fill:currentColor; opacity:.12; }
+    .spark .grid { stroke:var(--line); stroke-width:1; }
+    .spark .dot { fill:currentColor; }
+    .spark.good { color:var(--good); } .spark.warn { color:var(--warn); } .spark.crit { color:var(--crit); }
+    /* ---- bar rows / progress meter ---- */
+    .bars { display:grid; grid-template-columns:max-content 1fr max-content; gap:var(--s-2) var(--s-4); align-items:center; margin:var(--s-6) 0; }
+    .bars dt { font-family:var(--mono); font-size:var(--fs-sm); color:var(--muted); margin:0; }
+    .bars dd { margin:0; }
+    .bars .val { font-variant-numeric:tabular-nums; font-size:var(--fs-sm); }
+    .bars .track, .progress { background:var(--surface-2); border-radius:999px; overflow:hidden; min-width:60px; margin:0; }
+    .bars .fill, .progress .fill { display:block; height:12px; border-radius:inherit; background:var(--sv,var(--accent)); width:var(--w,50%); }
+    .fill.crit { --sv:var(--crit); } .fill.high { --sv:var(--high); } .fill.warn { --sv:var(--warn); } .fill.good { --sv:var(--good); }
+    /* ---- delta: direction glyph is AT-hidden; carry direction in the text (signed value) ---- */
+    .delta { font-family:var(--mono); font-size:var(--fs-sm); font-weight:700; font-variant-numeric:tabular-nums; }
+    .delta.good { color:var(--good); } .delta.bad { color:var(--crit); } .delta.flat { color:var(--muted); }
+    .delta.up::before { content:"▲ "; content:"▲ " / ""; }
+    .delta.down::before { content:"▼ "; content:"▼ " / ""; }
+    .delta.flat::before { content:"→ "; content:"→ " / ""; }
+    /* ---- opt-in button (prototype controls); never restyles bare <button> ---- */
+    .btn { font:inherit; padding:var(--s-2) var(--s-6); border:1px solid var(--accent-line); border-radius:var(--radius-sm); background:var(--accent-bg); color:var(--accent-2); font-weight:600; cursor:pointer; }
+    .btn:hover { background:var(--accent); color:#fff; }
+    /* print lives at the END of the later-injected constant so it wins every cascade tie */
+    @media print {
+      nav.toc, .read-map, #layout-audit { display: none; }
+      .railed { display: block; }
+      pre { background: var(--surface-2); color: var(--ink); border: 1px solid var(--line); }
+      section.section, table, figure, pre, .callout, .compare-before, .compare-after, .metric, .tile, .card, .keycard, .chip, .confidence, .timeline .event, details { break-inside: avoid; }
+      a[href^="http"]::after { content: " (" attr(href) ")"; font-size: .85em; color: var(--muted); }
+      .kind, .sev, .callout, .compare-before, .compare-after, .meta-ribbon, .needs-verification, .chip, .tile, .card, .keycard, .stripe, .confidence, .timeline .actor, .pm-summary, .spark, .bars, .progress, .delta { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      details:not([open])::details-content { content-visibility: visible; display: block; }
+    }
   </style>
+<script type="module">
+    /* Self-contained by default: fetch Mermaid from the CDN ONLY if this page actually has a
+       diagram. A diagram-free artifact makes ZERO network calls and renders fully offline; add
+       a <div class="mermaid"> later and it still renders (the guard checks the DOM at load). */
+    if (document.querySelector(".mermaid")) {
+      const { default: mermaid } = await import("https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.esm.min.mjs");
+      mermaid.initialize({ startOnLoad: false, securityLevel: "loose", theme: "base",
+        /* keep themeVariables in sync with the :root tokens above (single file, two spots) */
+        themeVariables: { primaryColor: "#eef5fb", primaryBorderColor: "#b9d5ec", primaryTextColor: "#172033", lineColor: "#5a6577", fontFamily: "inherit", fontSize: "14px" } });
+      await mermaid.run();   /* module scripts defer, so the DOM is parsed; run() renders every .mermaid once */
+    }
+  </script>
 </head>
+<body data-human-html-artifact="true">
+  <main>
+    <header>
+      <p class="eyebrow">architecture &middot; 2026-05-25 &middot; canonical example</p>
+      <h1>MCP Codebase: Deepening Opportunities</h1>
+      <p>A walk through an MCP codebase looking for places where shallow modules can be replaced by deep ones. The aim: improve testability and AI-navigability. This canonical example shows the three diagram patterns: mermaid for structural change, side-by-side code for signature change, table for enumeration.</p>
+    </header>
 
-<body data-human-html-artifact="true" class="bg-slate-50 text-slate-800">
-
-<header class="bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white">
-  <div class="max-w-6xl mx-auto px-8 py-10">
-    <p class="text-xs tracking-widest uppercase text-slate-400">Architecture review &middot; canonical example</p>
-    <h1 class="text-4xl font-bold mt-2">MCP Codebase &mdash; Deepening Opportunities</h1>
-    <p class="mt-3 text-slate-300 max-w-3xl">
-      A walk through an MCP codebase looking for places where shallow modules can be replaced by deep ones.
-      The aim: improve testability and AI-navigability. This canonical example shows the three diagram
-      patterns (mermaid for structural change, side-by-side code for signature change, table for enumeration).
-    </p>
-    <div class="mt-6 grid grid-cols-2 sm:grid-cols-4 gap-3">
-      <div class="stat-tile rounded-md p-3"><p class="text-2xl font-bold text-emerald-300 num">~3,200</p><p class="text-xs text-slate-400">lines in "thin bootstrap" server.py</p></div>
-      <div class="stat-tile rounded-md p-3"><p class="text-2xl font-bold text-amber-300 num">50</p><p class="text-xs text-slate-400">@mcp.tool wrappers</p></div>
-      <div class="stat-tile rounded-md p-3"><p class="text-2xl font-bold text-rose-300 num">19</p><p class="text-xs text-slate-400">helpers in one _helpers.py</p></div>
-      <div class="stat-tile rounded-md p-3"><p class="text-2xl font-bold text-sky-300 num">0</p><p class="text-xs text-slate-400">communities detected</p></div>
+    <div class="meta-ribbon" data-meta-ribbon="true" aria-label="Artifact metadata">
+      <span><strong>Kind</strong> architecture</span>
+      <span><strong>Created</strong> 2026-05-25</span>
+      <span><strong>Owner</strong> Jordan Ellis</span>
+      <span><strong>Status</strong> Reference</span>
+      <span><strong>Read time</strong> ~10 min</span>
+      <span><strong>Source</strong> canonical-example</span>
     </div>
-  </div>
-</header>
 
-  <div class="max-w-6xl mx-auto px-8 mt-6 mb-2 flex flex-wrap gap-4 text-sm text-slate-600" data-meta-ribbon="true" aria-label="Artifact metadata">
-    <span><strong class="text-slate-900">Kind</strong> architecture</span>
-    <span><strong class="text-slate-900">Created</strong> 2026-05-25</span>
-    <span><strong class="text-slate-900">Owner</strong> Jordan Ellis</span>
-    <span><strong class="text-slate-900">Status</strong> Reference</span>
-    <span><strong class="text-slate-900">Read time</strong> ~10 min</span>
-    <span><strong class="text-slate-900">Source</strong> canonical-example</span>
-  </div>
+    <div class="tiles">
+      <div class="tile good"><span class="n">~3,200</span><span class="k">lines in "thin bootstrap" server.py</span></div>
+      <div class="tile warn"><span class="n">50</span><span class="k">@mcp.tool wrappers</span></div>
+      <div class="tile crit"><span class="n">19</span><span class="k">helpers in one _helpers.py</span></div>
+      <div class="tile info"><span class="n">0</span><span class="k">communities detected</span></div>
+    </div>
 
-<main class="max-w-6xl mx-auto px-8 py-8">
+    <section data-audience="pm" class="pm-summary">
+      <h2>In plain terms</h2>
+      <ul>
+        <li><strong>What this does for the user:</strong> Users get a faster, more reliable AI chat because the MCP service becomes simpler to change, test, and extend.</li>
+        <li><strong>Why it matters:</strong> Today, adding a new tool means copy-pasting 50-150 lines from another wrapper; bug fixes have to be replayed across 50 nearly-identical wrappers. That slows the team and creates inconsistent behavior the chat surfaces as flakiness.</li>
+        <li><strong>What's being asked:</strong> Approve the sequenced 4-stage refactor (Candidate 2 stage 1 first; Candidates 1, 3, 4 to follow). Each lands as a separate PR with verifiable improvement.</li>
+      </ul>
+    </section>
 
-  <section data-audience="pm" class="pm-summary">
-    <h2>In plain terms</h2>
-    <ul>
-      <li><strong>What this does for the user:</strong> Users get a faster, more reliable AI chat because the MCP service becomes simpler to change, test, and extend.</li>
-      <li><strong>Why it matters:</strong> Today, adding a new tool means copy-pasting 50-150 lines from another wrapper; bug fixes have to be replayed across 50 nearly-identical wrappers. That slows the team and creates inconsistent behavior the chat surfaces as flakiness.</li>
-      <li><strong>What's being asked:</strong> Approve the sequenced 4-stage refactor (Candidate 2 stage 1 first; Candidates 1, 3, 4 to follow). Each lands as a separate PR with verifiable improvement.</li>
-    </ul>
-  </section>
+    <aside class="read-map" aria-label="Reading map">
+      <div><strong>Exec (2 min):</strong> <a href="#recommendation">Top recommendation</a></div>
+      <div><strong>PM (5 min):</strong> <a href="#c1">Candidate 1</a> &middot; <a href="#c2">Candidate 2</a> &middot; <a href="#recommendation">Recommendation</a></div>
+      <div><strong>Engineer (15 min):</strong> All three candidates plus the deletion-test reasoning</div>
+    </aside>
 
-  <nav class="toc" aria-label="On this page">
-    <strong>On this page</strong>
-    <ol>
-      <li><a href="#c1">1. Declarative tool registration <em>(mermaid before/after)</em></a></li>
-      <li><a href="#c2">2. ApiContext: collapse 22-param signature <em>(side-by-side code)</em></a></li>
-      <li><a href="#c3">3. _helpers.py is a 7-concern junk drawer <em>(table)</em></a></li>
-      <li><a href="#recommendation">Top recommendation: sequenced plan</a></li>
-    </ol>
-  </nav>
+    <nav class="toc" aria-label="On this page">
+      <strong>On this page</strong>
+      <ol>
+        <li><a href="#c1">1. Declarative tool registration (mermaid before/after)</a></li>
+        <li><a href="#c2">2. ApiContext: collapse 22-param signature (side-by-side code)</a></li>
+        <li><a href="#c3">3. _helpers.py is a 7-concern junk drawer (table)</a></li>
+        <li><a href="#open-questions">Open questions</a></li>
+        <li><a href="#recommendation">Top recommendation: sequenced plan</a></li>
+        <li><a href="#meeting-qa">Questions from the review</a></li>
+      </ol>
+    </nav>
 
-  <aside aria-label="Keyboard hint" style="background:#f1f5f9; border:1px solid #cbd5e1; border-radius:6px; padding:8px 14px; font-size:.85rem; color:#475569; margin:-8px 0 24px;">
-    Tip: use <kbd style="background:#fff; border:1px solid #cbd5e1; border-radius:4px; padding:1px 6px; font-family:ui-monospace,Menlo,monospace; font-size:.78rem;">&larr;</kbd> and <kbd style="background:#fff; border:1px solid #cbd5e1; border-radius:4px; padding:1px 6px; font-family:ui-monospace,Menlo,monospace; font-size:.78rem;">&rarr;</kbd> to jump between sections.
-  </aside>
+    <aside class="callout callout-tip" aria-label="Keyboard hint">
+      <strong>Tip</strong>
+      <p>Use the Left and Right arrow keys to jump between sections.</p>
+    </aside>
 
-  <aside class="max-w-6xl mx-auto px-8 mt-2 mb-6 bg-white border border-slate-200 rounded-lg p-4 text-sm" aria-label="Reading map">
-    <div class="mb-1"><strong class="text-emerald-700">Exec (2 min):</strong> <a class="text-emerald-700 hover:underline" href="#recommendation">Top recommendation</a></div>
-    <div class="mb-1"><strong class="text-emerald-700">PM (5 min):</strong> <a class="text-emerald-700 hover:underline" href="#c1">Candidate 1</a> &middot; <a class="text-emerald-700 hover:underline" href="#c2">Candidate 2</a> &middot; <a class="text-emerald-700 hover:underline" href="#recommendation">Recommendation</a></div>
-    <div><strong class="text-emerald-700">Engineer (15 min):</strong> All three candidates plus the deletion-test reasoning</div>
-  </aside>
+    <p>Each candidate names a module, describes the friction, runs the <strong>deletion test</strong> (if we remove this module, does complexity vanish, move, or concentrate?), then sketches what a deeper module would look like. Recommendation strength: <span class="chip good">Strong</span> means the evidence is overwhelming; <span class="chip info">Worth exploring</span> means a real seam shift is on the table; <span class="chip warn">Speculative</span> means a bigger bet.</p>
 
-  <p class="mt-2 mb-8 text-slate-700 max-w-4xl">
-    Each candidate names a module, describes the friction, runs the
-    <strong>deletion test</strong> (if we remove this module, does complexity vanish, move, or
-    concentrate?), then sketches what a deeper module would look like. Recommendation strength:
-    <span class="badge-strong px-2 py-0.5 rounded text-xs">Strong</span> means the evidence is overwhelming;
-    <span class="badge-worth px-2 py-0.5 rounded text-xs">Worth exploring</span> means a real seam shift is on the table;
-    <span class="badge-spec px-2 py-0.5 rounded text-xs">Speculative</span> means a bigger bet.
-  </p>
+    <section id="c1" class="section">
+      <p class="eyebrow">Candidate 1</p>
+      <h2>Wrapper repetition vs declarative tool registration</h2>
+      <p><span class="chip good">Strong</span> <em>PM lead: when a teammate adds a new MCP tool today, they copy ~140 lines from another wrapper. Fixing a bug means replaying it across 50 of those wrappers.</em></p>
+      <p><code class="m">server.py</code> &middot; <code class="m">server/tool_bundles/*_impl</code></p>
 
-  <section id="c1" class="py-6">
-    <div class="bg-white rounded-xl shadow border border-slate-200 p-8">
-      <div class="flex items-start justify-between gap-4 flex-wrap">
-        <div>
-          <p class="text-xs tracking-widest uppercase text-slate-500">Candidate 1</p>
-          <h2 class="text-2xl font-bold text-slate-900 mt-1">Wrapper repetition vs declarative tool registration</h2>
-          <p class="mt-2 text-sm text-slate-600 italic">PM lead: when a teammate adds a new MCP tool today, they copy ~140 lines from another wrapper. Fixing a bug means replaying it across 50 of those wrappers.</p>
-        </div>
-        <span class="badge-strong px-3 py-1 rounded-md text-sm font-semibold">Strong</span>
+      <h3>The friction</h3>
+      <p><code>server.py</code> opens with <em>"thin bootstrap orchestrator"</em>, then continues for <strong>~3,200 lines</strong> registering 50 <code>@mcp.tool</code> wrappers. Each wrapper repeats the same five-step ritual: receive typed Pydantic params, elicit missing fields, dump Pydantic to dicts, dispatch to a sync <code>_impl</code> through <code>asyncio.to_thread</code>, parse the JSON string back to a dict.</p>
+
+      <div class="stripe high">
+        <h3>Deletion test</h3>
+        <p>Delete the wrappers and the elicitation/serialization rituals reappear in 50 different files, one per impl. The wrappers hold real glue. But the glue is the same glue repeated 50 times. That's the signature of a <strong>missing abstraction</strong>.</p>
       </div>
 
-      <p class="mt-4 text-sm text-slate-600">
-        <span class="file-chip">server.py</span>
-        <span class="file-chip">server/tool_bundles/*_impl</span>
-      </p>
-
-      <div class="mt-5">
-        <h3 class="font-semibold text-slate-900">The friction</h3>
-        <p class="mt-2 text-slate-700">
-          <code>server.py</code> opens with <em>"thin bootstrap orchestrator"</em>, then continues for
-          <strong>~3,200 lines</strong> registering 50 <code>@mcp.tool</code> wrappers. Each wrapper
-          repeats the same five-step ritual: receive typed Pydantic params, elicit missing fields,
-          dump Pydantic to dicts, dispatch to a sync <code>_impl</code> through
-          <code>asyncio.to_thread</code>, parse the JSON string back to a dict.
-        </p>
+      <div class="stripe good">
+        <h3>Candidate deepening</h3>
+        <p>Define the wrapper ritual once. A <code>register_tool_bundle(name, impl, ...)</code> registration function takes the impl, a list of <code>FieldSpec</code>s, and metadata; it produces the <code>@mcp.tool</code> wrapper that handles elicitation, dumping, the thread bounce, and JSON parsing. Each tool becomes a 5-10 line registration block.</p>
       </div>
 
-      <div class="mt-5 deletion-result">
-        <h3 class="font-semibold text-orange-700">Deletion test</h3>
-        <p class="mt-1 text-slate-700">
-          Delete the wrappers and the elicitation/serialization rituals reappear in 50 different
-          files, one per impl. The wrappers hold real glue. But the glue is the same glue repeated
-          50 times. That's the signature of a <strong>missing abstraction</strong>.
-        </p>
-      </div>
-
-      <div class="mt-5 leverage-note">
-        <h3 class="font-semibold text-emerald-700">Candidate deepening</h3>
-        <p class="mt-1 text-slate-700">
-          Define the wrapper ritual once. A <code>register_tool_bundle(name, impl, ...)</code>
-          registration function takes the impl, a list of <code>FieldSpec</code>s, and metadata; it
-          produces the <code>@mcp.tool</code> wrapper that handles elicitation, dumping, the thread
-          bounce, and JSON parsing. Each tool becomes a 5-10 line registration block.
-        </p>
-      </div>
-
-      <div class="mt-6">
-        <h3 class="font-semibold text-slate-900 mb-2">Before / after &mdash; mermaid for structural change</h3>
-        <div class="grid md:grid-cols-2 gap-4">
-          <div class="bg-rose-50 border border-rose-200 rounded-lg p-4">
-            <p class="text-xs text-rose-700 font-bold mb-2">BEFORE (50&times; repetition)</p>
-            <div class="mermaid">
+      <h3>Before / after: mermaid for structural change</h3>
+      <div class="grid-cols-2">
+        <div class="compare-before">
+          <strong>Before (50x repetition)</strong>
+          <div class="mermaid">
 graph TB
   subgraph "server.py (~3,200 lines)"
     W1[onboard_entity wrapper<br/>~140 lines]
@@ -179,11 +336,11 @@ graph TB
   style W2 fill:#fecaca
   style W3 fill:#fecaca
   style Wn fill:#fecaca
-            </div>
           </div>
-          <div class="bg-emerald-50 border border-emerald-200 rounded-lg p-4">
-            <p class="text-xs text-emerald-700 font-bold mb-2">AFTER (one ritual)</p>
-            <div class="mermaid">
+        </div>
+        <div class="compare-after">
+          <strong>After (one ritual)</strong>
+          <div class="mermaid">
 graph TB
   subgraph "server.py (~600 lines)"
     R[register_tool_bundle registry]
@@ -195,44 +352,25 @@ graph TB
   R -.invokes.-> I3[...impls]
   style R fill:#a7f3d0
   style L fill:#d1fae5
-            </div>
           </div>
         </div>
       </div>
-    </div>
-  </section>
+    </section>
 
-  <section id="c2" class="py-6">
-    <div class="bg-white rounded-xl shadow border border-slate-200 p-8">
-      <div class="flex items-start justify-between gap-4 flex-wrap">
-        <div>
-          <p class="text-xs tracking-widest uppercase text-slate-500">Candidate 2</p>
-          <h2 class="text-2xl font-bold text-slate-900 mt-1">ApiContext: collapse the 22-parameter impl signature</h2>
-          <p class="mt-2 text-sm text-slate-600 italic">PM lead: every tool today drags 7 infrastructure plumbing arguments through every internal call. Bundling them as one context object simplifies tests and removes a documented technical-debt marker.</p>
-        </div>
-        <span class="badge-strong px-3 py-1 rounded-md text-sm font-semibold">Strong</span>
-      </div>
+    <section id="c2" class="section">
+      <p class="eyebrow">Candidate 2</p>
+      <h2>ApiContext: collapse the 22-parameter impl signature</h2>
+      <p><span class="chip good">Strong</span> <em>PM lead: every tool today drags 7 infrastructure plumbing arguments through every internal call. Bundling them as one context object simplifies tests and removes a documented technical-debt marker.</em></p>
+      <p><code class="m">server/tool_bundles/crud.py (~1,800 lines)</code></p>
 
-      <p class="mt-4 text-sm text-slate-600">
-        <span class="file-chip">server/tool_bundles/crud.py (~1,800 lines)</span>
-      </p>
+      <h3>The friction</h3>
+      <p><code>create_complete_entity_impl</code> has 22 positional parameters, starting with seven infrastructural ones before getting to a business field. The first thing the body does is build a <code>cfg</code> dict to thread these through helpers. A <code>NOSONAR</code> comment names the fix that hasn't been done.</p>
 
-      <div class="mt-5">
-        <h3 class="font-semibold text-slate-900">The friction</h3>
-        <p class="mt-2 text-slate-700">
-          <code>create_complete_entity_impl</code> has 22 positional parameters, starting with seven
-          infrastructural ones before getting to a business field. The first thing the body does is
-          build a <code>cfg</code> dict to thread these through helpers. A <code>NOSONAR</code>
-          comment names the fix that hasn't been done.
-        </p>
-      </div>
-
-      <div class="mt-6">
-        <h3 class="font-semibold text-slate-900 mb-2">Before / after &mdash; side-by-side code for signature change</h3>
-        <div class="grid md:grid-cols-2 gap-4">
-          <div class="bg-rose-50 border border-rose-200 rounded-lg p-4 text-sm">
-            <p class="text-xs text-rose-700 font-bold mb-2">BEFORE (22 params)</p>
-            <pre class="overflow-auto"><code>create_complete_entity_impl(
+      <h3>Before / after: side-by-side code for signature change</h3>
+      <div class="grid-cols-2">
+        <div class="compare-before">
+          <strong>Before (22 params)</strong>
+          <pre><code>create_complete_entity_impl(
   title,
   base_url,            # infra
   auth_manager,        # infra
@@ -245,10 +383,10 @@ graph TB
   description,
   ...12 business params,
 )</code></pre>
-          </div>
-          <div class="bg-emerald-50 border border-emerald-200 rounded-lg p-4 text-sm">
-            <p class="text-xs text-emerald-700 font-bold mb-2">AFTER (8 params)</p>
-            <pre class="overflow-auto"><code>create_complete_entity_impl(
+        </div>
+        <div class="compare-after">
+          <strong>After (8 params)</strong>
+          <pre><code>create_complete_entity_impl(
   ctx: ApiContext,     # one infra arg
   title,
   company_id,
@@ -258,189 +396,166 @@ graph TB
 
 # ApiContext built once:
 ctx = ApiContext.from_server(server_ctx)</code></pre>
-          </div>
         </div>
       </div>
-    </div>
-  </section>
+    </section>
 
-  <section id="c3" class="py-6">
-    <div class="bg-white rounded-xl shadow border border-slate-200 p-8">
-      <div class="flex items-start justify-between gap-4 flex-wrap">
-        <div>
-          <p class="text-xs tracking-widest uppercase text-slate-500">Candidate 3</p>
-          <h2 class="text-2xl font-bold text-slate-900 mt-1">_helpers.py is a seven-concern junk drawer</h2>
-          <p class="mt-2 text-sm text-slate-600 italic">PM lead: nineteen helpers serving seven unrelated concerns share one 1,298-line file, so every bug fix touches the same crowded file. Splitting it by concern makes each piece easy to find and easy to test.</p>
-        </div>
-        <span class="badge-strong px-3 py-1 rounded-md text-sm font-semibold">Strong</span>
+    <section id="c3" class="section">
+      <p class="eyebrow">Candidate 3</p>
+      <h2>_helpers.py is a seven-concern junk drawer</h2>
+      <p><span class="chip good">Strong</span> <em>PM lead: nineteen helpers serving seven unrelated concerns share one 1,298-line file, so every bug fix touches the same crowded file. Splitting it by concern makes each piece easy to find and easy to test.</em></p>
+      <p><code class="m">server/tool_bundles/helpers.py</code></p>
+
+      <h3>The friction</h3>
+      <p><code>_helpers.py</code> is 84KB / 49 top-level defs / 1,298 LOC across seven unrelated concerns. The documentation openly catalogues the spread, which is itself a tell.</p>
+
+      <h3>Current vs proposed: table for enumeration</h3>
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Concern</th>
+              <th>Currently in</th>
+              <th>Belongs in</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td>Bundle lifecycle</td><td><code>_helpers.py</code></td><td>a <em>BundleSpan</em> context manager</td></tr>
+            <tr><td>Company resolution</td><td><code>_helpers.py</code></td><td>a <em>CompanyScope</em> module</td></tr>
+            <tr><td>Location resolution</td><td><code>_helpers.py</code> + sibling file</td><td>merge into <em>location.py</em></td></tr>
+            <tr><td>Sub-resource orchestration</td><td><code>_helpers.py</code></td><td>a <em>SubResourceWriter</em> module</td></tr>
+            <tr><td>Reference resolution</td><td><code>_helpers.py</code></td><td>a <em>ReferenceResolver</em> module</td></tr>
+            <tr><td>Resolved-entities envelope</td><td><code>_helpers.py</code></td><td>framework metadata (see Candidate 4)</td></tr>
+            <tr><td>Budgets &amp; misc</td><td><code>_helpers.py</code></td><td>unified reliability seam (see Candidate 7)</td></tr>
+          </tbody>
+        </table>
       </div>
+    </section>
 
-      <p class="mt-4 text-sm text-slate-600">
-        <span class="file-chip">server/tool_bundles/helpers.py</span>
-      </p>
-
-      <div class="mt-5">
-        <h3 class="font-semibold text-slate-900">The friction</h3>
-        <p class="mt-2 text-slate-700">
-          <code>_helpers.py</code> is 84KB / 49 top-level defs / 1,298 LOC across seven unrelated
-          concerns. The documentation openly catalogues the spread, which is itself a tell.
-        </p>
-
-        <div class="mt-4 overflow-x-auto">
-          <h3 class="font-semibold text-slate-900 mb-2">Current vs proposed &mdash; table for enumeration</h3>
-          <table class="text-xs w-full border border-slate-200">
-            <thead class="bg-slate-100">
-              <tr>
-                <th class="px-3 py-2 text-left">Concern</th>
-                <th class="px-3 py-2 text-left">Currently in</th>
-                <th class="px-3 py-2 text-left">Belongs in</th>
-              </tr>
-            </thead>
-            <tbody class="divide-y divide-slate-200">
-              <tr><td class="px-3 py-2">Bundle lifecycle</td><td class="px-3 py-2 text-rose-700"><code>_helpers.py</code></td><td class="px-3 py-2 text-emerald-700">a <em>BundleSpan</em> context manager</td></tr>
-              <tr><td class="px-3 py-2">Company resolution</td><td class="px-3 py-2 text-rose-700"><code>_helpers.py</code></td><td class="px-3 py-2 text-emerald-700">a <em>CompanyScope</em> module</td></tr>
-              <tr><td class="px-3 py-2">Location resolution</td><td class="px-3 py-2 text-rose-700"><code>_helpers.py</code> + sibling file</td><td class="px-3 py-2 text-emerald-700">merge into <em>location.py</em></td></tr>
-              <tr><td class="px-3 py-2">Sub-resource orchestration</td><td class="px-3 py-2 text-rose-700"><code>_helpers.py</code></td><td class="px-3 py-2 text-emerald-700">a <em>SubResourceWriter</em> module</td></tr>
-              <tr><td class="px-3 py-2">Reference resolution</td><td class="px-3 py-2 text-rose-700"><code>_helpers.py</code></td><td class="px-3 py-2 text-emerald-700">a <em>ReferenceResolver</em> module</td></tr>
-              <tr><td class="px-3 py-2">Resolved-entities envelope</td><td class="px-3 py-2 text-rose-700"><code>_helpers.py</code></td><td class="px-3 py-2 text-emerald-700">framework metadata (see Candidate 4)</td></tr>
-              <tr><td class="px-3 py-2">Budgets &amp; misc</td><td class="px-3 py-2 text-rose-700"><code>_helpers.py</code></td><td class="px-3 py-2 text-emerald-700">unified reliability seam (see Candidate 7)</td></tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <section id="open-questions" class="py-6">
-    <div class="bg-white rounded-xl shadow border border-slate-200 p-8">
-      <h2 class="text-2xl font-bold text-slate-900">Open questions</h2>
-      <ul class="list-disc list-inside mt-3 text-slate-700 space-y-2">
+    <section id="open-questions" class="section">
+      <h2>Open questions</h2>
+      <ul>
         <li>Should Candidate 2 stage 1 happen as a pure rename PR, or bundled with a behavior change? Bias: pure rename to keep blast radius small.</li>
         <li>Does Candidate 1's <code>register_tool_bundle</code> need to support tools that already exist as classes, or only impls written for the new API?</li>
         <li>What is the right migration window before Candidate 3's old <code>_helpers.py</code> shim can be deleted?</li>
       </ul>
-    </div>
-  </section>
+    </section>
 
-  <section id="recommendation" class="py-10">
-    <div class="bg-gradient-to-br from-emerald-50 via-white to-sky-50 border-2 border-emerald-200 rounded-2xl p-8 shadow">
-      <p class="text-xs tracking-widest uppercase text-emerald-700 font-bold">Top recommendation &mdash; sequenced plan</p>
-      <h2 class="text-3xl font-bold text-slate-900 mt-2">Lead with the narrow first stage of Candidate&nbsp;2, then unfurl the rest.</h2>
-      <p class="mt-3 text-slate-700">
-        The candidates compose. Doing them in the wrong order forces rework. Sequenced:
-      </p>
-      <ol class="mt-4 space-y-3 text-slate-700 list-decimal list-inside">
-        <li class="bg-white border border-emerald-300 rounded p-3"><strong>Candidate 2 stage 1 &mdash; <code>BundleCfg</code> dataclass.</strong> Pure rename, lowest blast radius, hits two existing NOSONAR markers.</li>
-        <li class="bg-white border border-emerald-300 rounded p-3"><strong>Candidate 3 &mdash; split <code>_helpers.py</code>.</strong> Once <code>BundleCfg</code> is in, helpers stop needing 4-scalar threading everywhere.</li>
-        <li class="bg-white border border-emerald-300 rounded p-3"><strong>Candidate 2 stage 2 &mdash; full <code>ApiContext</code>.</strong> Promote <code>BundleCfg</code> to carry the full infra bundle.</li>
-        <li class="bg-white border border-emerald-300 rounded p-3"><strong>Candidate 1 &mdash; declarative tool registration.</strong> Now easy to write because impls take <code>ApiContext</code>.</li>
-      </ol>
-    </div>
-  </section>
+    <section id="recommendation" class="section">
+      <p class="eyebrow">Top recommendation: sequenced plan</p>
+      <h2>Lead with the narrow first stage of Candidate&nbsp;2, then unfurl the rest.</h2>
+      <div class="card tint-good">
+        <p>The candidates compose. Doing them in the wrong order forces rework. Sequenced:</p>
+        <ol>
+          <li><strong>Candidate 2 stage 1: <code>BundleCfg</code> dataclass.</strong> Pure rename, lowest blast radius, hits two existing NOSONAR markers.</li>
+          <li><strong>Candidate 3: split <code>_helpers.py</code>.</strong> Once <code>BundleCfg</code> is in, helpers stop needing 4-scalar threading everywhere.</li>
+          <li><strong>Candidate 2 stage 2: full <code>ApiContext</code>.</strong> Promote <code>BundleCfg</code> to carry the full infra bundle.</li>
+          <li><strong>Candidate 1: declarative tool registration.</strong> Now easy to write because impls take <code>ApiContext</code>.</li>
+        </ol>
+      </div>
+    </section>
 
-  <section id="meeting-qa" class="max-w-6xl mx-auto px-8 py-10" data-meeting-qa="true">
-    <h2 class="text-2xl font-bold text-slate-900 border-t pt-8 border-dashed border-slate-300">Questions from the 2026-05-25 architecture review</h2>
-    <p class="mt-2 text-sm text-slate-600">Grouped by topic, not by speaker. Three categories: answered live, deferred / action item, and inferred (questions that did not get asked but probably should have, with a model-estimated confidence score).</p>
+    <section id="meeting-qa" class="section" data-meeting-qa="true">
+      <h2>Questions from the 2026-05-25 architecture review</h2>
+      <p>Grouped by topic, not by speaker. Three categories: answered live, deferred / action item, and inferred (questions that did not get asked but probably should have, with a model-estimated confidence score).</p>
 
-    <h3 class="font-semibold text-slate-900 mt-6">Topic: rollout sequencing</h3>
-    <ol class="space-y-3 mt-2 pl-0 list-none">
-      <li class="bg-emerald-50 border border-emerald-200 rounded p-3" data-status="answered" data-anchor="#recommendation">
+      <h3>Topic: rollout sequencing</h3>
+      <div class="callout callout-tip" data-status="answered" data-anchor="#recommendation">
+        <strong>Answered live</strong>
         <p><strong>Q1.</strong> Why land Candidate 2 stage 1 before Candidate 3? <em>(asked by Marcus, 14:08)</em></p>
-        <p class="mt-1 text-sm"><strong>A.</strong> Because Candidate 3's helpers-split benefits from <code>BundleCfg</code> already existing &mdash; reverse order forces rework. See the <a class="text-emerald-700 hover:underline" href="#recommendation">sequenced plan</a>.</p>
-      </li>
-      <li class="bg-amber-50 border border-amber-200 rounded p-3" data-status="deferred" data-anchor="#recommendation">
+        <p><strong>A.</strong> Because Candidate 3's helpers-split benefits from <code>BundleCfg</code> already existing - reverse order forces rework. See the <a href="#recommendation">sequenced plan</a>.</p>
+      </div>
+      <div class="callout callout-warning" data-status="deferred" data-anchor="#recommendation">
+        <strong>Deferred / action item</strong>
         <p><strong>Q2.</strong> Should the same sequencing apply to the Agent Service's analogous module structure? <em>(asked by Sam, 14:21; deferred)</em></p>
-        <p class="mt-1 text-sm"><strong>Action:</strong> Sam to draft a parallel decision artifact for Agent Service by 2026-06-01.</p>
-      </li>
-    </ol>
+        <p><strong>Action:</strong> Sam to draft a parallel decision artifact for Agent Service by 2026-06-01.</p>
+      </div>
 
-    <h3 class="font-semibold text-slate-900 mt-6">Topic: risk &amp; rollback</h3>
-    <ol class="space-y-3 mt-2 pl-0 list-none">
-      <li class="bg-slate-100 border border-slate-300 rounded p-3" data-status="inferred" data-confidence="0.82" data-anchor="#c1">
-        <p><strong>Q3 (inferred, confidence 0.82).</strong> What is the rollback plan if Candidate 1's <code>register_tool_bundle</code> regresses one of the 50 wrappers in production?</p>
-        <p class="mt-1 text-sm"><em>Rationale for inferring:</em> rollout sequencing was discussed but rollback was not raised; for a wide-blast-radius refactor it is the obvious next question.</p>
-        <p class="mt-1 text-sm"><strong>Suggested owner:</strong> Jordan, before sign-off on Candidate 1.</p>
-      </li>
-    </ol>
+      <h3>Topic: risk and rollback</h3>
+      <div class="callout" data-status="inferred" data-confidence="0.82" data-anchor="#c1">
+        <strong>Inferred question</strong>
+        <p><strong>Q3 (inferred, confidence <span class="confidence confidence-high">0.82</span>).</strong> What is the rollback plan if Candidate 1's <code>register_tool_bundle</code> regresses one of the 50 wrappers in production?</p>
+        <p><em>Rationale for inferring:</em> rollout sequencing was discussed but rollback was not raised; for a wide-blast-radius refactor it is the obvious next question.</p>
+        <p><strong>Suggested owner:</strong> Jordan, before sign-off on Candidate 1.</p>
+      </div>
 
-    <h3 class="font-semibold text-slate-900 mt-6">Topic: scope &amp; speculation</h3>
-    <ol class="space-y-3 mt-2 pl-0 list-none">
-      <li class="bg-slate-100 border border-slate-300 rounded p-3" data-status="inferred" data-confidence="0.71">
-        <p><strong>Q4 (inferred, confidence 0.71).</strong> Should Candidate 8 (entity-grouped reorganisation) be split into a multi-quarter effort given the blast radius?</p>
-        <p class="mt-1 text-sm"><em>Rationale for inferring:</em> Candidate 8 was tagged Speculative; the meeting did not discuss timing. A multi-quarter split is a common pattern for wide renames.</p>
-      </li>
-    </ol>
+      <h3>Topic: scope and speculation</h3>
+      <div class="callout" data-status="inferred" data-confidence="0.71">
+        <strong>Inferred question</strong>
+        <p><strong>Q4 (inferred, confidence <span class="confidence confidence-medium">0.71</span>).</strong> Should Candidate 8 (entity-grouped reorganisation) be split into a multi-quarter effort given the blast radius?</p>
+        <p><em>Rationale for inferring:</em> Candidate 8 was tagged Speculative; the meeting did not discuss timing. A multi-quarter split is a common pattern for wide renames.</p>
+      </div>
 
-    <script type="application/ld+json" id="meeting-qa-data">
-    {
-      "@type": "MeetingQAOverlay",
-      "meetingDate": "2026-05-25",
-      "transcriptSource": "meetings/2026-05-25-architecture-review.docx",
-      "questions": [
-        {"id": "Q1", "topic": "rollout sequencing", "text": "Why land Candidate 2 stage 1 before Candidate 3?", "speaker": "Marcus", "timestamp": "14:08", "status": "answered", "answer": "Because Candidate 3 benefits from BundleCfg already existing.", "anchor": "#recommendation"},
-        {"id": "Q2", "topic": "rollout sequencing", "text": "Should the same sequencing apply to the Agent Service?", "speaker": "Sam", "timestamp": "14:21", "status": "deferred", "owner": "Sam", "dueDate": "2026-06-01", "anchor": "#recommendation"},
-        {"id": "Q3", "topic": "risk & rollback", "text": "What is the rollback plan if Candidate 1 regresses?", "status": "inferred", "confidence": 0.82, "rationale": "Rollback was not raised but is obvious for a wide-blast-radius refactor.", "anchor": "#c1"},
-        {"id": "Q4", "topic": "scope & speculation", "text": "Should Candidate 8 be split into a multi-quarter effort?", "status": "inferred", "confidence": 0.71, "rationale": "Tagged Speculative; meeting did not discuss timing."}
-      ]
-    }
-    </script>
-  </section>
+      <script type="application/ld+json" id="meeting-qa-data">
+      {
+        "@type": "MeetingQAOverlay",
+        "meetingDate": "2026-05-25",
+        "transcriptSource": "meetings/2026-05-25-architecture-review.docx",
+        "questions": [
+          {"id": "Q1", "topic": "rollout sequencing", "text": "Why land Candidate 2 stage 1 before Candidate 3?", "speaker": "Marcus", "timestamp": "14:08", "status": "answered", "answer": "Because Candidate 3 benefits from BundleCfg already existing.", "anchor": "#recommendation"},
+          {"id": "Q2", "topic": "rollout sequencing", "text": "Should the same sequencing apply to the Agent Service?", "speaker": "Sam", "timestamp": "14:21", "status": "deferred", "owner": "Sam", "dueDate": "2026-06-01", "anchor": "#recommendation"},
+          {"id": "Q3", "topic": "risk and rollback", "text": "What is the rollback plan if Candidate 1 regresses?", "status": "inferred", "confidence": 0.82, "rationale": "Rollback was not raised but is obvious for a wide-blast-radius refactor.", "anchor": "#c1"},
+          {"id": "Q4", "topic": "scope and speculation", "text": "Should Candidate 8 be split into a multi-quarter effort?", "status": "inferred", "confidence": 0.71, "rationale": "Tagged Speculative; meeting did not discuss timing."}
+        ]
+      }
+      </script>
+    </section>
 
-</main>
-
-<footer class="bg-slate-50 border-t border-slate-200 py-6 mt-10" data-provenance="true">
-  <div class="max-w-6xl mx-auto px-8 text-xs text-slate-500">
-    <p>Generated by <code>claude-opus-4-7</code> on 2026-05-25 &middot; reviewed by <code>Jordan Ellis</code> &middot; source: canonical-example.</p>
-    <script type="application/ld+json" id="provenance">
-    {
-      "@context": "https://schema.org/",
-      "@type": "CreativeWork",
-      "@id": "urn:human-html:2026-05-25:architecture:canonical-example",
-      "additionalType": "ai-generated-artifact",
-      "artifactKind": "architecture",
-      "dateCreated": "2026-05-25",
-      "creator": { "@type": "SoftwareApplication", "name": "claude-opus-4-7" },
-      "promptHash": "<sha256 of prompt; canonical example, no real prompt>",
-      "reviewer": "Jordan Ellis",
-      "source": "canonical-example"
-    }
-    </script>
-  </div>
-</footer>
-
-<footer class="bg-slate-900 text-slate-300 py-10 mt-10">
-  <div class="max-w-6xl mx-auto px-8 text-sm">
-    <p>Canonical example for the <code>human-html</code> skill &middot; demonstrates PM-summary block + nav + all three diagram types (mermaid / side-by-side code / comparison table) + arrow-key section navigation. This canonical keeps 3 candidates to stay readable as an exemplar.</p>
-  </div>
-</footer>
-
-<script>
-  (() => {
-    const sections = Array.from(document.querySelectorAll("section[id]"));
-    if (sections.length < 4) return;
-    let current = 0;
-    const isTypingTarget = (el) => {
-      if (!el) return false;
-      const tag = el.tagName;
-      return (
-        tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" ||
-        el.isContentEditable === true ||
-        el.getAttribute("role") === "tab"
-      );
-    };
-    document.addEventListener("keydown", (e) => {
-      if (e.altKey || e.ctrlKey || e.metaKey) return;
-      if (isTypingTarget(e.target)) return;
-      let next = current;
-      if (e.key === "ArrowRight" && current < sections.length - 1) next = current + 1;
-      else if (e.key === "ArrowLeft" && current > 0) next = current - 1;
-      else return;
-      e.preventDefault();
-      current = next;
-      sections[current].scrollIntoView({ behavior: "smooth", block: "start" });
-    });
-  })();
-</script>
-
+    <footer class="provenance" data-provenance="true">
+      <p>Generated by <code>claude-opus-4-7</code> on 2026-05-25 &middot; reviewed by <code>Jordan Ellis</code> &middot; source: canonical-example.</p>
+      <p>Canonical example for the <code>human-html</code> skill: demonstrates the PM-summary block, nav, all three diagram types (mermaid / side-by-side code / comparison table), and arrow-key section navigation. This canonical keeps 3 candidates to stay readable as an exemplar.</p>
+      <script type="application/ld+json" id="provenance">
+        {
+          "@context": "https://schema.org/",
+          "@type": "CreativeWork",
+          "@id": "urn:human-html:2026-05-25:architecture:canonical-example",
+          "additionalType": "ai-generated-artifact",
+          "artifactKind": "architecture",
+          "dateCreated": "2026-05-25",
+          "creator": { "@type": "SoftwareApplication", "name": "claude-opus-4-7" },
+          "promptHash": "<sha256 of prompt; canonical example, no real prompt>",
+          "reviewer": "Jordan Ellis",
+          "source": "canonical-example"
+        }
+      </script>
+    </footer>
+  </main>
+<div id="layout-audit" hidden role="status">⚠ This artifact overflows horizontally at this width - wrap wide tables / diagrams / <code>pre</code> blocks so they scroll, or they will clip on a phone.</div>
+  <script>
+    (function () {
+      var el = document.getElementById('layout-audit');
+      if (!el) return;
+      function check() { el.hidden = !(document.documentElement.scrollWidth > window.innerWidth + 2); }
+      window.addEventListener('DOMContentLoaded', check);
+      window.addEventListener('resize', check);
+    })();
+  </script>
+  <script>
+    (() => {
+      const sections = Array.from(document.querySelectorAll("section[id]"));
+      if (sections.length < 4) return;
+      let current = 0;
+      const isTypingTarget = (el) => {
+        if (!el) return false;
+        const tag = el.tagName;
+        return (
+          tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" ||
+          el.isContentEditable === true ||
+          el.getAttribute("role") === "tab"
+        );
+      };
+      document.addEventListener("keydown", (e) => {
+        if (e.altKey || e.ctrlKey || e.metaKey) return;
+        if (isTypingTarget(e.target)) return;
+        let next = current;
+        if (e.key === "ArrowRight" && current < sections.length - 1) next = current + 1;
+        else if (e.key === "ArrowLeft" && current > 0) next = current - 1;
+        else return;
+        e.preventDefault();
+        current = next;
+        sections[current].scrollIntoView({ behavior: "smooth", block: "start" });
+      });
+    })();
+  </script>
 </body>
 </html>

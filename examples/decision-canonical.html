@@ -7,7 +7,7 @@
   <meta name="artifact-audience" content="human">
   <meta name="artifact-created" content="2026-05-25">
   <meta name="artifact-source" content="canonical-example">
-  <title>Decision &mdash; Canonical Example</title>
+  <title>Decision - Canonical Example</title>
   <style>
     :root { --ink:#172033; --muted:#5d6b7f; --line:#dce3ec; --soft:#f6f8fb; --blue:#226fb2; --orange:#c5542d; --green:#2d7a55; font-family:Inter,system-ui,-apple-system,sans-serif; }
     * { box-sizing: border-box; }
@@ -136,13 +136,13 @@
       <p style="font-size:.92rem; color:var(--muted);">After an adversarial plan-review session against this artifact, the resolved decisions land here. The visible list is human-readable; the embedded JSON-LD below is what a coding agent (Claude Code / Cursor / Aider / Codex) reads to implement them. Drop this artifact into <code>.claude/</code>, reference from <code>CLAUDE.md</code>, and the agent picks up the decisions on its next run.</p>
       <ol>
         <li>
-          <p><strong>DR-001 &mdash; Extract <code>server/redis_cache.py</code> as the shared lazy-cache module.</strong> <em>Rationale:</em> the three current callers (<code>idempotency.py</code>, <code>reference.py</code>, <code>session_cache.py</code>) all duplicate the cooldown + lazy-client pattern. <em>Implementation note:</em> create the module with <code>LazyRedisCache.get/set/reset</code>; migrate one caller; ship under feature flag; migrate the other two.</p>
+          <p><strong>DR-001: Extract <code>server/redis_cache.py</code> as the shared lazy-cache module.</strong> <em>Rationale:</em> the three current callers (<code>idempotency.py</code>, <code>reference.py</code>, <code>session_cache.py</code>) all duplicate the cooldown + lazy-client pattern. <em>Implementation note:</em> create the module with <code>LazyRedisCache.get/set/reset</code>; migrate one caller; ship under feature flag; migrate the other two.</p>
         </li>
         <li>
-          <p><strong>DR-002 &mdash; Preserve module-global escape hatches for tests during the one-sprint dual-running window.</strong> <em>Rationale:</em> existing tests reset module globals; keeping the escape hatches stops the migration from also rewriting 40+ tests at once.</p>
+          <p><strong>DR-002: Preserve module-global escape hatches for tests during the one-sprint dual-running window.</strong> <em>Rationale:</em> existing tests reset module globals; keeping the escape hatches stops the migration from also rewriting 40+ tests at once.</p>
         </li>
         <li>
-          <p><strong>DR-003 &mdash; Revisit per-service cache breakdown dashboards in Q3.</strong> <em>Rationale:</em> consolidating onto one cache means the existing per-service Grafana panels need to split into "shared cache health" + per-service slices; defer until after migration to avoid pre-optimisation.</p>
+          <p><strong>DR-003: Revisit per-service cache breakdown dashboards in Q3.</strong> <em>Rationale:</em> consolidating onto one cache means the existing per-service Grafana panels need to split into "shared cache health" + per-service slices; defer until after migration to avoid pre-optimisation.</p>
         </li>
       </ol>
       <script type="application/ld+json" id="decisions-data">

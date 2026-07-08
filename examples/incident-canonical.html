@@ -8,7 +8,7 @@
   <meta name="artifact-created" content="2026-05-25">
   <meta name="artifact-source" content="canonical-example">
   <meta name="artifact-read-time" content="6 min">
-  <title>Postmortem &mdash; User chat SSE silent-hang (SEV-2)</title>
+  <title>Postmortem - User chat SSE silent-hang (SEV-2)</title>
   <style>
     :root { --ink:#172033; --muted:#5d6b7f; --line:#dce3ec; --soft:#f6f8fb; --blue:#226fb2; --orange:#c5542d; --green:#2d7a55; --amber:#d97706; --red:#b91c1c; font-family:Inter,system-ui,-apple-system,sans-serif; }
     * { box-sizing: border-box; }
@@ -65,7 +65,7 @@
   <main>
     <header>
       <p class="eyebrow">incident &middot; postmortem &middot; canonical example</p>
-      <h1>User chat SSE silent-hang &mdash; SEV-2 (2026-05-21, 14:00&ndash;14:35 UTC)</h1>
+      <h1>User chat SSE silent-hang - SEV-2 (2026-05-21, 14:00-14:35 UTC)</h1>
     </header>
 
     <div class="meta-ribbon" data-meta-ribbon="true" aria-label="Artifact metadata">
@@ -163,7 +163,7 @@
         <li><strong>Detection blind spot:</strong> our existing alerts watched p95 latency but not connection accumulation; the worker-pool exhaustion was caught only after user-facing degradation.</li>
       </ol>
       <details>
-        <summary>Deeper RCA &mdash; logs and dashboard links</summary>
+        <summary>Deeper RCA - logs and dashboard links</summary>
         <p>Sentry issue: <code>SAMPLE-SSE-TIMEOUT</code>. Grafana dashboard: <code>sample/sse-health</code>. Sampled stalled-connection logs are in the on-call channel; links omitted in this canonical example.</p>
       </details>
     </section>

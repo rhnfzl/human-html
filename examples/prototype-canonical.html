@@ -7,7 +7,7 @@
   <meta name="artifact-audience" content="human">
   <meta name="artifact-created" content="2026-05-25">
   <meta name="artifact-source" content="canonical-example">
-  <title>Prototype &mdash; Canonical Example</title>
+  <title>Prototype: Canonical Example</title>
   <script type="module">
     import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.esm.min.mjs";
     mermaid.initialize({ startOnLoad: true, theme: "default", securityLevel: "loose" });
@@ -33,6 +33,7 @@
     section.section { margin-top:32px; }
     code { background:var(--soft); border:1px solid var(--line); border-radius:6px; padding:2px 5px; }
     pre { background:#0f172a; color:#e2e8f0; border-radius:8px; padding:14px; overflow:auto; font-size:.85rem; }
+    pre code { background: transparent; border: 0; color: inherit; }
     .mermaid svg { max-width:100%; height:auto; }
     .real { color:var(--green); font-weight:600; }
     .mocked { color:var(--orange); font-weight:600; }
@@ -85,7 +86,7 @@
         <li><a href="#mocked">What's mocked</a></li>
         <li><a href="#real">What's real</a></li>
         <li><a href="#brand-tokens">Brand tokens &amp; component sheet</a></li>
-        <li><a href="#try-it">Try it &mdash; interactive sandbox</a></li>
+        <li><a href="#try-it">Try it: interactive sandbox</a></li>
       </ol>
     </nav>
 
@@ -111,9 +112,9 @@ flowchart LR
     <section id="mocked" class="section">
       <h2>What's mocked</h2>
       <ul>
-        <li><span class="mocked">Mocked:</span> LLM call &mdash; the prototype uses a hardcoded JSON response per fixture transcript. Real extraction lives in a follow-up sprint if this UX works.</li>
-        <li><span class="mocked">Mocked:</span> Confidence indicators per field &mdash; the prototype shows green/yellow indicators sampled from a uniform random instead of real model confidence.</li>
-        <li><span class="mocked">Mocked:</span> Edit history &mdash; the prototype doesn't persist edits; close the tab and they're gone.</li>
+        <li><span class="mocked">Mocked:</span> LLM call - the prototype uses a hardcoded JSON response per fixture transcript. Real extraction lives in a follow-up sprint if this UX works.</li>
+        <li><span class="mocked">Mocked:</span> Confidence indicators per field - the prototype shows green/yellow indicators sampled from a uniform random instead of real model confidence.</li>
+        <li><span class="mocked">Mocked:</span> Edit history - the prototype doesn't persist edits; close the tab and they're gone.</li>
       </ul>
     </section>
 
@@ -121,7 +122,7 @@ flowchart LR
       <h2>What's real</h2>
       <ul>
         <li><span class="real">Real:</span> The full structured form rendered from existing production templates.</li>
-        <li><span class="real">Real:</span> The "Generate from chat" button placement in the chat sidebar &mdash; same component, same routing, same auth boundary.</li>
+        <li><span class="real">Real:</span> The "Generate from chat" button placement in the chat sidebar - same component, same routing, same auth boundary.</li>
         <li><span class="real">Real:</span> The post-generation diff view (showing which fields the prototype filled vs left blank).</li>
       </ul>
     </section>
@@ -183,7 +184,7 @@ flowchart LR
         </div>
       </div>
 
-      <h3 style="margin-top:24px;">Component contact sheet &mdash; Generate button</h3>
+      <h3 style="margin-top:24px;">Component contact sheet: Generate button</h3>
       <p>One component, three states, rendered live so the reviewer can see what they would ship.</p>
       <div class="contact-sheet" aria-label="Generate button contact sheet">
         <figure>
