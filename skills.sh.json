@@ -1,0 +1,10 @@
+{
+  "$schema": "https://skills.sh/schemas/skills.sh.schema.json",
+  "groupings": [
+    {
+      "title": "human-html",
+      "description": "HTML review surfaces humans actually read: a validated content contract, nine canonical examples, an offline stdlib-only validator and gallery, and local-first sharing.",
+      "skills": ["human-html"]
+    }
+  ]
+}
