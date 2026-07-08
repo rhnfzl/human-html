@@ -9,7 +9,20 @@ set -u
 
 INPUT="$(cat)"
 # Resolve this wrapper's real path; the core hook lives in the same directory.
-HOOK_SELF="$(readlink -f "${BASH_SOURCE[0]:-$0}" 2>/dev/null || echo "${BASH_SOURCE[0]:-$0}")"
+# Resolve this hook's real path, following symlinks WITHOUT readlink -f
+# (absent on macOS before 12.3); symlinked hook installs still resolve.
+resolve_self() {
+  target="$1"
+  while [ -L "$target" ]; do
+    link="$(readlink "$target")"
+    case "$link" in
+      /*) target="$link" ;;
+      *)  target="$(cd "$(dirname "$target")" && pwd)/$link" ;;
+    esac
+  done
+  printf '%s' "$(cd "$(dirname "$target")" && pwd)/$(basename "$target")"
+}
+HOOK_SELF="$(resolve_self "${BASH_SOURCE[0]:-$0}")"
 CORE_HOOK="$(cd "$(dirname "$HOOK_SELF")" 2>/dev/null && pwd)/human-html-advisory.sh"
 stderr_file="$(mktemp "${TMPDIR:-/tmp}/human-html-advisory.XXXXXX")"
 

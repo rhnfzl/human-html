@@ -50,7 +50,7 @@
   <main>
     <header>
       <p class="eyebrow">review &middot; 2026-05-25 &middot; canonical example</p>
-      <h1>PR #847 &mdash; Add idempotency middleware to MCP composite tools</h1>
+      <h1>PR #847 &mdash; Add idempotency middleware to MCP tool bundles</h1>
     </header>
 
     <div class="meta-ribbon" data-meta-ribbon="true" aria-label="Artifact metadata">
@@ -135,7 +135,7 @@
     <section id="required" class="section">
       <h2>Required changes</h2>
       <ul>
-        <li><strong>Cache TTL is hardcoded</strong> at <code>runtime/idempotency.py:42</code>. Move to <code>settings.IDEMPOTENCY_TTL_SECONDS</code> so we can tune it per environment without redeploying.</li>
+        <li><strong>Cache TTL is hardcoded</strong> at <code>server/idempotency.py:42</code>. Move to <code>settings.IDEMPOTENCY_TTL_SECONDS</code> so we can tune it per environment without redeploying.</li>
         <li>Above before/after: lift <code>tenant_id</code> out of the args dict into an explicit key field. Cleaner audit trail.</li>
       </ul>
     </section>
@@ -143,8 +143,8 @@
     <section id="optional" class="section">
       <h2>Optional changes</h2>
       <ul>
-        <li>Consider exposing a metric for cache hit / miss / cold-start at <code>runtime/idempotency.py:88</code>. Useful but not blocking.</li>
-        <li>The docstring at <code>runtime/idempotency.py:1</code> would benefit from a one-paragraph deletion test note (if you delete this module, what reappears at every call site?).</li>
+        <li>Consider exposing a metric for cache hit / miss / cold-start at <code>server/idempotency.py:88</code>. Useful but not blocking.</li>
+        <li>The docstring at <code>server/idempotency.py:1</code> would benefit from a one-paragraph deletion test note (if you delete this module, what reappears at every call site?).</li>
       </ul>
     </section>
 

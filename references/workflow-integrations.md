@@ -82,7 +82,7 @@ Footnote-style annotations beat marginalia / sticky notes / threaded comments fo
   <ol class="qa-list">
     <li class="qa-item qa-answered" data-status="answered" data-anchor="#sequence">
       <p><strong>Q1.</strong> Why land Candidate 2 stage 1 before Candidate 3? <em>(asked by Marcus, 14:08)</em></p>
-      <p><strong>A.</strong> Because the helpers split in Candidate 3 needs the <code>CompositeCfg</code> abstraction from stage 1; doing them in reverse forces rework. Linked to <a href="#sequence">Sequence section</a>.</p>
+      <p><strong>A.</strong> Because the helpers split in Candidate 3 needs the <code>BundleCfg</code> abstraction from stage 1; doing them in reverse forces rework. Linked to <a href="#sequence">Sequence section</a>.</p>
     </li>
     <li class="qa-item qa-deferred" data-status="deferred" data-anchor="#recommendation">
       <p><strong>Q2.</strong> Should the same sequencing apply to the Agent Service mirror? <em>(asked by Sam, 14:21; deferred)</em></p>
@@ -93,7 +93,7 @@ Footnote-style annotations beat marginalia / sticky notes / threaded comments fo
   <h3>Topic: risk &amp; rollback</h3>
   <ol class="qa-list">
     <li class="qa-item qa-inferred" data-status="inferred" data-confidence="0.82">
-      <p><strong>Q3 (inferred, confidence 0.82).</strong> What is the rollback plan if Candidate 1's <code>register_composite_tool</code> regresses one of the 50 wrappers in production?
+      <p><strong>Q3 (inferred, confidence 0.82).</strong> What is the rollback plan if Candidate 1's <code>register_tool_bundle</code> regresses one of the 50 wrappers in production?
       <em>Rationale for inferring:</em> rollout sequencing was discussed but rollback was not raised; for a wide-blast-radius refactor it is the obvious next question.</p>
       <p><strong>Suggested owner:</strong> Jordan Ellis, before sign-off.</p>
     </li>
@@ -105,7 +105,7 @@ Footnote-style annotations beat marginalia / sticky notes / threaded comments fo
     "meetingDate": "2026-05-25",
     "transcriptSource": "meetings/2026-05-25-architecture-review.docx",
     "questions": [
-      {"id": "Q1", "topic": "rollout sequencing", "text": "Why land Candidate 2 stage 1 before Candidate 3?", "speaker": "Marcus", "timestamp": "14:08", "status": "answered", "answer": "Because the helpers split in Candidate 3 needs CompositeCfg from stage 1.", "anchor": "#sequence"},
+      {"id": "Q1", "topic": "rollout sequencing", "text": "Why land Candidate 2 stage 1 before Candidate 3?", "speaker": "Marcus", "timestamp": "14:08", "status": "answered", "answer": "Because the helpers split in Candidate 3 needs BundleCfg from stage 1.", "anchor": "#sequence"},
       {"id": "Q2", "topic": "rollout sequencing", "text": "Should the same sequencing apply to the Agent Service mirror?", "speaker": "Sam", "timestamp": "14:21", "status": "deferred", "owner": "Sam", "dueDate": "2026-06-01", "anchor": "#recommendation"},
       {"id": "Q3", "topic": "risk & rollback", "text": "What is the rollback plan if Candidate 1 regresses?", "status": "inferred", "confidence": 0.82, "rationale": "Rollback was not raised but is the obvious next question for a wide-blast-radius refactor."}
     ]

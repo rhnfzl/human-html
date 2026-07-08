@@ -125,7 +125,7 @@
 
       <p class="mt-4 text-sm text-slate-600">
         <span class="file-chip">server.py</span>
-        <span class="file-chip">runtime/composite_tools/*_impl</span>
+        <span class="file-chip">server/tool_bundles/*_impl</span>
       </p>
 
       <div class="mt-5">
@@ -151,7 +151,7 @@
       <div class="mt-5 leverage-note">
         <h3 class="font-semibold text-emerald-700">Candidate deepening</h3>
         <p class="mt-1 text-slate-700">
-          Define the wrapper ritual once. A <code>register_composite_tool(name, impl, ...)</code>
+          Define the wrapper ritual once. A <code>register_tool_bundle(name, impl, ...)</code>
           registration function takes the impl, a list of <code>FieldSpec</code>s, and metadata; it
           produces the <code>@mcp.tool</code> wrapper that handles elicitation, dumping, the thread
           bounce, and JSON parsing. Each tool becomes a 5-10 line registration block.
@@ -186,7 +186,7 @@ graph TB
             <div class="mermaid">
 graph TB
   subgraph "server.py (~600 lines)"
-    R[register_composite_tool registry]
+    R[register_tool_bundle registry]
     L[50 declarative entries<br/>~8 lines each]
   end
   L --> R
@@ -214,7 +214,7 @@ graph TB
       </div>
 
       <p class="mt-4 text-sm text-slate-600">
-        <span class="file-chip">runtime/composite_tools/crud.py (~1,800 lines)</span>
+        <span class="file-chip">server/tool_bundles/crud.py (~1,800 lines)</span>
       </p>
 
       <div class="mt-5">
@@ -276,7 +276,7 @@ ctx = ApiContext.from_server(server_ctx)</code></pre>
       </div>
 
       <p class="mt-4 text-sm text-slate-600">
-        <span class="file-chip">runtime/composite_tools/_helpers.py</span>
+        <span class="file-chip">server/tool_bundles/helpers.py</span>
       </p>
 
       <div class="mt-5">
@@ -297,7 +297,7 @@ ctx = ApiContext.from_server(server_ctx)</code></pre>
               </tr>
             </thead>
             <tbody class="divide-y divide-slate-200">
-              <tr><td class="px-3 py-2">Composite lifecycle</td><td class="px-3 py-2 text-rose-700"><code>_helpers.py</code></td><td class="px-3 py-2 text-emerald-700">a <em>CompositeSpan</em> context manager</td></tr>
+              <tr><td class="px-3 py-2">Bundle lifecycle</td><td class="px-3 py-2 text-rose-700"><code>_helpers.py</code></td><td class="px-3 py-2 text-emerald-700">a <em>BundleSpan</em> context manager</td></tr>
               <tr><td class="px-3 py-2">Company resolution</td><td class="px-3 py-2 text-rose-700"><code>_helpers.py</code></td><td class="px-3 py-2 text-emerald-700">a <em>CompanyScope</em> module</td></tr>
               <tr><td class="px-3 py-2">Location resolution</td><td class="px-3 py-2 text-rose-700"><code>_helpers.py</code> + sibling file</td><td class="px-3 py-2 text-emerald-700">merge into <em>location.py</em></td></tr>
               <tr><td class="px-3 py-2">Sub-resource orchestration</td><td class="px-3 py-2 text-rose-700"><code>_helpers.py</code></td><td class="px-3 py-2 text-emerald-700">a <em>SubResourceWriter</em> module</td></tr>
@@ -316,7 +316,7 @@ ctx = ApiContext.from_server(server_ctx)</code></pre>
       <h2 class="text-2xl font-bold text-slate-900">Open questions</h2>
       <ul class="list-disc list-inside mt-3 text-slate-700 space-y-2">
         <li>Should Candidate 2 stage 1 happen as a pure rename PR, or bundled with a behavior change? Bias: pure rename to keep blast radius small.</li>
-        <li>Does Candidate 1's <code>register_composite_tool</code> need to support tools that already exist as classes, or only impls written for the new API?</li>
+        <li>Does Candidate 1's <code>register_tool_bundle</code> need to support tools that already exist as classes, or only impls written for the new API?</li>
         <li>What is the right migration window before Candidate 3's old <code>_helpers.py</code> shim can be deleted?</li>
       </ul>
     </div>
@@ -330,9 +330,9 @@ ctx = ApiContext.from_server(server_ctx)</code></pre>
         The candidates compose. Doing them in the wrong order forces rework. Sequenced:
       </p>
       <ol class="mt-4 space-y-3 text-slate-700 list-decimal list-inside">
-        <li class="bg-white border border-emerald-300 rounded p-3"><strong>Candidate 2 stage 1 &mdash; <code>CompositeCfg</code> dataclass.</strong> Pure rename, lowest blast radius, hits two existing NOSONAR markers.</li>
-        <li class="bg-white border border-emerald-300 rounded p-3"><strong>Candidate 3 &mdash; split <code>_helpers.py</code>.</strong> Once <code>CompositeCfg</code> is in, helpers stop needing 4-scalar threading everywhere.</li>
-        <li class="bg-white border border-emerald-300 rounded p-3"><strong>Candidate 2 stage 2 &mdash; full <code>ApiContext</code>.</strong> Promote <code>CompositeCfg</code> to carry the full infra bundle.</li>
+        <li class="bg-white border border-emerald-300 rounded p-3"><strong>Candidate 2 stage 1 &mdash; <code>BundleCfg</code> dataclass.</strong> Pure rename, lowest blast radius, hits two existing NOSONAR markers.</li>
+        <li class="bg-white border border-emerald-300 rounded p-3"><strong>Candidate 3 &mdash; split <code>_helpers.py</code>.</strong> Once <code>BundleCfg</code> is in, helpers stop needing 4-scalar threading everywhere.</li>
+        <li class="bg-white border border-emerald-300 rounded p-3"><strong>Candidate 2 stage 2 &mdash; full <code>ApiContext</code>.</strong> Promote <code>BundleCfg</code> to carry the full infra bundle.</li>
         <li class="bg-white border border-emerald-300 rounded p-3"><strong>Candidate 1 &mdash; declarative tool registration.</strong> Now easy to write because impls take <code>ApiContext</code>.</li>
       </ol>
     </div>
@@ -346,7 +346,7 @@ ctx = ApiContext.from_server(server_ctx)</code></pre>
     <ol class="space-y-3 mt-2 pl-0 list-none">
       <li class="bg-emerald-50 border border-emerald-200 rounded p-3" data-status="answered" data-anchor="#recommendation">
         <p><strong>Q1.</strong> Why land Candidate 2 stage 1 before Candidate 3? <em>(asked by Marcus, 14:08)</em></p>
-        <p class="mt-1 text-sm"><strong>A.</strong> Because Candidate 3's helpers-split benefits from <code>CompositeCfg</code> already existing &mdash; reverse order forces rework. See the <a class="text-emerald-700 hover:underline" href="#recommendation">sequenced plan</a>.</p>
+        <p class="mt-1 text-sm"><strong>A.</strong> Because Candidate 3's helpers-split benefits from <code>BundleCfg</code> already existing &mdash; reverse order forces rework. See the <a class="text-emerald-700 hover:underline" href="#recommendation">sequenced plan</a>.</p>
       </li>
       <li class="bg-amber-50 border border-amber-200 rounded p-3" data-status="deferred" data-anchor="#recommendation">
         <p><strong>Q2.</strong> Should the same sequencing apply to the Agent Service's analogous module structure? <em>(asked by Sam, 14:21; deferred)</em></p>
@@ -357,7 +357,7 @@ ctx = ApiContext.from_server(server_ctx)</code></pre>
     <h3 class="font-semibold text-slate-900 mt-6">Topic: risk &amp; rollback</h3>
     <ol class="space-y-3 mt-2 pl-0 list-none">
       <li class="bg-slate-100 border border-slate-300 rounded p-3" data-status="inferred" data-confidence="0.82" data-anchor="#c1">
-        <p><strong>Q3 (inferred, confidence 0.82).</strong> What is the rollback plan if Candidate 1's <code>register_composite_tool</code> regresses one of the 50 wrappers in production?</p>
+        <p><strong>Q3 (inferred, confidence 0.82).</strong> What is the rollback plan if Candidate 1's <code>register_tool_bundle</code> regresses one of the 50 wrappers in production?</p>
         <p class="mt-1 text-sm"><em>Rationale for inferring:</em> rollout sequencing was discussed but rollback was not raised; for a wide-blast-radius refactor it is the obvious next question.</p>
         <p class="mt-1 text-sm"><strong>Suggested owner:</strong> Jordan, before sign-off on Candidate 1.</p>
       </li>
@@ -377,7 +377,7 @@ ctx = ApiContext.from_server(server_ctx)</code></pre>
       "meetingDate": "2026-05-25",
       "transcriptSource": "meetings/2026-05-25-architecture-review.docx",
       "questions": [
-        {"id": "Q1", "topic": "rollout sequencing", "text": "Why land Candidate 2 stage 1 before Candidate 3?", "speaker": "Marcus", "timestamp": "14:08", "status": "answered", "answer": "Because Candidate 3 benefits from CompositeCfg already existing.", "anchor": "#recommendation"},
+        {"id": "Q1", "topic": "rollout sequencing", "text": "Why land Candidate 2 stage 1 before Candidate 3?", "speaker": "Marcus", "timestamp": "14:08", "status": "answered", "answer": "Because Candidate 3 benefits from BundleCfg already existing.", "anchor": "#recommendation"},
         {"id": "Q2", "topic": "rollout sequencing", "text": "Should the same sequencing apply to the Agent Service?", "speaker": "Sam", "timestamp": "14:21", "status": "deferred", "owner": "Sam", "dueDate": "2026-06-01", "anchor": "#recommendation"},
         {"id": "Q3", "topic": "risk & rollback", "text": "What is the rollback plan if Candidate 1 regresses?", "status": "inferred", "confidence": 0.82, "rationale": "Rollback was not raised but is obvious for a wide-blast-radius refactor.", "anchor": "#c1"},
         {"id": "Q4", "topic": "scope & speculation", "text": "Should Candidate 8 be split into a multi-quarter effort?", "status": "inferred", "confidence": 0.71, "rationale": "Tagged Speculative; meeting did not discuss timing."}

@@ -29,7 +29,20 @@ set -u
 
 # Resolve this skill's directory so suggestions point at the installed copy,
 # wherever the agent put it (this hook lives in <skill-dir>/hooks/).
-HOOK_SELF="$(readlink -f "${BASH_SOURCE[0]:-$0}" 2>/dev/null || echo "${BASH_SOURCE[0]:-$0}")"
+# Resolve this hook's real path, following symlinks WITHOUT readlink -f
+# (absent on macOS before 12.3); symlinked hook installs still resolve.
+resolve_self() {
+  target="$1"
+  while [ -L "$target" ]; do
+    link="$(readlink "$target")"
+    case "$link" in
+      /*) target="$link" ;;
+      *)  target="$(cd "$(dirname "$target")" && pwd)/$link" ;;
+    esac
+  done
+  printf '%s' "$(cd "$(dirname "$target")" && pwd)/$(basename "$target")"
+}
+HOOK_SELF="$(resolve_self "${BASH_SOURCE[0]:-$0}")"
 SKILL_DIR="$(cd "$(dirname "$HOOK_SELF")/.." 2>/dev/null && pwd)"
 
 INPUT="$(cat)"

@@ -136,7 +136,7 @@
       <p style="font-size:.92rem; color:var(--muted);">After an adversarial plan-review session against this artifact, the resolved decisions land here. The visible list is human-readable; the embedded JSON-LD below is what a coding agent (Claude Code / Cursor / Aider / Codex) reads to implement them. Drop this artifact into <code>.claude/</code>, reference from <code>CLAUDE.md</code>, and the agent picks up the decisions on its next run.</p>
       <ol>
         <li>
-          <p><strong>DR-001 &mdash; Extract <code>runtime/redis_cache.py</code> as the shared lazy-cache module.</strong> <em>Rationale:</em> the three current callers (<code>idempotency.py</code>, <code>reference.py</code>, <code>session_cache.py</code>) all duplicate the cooldown + lazy-client pattern. <em>Implementation note:</em> create the module with <code>LazyRedisCache.get/set/reset</code>; migrate one caller; ship under feature flag; migrate the other two.</p>
+          <p><strong>DR-001 &mdash; Extract <code>server/redis_cache.py</code> as the shared lazy-cache module.</strong> <em>Rationale:</em> the three current callers (<code>idempotency.py</code>, <code>reference.py</code>, <code>session_cache.py</code>) all duplicate the cooldown + lazy-client pattern. <em>Implementation note:</em> create the module with <code>LazyRedisCache.get/set/reset</code>; migrate one caller; ship under feature flag; migrate the other two.</p>
         </li>
         <li>
           <p><strong>DR-002 &mdash; Preserve module-global escape hatches for tests during the one-sprint dual-running window.</strong> <em>Rationale:</em> existing tests reset module globals; keeping the escape hatches stops the migration from also rewriting 40+ tests at once.</p>
@@ -151,8 +151,8 @@
           "@context": "https://schema.org/",
           "@type": "Decision",
           "id": "urn:decision:DR-001",
-          "summary": "Extract runtime/redis_cache.py as the shared lazy-cache module",
-          "task": "Create runtime/redis_cache.py exposing LazyRedisCache with get/set/reset methods that wrap the cooldown + lazy-client pattern currently duplicated across three callers. Migrate idempotency.py first behind a feature flag, then reference.py, then session_cache.py.",
+          "summary": "Extract server/redis_cache.py as the shared lazy-cache module",
+          "task": "Create server/redis_cache.py exposing LazyRedisCache with get/set/reset methods that wrap the cooldown + lazy-client pattern currently duplicated across three callers. Migrate idempotency.py first behind a feature flag, then reference.py, then session_cache.py.",
           "constraints": [
             "Preserve the existing public API of each caller",
             "Keep the module-global escape hatches in place during the dual-running window",
@@ -161,15 +161,15 @@
           "languages": ["Python"],
           "priority": "high",
           "acceptanceCriteria": [
-            "uv run pytest runtime/tests/test_redis_cache.py passes",
+            "uv run pytest server/tests/test_redis_cache.py passes",
             "All three callers compose the shared module",
             "Redis connection count drops from ~12 to ~4 per pod"
           ],
           "targets": [
-            {"path": "runtime/redis_cache.py", "purpose": "new module"},
-            {"path": "runtime/idempotency.py", "purpose": "migrate first"},
-            {"path": "runtime/composite_tools/reference.py", "purpose": "migrate second"},
-            {"path": "runtime/session_cache.py", "purpose": "migrate third"}
+            {"path": "server/redis_cache.py", "purpose": "new module"},
+            {"path": "server/idempotency.py", "purpose": "migrate first"},
+            {"path": "server/tool_bundles/reference.py", "purpose": "migrate second"},
+            {"path": "server/session_cache.py", "purpose": "migrate third"}
           ],
           "patchPreferences": { "format": "unified-diff", "perHunk": true },
           "status": "accepted",
