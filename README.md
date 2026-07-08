@@ -11,13 +11,10 @@ An Agent Skill for the documents agents produce for humans: plans, reviews, arch
 ## Quickstart (30 seconds)
 
 ```bash
-npx skills add rhnfzl/human-html                          # auto-detects your agents
-python3 <skill-dir>/human_html_artifacts.py init          # once per workspace
-python3 <skill-dir>/human_html_artifacts.py new plan "Q3 migration"
-python3 <skill-dir>/human_html_artifacts.py check
+npx skills add rhnfzl/human-html    # auto-detects your agents; that's the whole setup
 ```
 
-`<skill-dir>` is wherever the installer put the skill, e.g. `~/.claude/skills/human-html` (Claude Code), `~/.agents/skills/human-html` (Codex), `~/.cursor/skills/human-html` (Cursor). Also installable via `npx openskills install rhnfzl/human-html`, Claude Code's `/plugin marketplace add rhnfzl/human-html`, or a plain clone + symlink.
+Then ask your agent for a plan, review, or postmortem. The skill has the agent scaffold, validate, and index everything; the `docs/human-html/` lane appears in a workspace with the first artifact. Optional: run `python3 <skill-dir>/human_html_artifacts.py init` once per workspace to seed a glossary, or drive `new` / `check` / `index` by hand; `<skill-dir>` is wherever the installer put the skill (e.g. `~/.claude/skills/human-html`). Also installable via `npx openskills install rhnfzl/human-html`, Claude Code's `/plugin marketplace add rhnfzl/human-html`, or a plain clone + symlink.
 
 ## Why this exists
 
