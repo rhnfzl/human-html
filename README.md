@@ -19,7 +19,17 @@ One command, and it auto-detects your installed agents; that is the whole setup:
 npx skills add rhnfzl/human-html
 ```
 
-Then ask your agent for a plan, review, or postmortem. The skill has the agent scaffold, validate, and index everything; the `docs/human-html/` lane appears in a workspace with the first artifact. Optional: run `python3 <skill-dir>/human_html_artifacts.py init` once per workspace to seed a glossary, or drive `new` / `check` / `index` by hand; `<skill-dir>` is wherever the installer put the skill (e.g. `~/.claude/skills/human-html`). Also installable via `npx openskills install rhnfzl/human-html`, Claude Code's `/plugin marketplace add rhnfzl/human-html`, or a plain clone + symlink.
+Then ask your agent for a plan, review, or postmortem. The agent scaffolds, validates, and indexes everything; the `docs/human-html/` lane appears in a workspace with the first artifact.
+
+<details>
+<summary>Other install routes and manual use</summary>
+
+- `npx openskills install rhnfzl/human-html` (AGENTS.md ecosystems)
+- Claude Code natively: `/plugin marketplace add rhnfzl/human-html`, then `/plugin install human-html@rhnfzl`
+- Manual: clone this repo and symlink it into your agent's skills directory
+- Drive the CLI yourself: `python3 <skill-dir>/human_html_artifacts.py new|check|index`, where `<skill-dir>` is wherever the installer put the skill (e.g. `~/.claude/skills/human-html`). `init` is optional and seeds a workspace glossary.
+
+</details>
 
 ## Why this exists
 
@@ -28,6 +38,22 @@ Then ask your agent for a plan, review, or postmortem. The skill has the agent s
 3. **Sharing tools assume upload.** Default is local; nothing leaves your machine. Sharing is a menu: GitHub Pages (artifacts are already static HTML), an optional bring-your-own-bucket S3 script with zero defaults, or any static host. Note: Mermaid blocks load a CDN at view time; render to inline SVG for fully-offline artifacts.
 
 The contract itself is stolen craft, in the [Steal Like an Artist](https://austinkleon.com/steal/) sense: the inverted pyramid, postmortem timelines, C4 diagrams, first-use glossing. The nine canonical examples exist to be stolen from too, and so does the repo: fork it, re-theme it, suppress what you disagree with.
+
+## The nine kinds
+
+Each kind has its own scaffold and a canonical example showing what good looks like ([full gallery](https://rhnfzl.github.io/human-html/)):
+
+| Kind | The reader wants to |
+|---|---|
+| [plan](https://rhnfzl.github.io/human-html/examples/plan-canonical.html) | execute: outcome, sequence, risks, rollback |
+| [review](https://rhnfzl.github.io/human-html/examples/review-canonical.html) | inspect a change: verdict first, concerns ranked |
+| [architecture](https://rhnfzl.github.io/human-html/examples/architecture-canonical.html) | understand a proposed change to system shape |
+| [understanding](https://rhnfzl.github.io/human-html/examples/understanding-canonical.html) | understand how something works today |
+| [research](https://rhnfzl.github.io/human-html/examples/research-canonical.html) | learn what the digging found |
+| [decision](https://rhnfzl.github.io/human-html/examples/decision-canonical.html) | decide: options, consequences, reversibility |
+| [prototype](https://rhnfzl.github.io/human-html/examples/prototype-canonical.html) | feel a proposed thing before it exists |
+| [status](https://rhnfzl.github.io/human-html/examples/status-canonical.html) | catch up: where we are, blockers, next |
+| [incident](https://rhnfzl.github.io/human-html/examples/incident-canonical.html) | learn from failure: timeline, root cause, actions |
 
 ## What's in the box
 
