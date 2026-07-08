@@ -555,9 +555,13 @@ _SLOP_EMOJI_RE = re.compile(r"[\U0001F000-\U0001FAFF]")
 
 # House style: no em/en dashes in artifact prose (use a comma, colon,
 # parentheses, or " - "). Code-bearing regions are exempt: dashes inside
-# <pre>/<code>/<script>/<style> are often syntax, not prose.
+# <pre>/<code>/<script>/<style> are often syntax, not prose. Both the literal
+# characters and their HTML entities/numeric refs count - a &mdash; renders as
+# an em dash just the same, so the rule must catch the encoded forms too.
 _DASH_EXEMPT_RE = re.compile(r"<(pre|code|script|style)\b.*?</\1\s*>", re.I | re.S)
-_EM_EN_DASH_RE = re.compile(r"[–—]")
+_EM_EN_DASH_RE = re.compile(
+    r"[–—]|&mdash;|&ndash;|&#8212;|&#8211;|&#x2014;|&#x2013;", re.IGNORECASE
+)
 
 # Token-aware constraint: a single self-contained artifact past this size is slow
 # to load and expensive to feed back to a model. WARN (not block) - some legitimate
