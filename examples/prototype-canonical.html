@@ -1,0 +1,354 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="artifact-kind" content="prototype">
+  <meta name="artifact-audience" content="human">
+  <meta name="artifact-created" content="2026-05-25">
+  <meta name="artifact-source" content="canonical-example">
+  <title>Prototype &mdash; Canonical Example</title>
+  <script type="module">
+    import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.esm.min.mjs";
+    mermaid.initialize({ startOnLoad: true, theme: "default", securityLevel: "loose" });
+  </script>
+  <style>
+    :root { --ink:#172033; --muted:#5d6b7f; --line:#dce3ec; --soft:#f6f8fb; --blue:#226fb2; --orange:#c5542d; --green:#2d7a55; font-family:Inter,system-ui,-apple-system,sans-serif; }
+    * { box-sizing: border-box; }
+    body { margin:0; color:var(--ink); background:#fff; }
+    main { width:min(1180px, calc(100vw - 40px)); margin:0 auto; padding:42px 0 70px; }
+    header { border-bottom:1px solid var(--line); padding-bottom:24px; margin-bottom:28px; }
+    .eyebrow { color:var(--blue); font-size:.78rem; font-weight:750; text-transform:uppercase; letter-spacing:.12em; }
+    h1 { margin:10px 0 12px; font-size:clamp(2rem,4.4vw,3.4rem); line-height:1.05; }
+    h2 { margin:0 0 12px; font-size:1.35rem; }
+    p { color:var(--ink); line-height:1.6; max-width:78ch; }
+    .pm-summary { background:var(--soft); border-left:4px solid var(--blue); padding:20px 22px; border-radius:8px; margin:16px 0 32px; }
+    .pm-summary h2 { color:var(--blue); margin-bottom:12px; }
+    .pm-summary ul { margin:0; padding-left:20px; } .pm-summary li { margin-bottom:8px; }
+    .pm-summary strong { color:var(--blue); }
+    nav.toc { background:var(--soft); border:1px solid var(--line); border-radius:8px; padding:14px 20px; margin:16px 0 32px; }
+    nav.toc strong { display:block; margin-bottom:8px; font-size:.8rem; text-transform:uppercase; color:var(--ink); }
+    nav.toc ol { margin:0; padding-left:22px; columns:2; column-gap:24px; }
+    nav.toc a { color:var(--blue); text-decoration:none; }
+    section.section { margin-top:32px; }
+    code { background:var(--soft); border:1px solid var(--line); border-radius:6px; padding:2px 5px; }
+    pre { background:#0f172a; color:#e2e8f0; border-radius:8px; padding:14px; overflow:auto; font-size:.85rem; }
+    .mermaid svg { max-width:100%; height:auto; }
+    .real { color:var(--green); font-weight:600; }
+    .mocked { color:var(--orange); font-weight:600; }
+    .meta-ribbon { display:flex; flex-wrap:wrap; gap:18px; padding:12px 18px; margin:0 0 24px; background:var(--soft); border:1px solid var(--line); border-radius:8px; font-size:.85rem; color:var(--muted); }
+    .meta-ribbon strong { color:var(--ink); margin-right:6px; }
+    .read-map { background:#fff; border:1px solid var(--line); border-radius:8px; padding:14px 18px; margin:0 0 24px; font-size:.88rem; }
+    .read-map div { margin:4px 0; } .read-map strong { color:var(--blue); margin-right:6px; }
+    .read-map a { color:var(--blue); text-decoration:none; }
+    .provenance { margin-top:48px; padding-top:18px; border-top:1px solid var(--line); font-size:.82rem; color:var(--muted); }
+    .provenance code { background:transparent; border:0; color:var(--ink); font-family:ui-monospace,Menlo,monospace; }
+    .provenance a { color:var(--blue); text-decoration:none; }
+  </style>
+</head>
+<body data-human-html-artifact="true">
+  <main>
+    <header>
+      <p class="eyebrow">prototype &middot; 2026-05-25 &middot; canonical example</p>
+      <h1>One-click "Generate a structured summary from a chat transcript" prototype</h1>
+    </header>
+
+    <div class="meta-ribbon" data-meta-ribbon="true" aria-label="Artifact metadata">
+      <span><strong>Kind</strong> prototype</span>
+      <span><strong>Created</strong> 2026-05-25</span>
+      <span><strong>Owner</strong> Jordan Ellis</span>
+      <span><strong>Status</strong> Draft</span>
+      <span><strong>Read time</strong> ~6 min</span>
+      <span><strong>Source</strong> canonical-example</span>
+    </div>
+
+    <section data-audience="pm" class="pm-summary">
+      <h2>In plain terms</h2>
+      <ul>
+        <li><strong>What this does for the user:</strong> A user who's already discussed a topic with a colleague in chat can hit one button to generate a draft summary from that conversation, instead of re-typing it into the structured form.</li>
+        <li><strong>Why it matters:</strong> Colleagues describe requests in chat naturally; the gap between chat and the structured form is a friction point we've heard about three times in user research.</li>
+        <li><strong>What's being asked:</strong> Play with the prototype, give thumbs-up / thumbs-down on the UX before we invest in productionising the LLM extraction step.</li>
+      </ul>
+    </section>
+
+    <aside class="read-map" aria-label="Reading map">
+      <div><strong>Exec (2 min):</strong> <a href="#goal">Goal</a> &middot; <a href="#try-it">Try it</a></div>
+      <div><strong>PM (5 min):</strong> <a href="#goal">Goal</a> &middot; <a href="#current-vs-target">Current vs target</a> &middot; <a href="#mocked">What's mocked</a></div>
+      <div><strong>Engineer (15 min):</strong> All sections</div>
+    </aside>
+
+    <nav class="toc" aria-label="On this page">
+      <strong>On this page</strong>
+      <ol>
+        <li><a href="#goal">Goal</a></li>
+        <li><a href="#current-vs-target">Current vs target</a></li>
+        <li><a href="#mocked">What's mocked</a></li>
+        <li><a href="#real">What's real</a></li>
+        <li><a href="#brand-tokens">Brand tokens &amp; component sheet</a></li>
+        <li><a href="#try-it">Try it &mdash; interactive sandbox</a></li>
+      </ol>
+    </nav>
+
+    <section id="goal" class="section">
+      <h2>Goal</h2>
+      <p>Learn whether users trust an LLM-extracted summary enough to edit it down rather than start blank. Three users in 30-minute sessions next week.</p>
+    </section>
+
+    <section id="current-vs-target" class="section">
+      <h2>Current vs target</h2>
+      <p>Today: user copies key points from chat into a 12-field form. Target: prototype "Generate from chat" button fills the form, user edits.</p>
+      <div class="mermaid">
+flowchart LR
+  C[Chat with colleague] --> M{Today: manual re-entry<br/>~8 minutes}
+  M --> V1[Structured form]
+  C --> P{Prototype: 1-click extract<br/>~30 seconds + edits}
+  P --> V2[Structured form, pre-filled]
+  style M fill:#fecaca
+  style P fill:#a7f3d0
+      </div>
+    </section>
+
+    <section id="mocked" class="section">
+      <h2>What's mocked</h2>
+      <ul>
+        <li><span class="mocked">Mocked:</span> LLM call &mdash; the prototype uses a hardcoded JSON response per fixture transcript. Real extraction lives in a follow-up sprint if this UX works.</li>
+        <li><span class="mocked">Mocked:</span> Confidence indicators per field &mdash; the prototype shows green/yellow indicators sampled from a uniform random instead of real model confidence.</li>
+        <li><span class="mocked">Mocked:</span> Edit history &mdash; the prototype doesn't persist edits; close the tab and they're gone.</li>
+      </ul>
+    </section>
+
+    <section id="real" class="section">
+      <h2>What's real</h2>
+      <ul>
+        <li><span class="real">Real:</span> The full structured form rendered from existing production templates.</li>
+        <li><span class="real">Real:</span> The "Generate from chat" button placement in the chat sidebar &mdash; same component, same routing, same auth boundary.</li>
+        <li><span class="real">Real:</span> The post-generation diff view (showing which fields the prototype filled vs left blank).</li>
+      </ul>
+    </section>
+
+    <section id="brand-tokens" class="section">
+      <h2>Brand tokens &amp; component sheet</h2>
+      <p>The prototype also proposes a small token set for the generate-button surface. Each token is shown as <em>name + value + rendered sample</em> so the reader sees the value land, not just its hex. The button contact sheet underneath shows the token set composed into the button's three states.</p>
+
+      <style>
+        .token-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:12px; margin-top:14px; }
+        .token { display:flex; gap:12px; border:1px solid var(--line); border-radius:8px; padding:12px; background:#fff; }
+        .token .sample { width:48px; height:48px; border-radius:6px; flex-shrink:0; border:1px solid rgba(0,0,0,.08); }
+        .token .meta { display:flex; flex-direction:column; gap:2px; min-width:0; }
+        .token .meta strong { color:var(--ink); font-family:ui-monospace, Menlo, monospace; font-size:.9rem; }
+        .token .meta code { background:transparent; border:0; padding:0; color:var(--muted); font-size:.82rem; }
+        .token .meta span { color:var(--muted); font-size:.82rem; }
+        .contact-sheet { display:flex; flex-wrap:wrap; gap:14px; margin-top:18px; padding:18px; border:1px dashed var(--line); border-radius:8px; background:#fafbfc; }
+        .contact-sheet figure { margin:0; display:flex; flex-direction:column; gap:6px; align-items:flex-start; }
+        .contact-sheet figcaption { font-size:.78rem; color:var(--muted); text-transform:uppercase; letter-spacing:.06em; }
+        .demo-btn { font-family:inherit; font-size:.92rem; font-weight:600; padding:10px 18px; border-radius:6px; cursor:pointer; border:0; }
+        .demo-btn.primary { background:#2563eb; color:#fff; }
+        .demo-btn.primary:hover { background:#1d4ed8; }
+        .demo-btn.primary:disabled { background:#93c5fd; cursor:not-allowed; }
+        .demo-btn.secondary { background:transparent; color:#2563eb; border:1px solid #2563eb; }
+      </style>
+
+      <div class="token-grid">
+        <div class="token">
+          <div class="sample" style="background:#2563eb;"></div>
+          <div class="meta">
+            <strong>--brand-primary</strong>
+            <code>#2563eb</code>
+            <span>Primary action surface (Generate button, focus rings)</span>
+          </div>
+        </div>
+        <div class="token">
+          <div class="sample" style="background:#1d4ed8;"></div>
+          <div class="meta">
+            <strong>--brand-primary-hover</strong>
+            <code>#1d4ed8</code>
+            <span>Primary on hover / pressed</span>
+          </div>
+        </div>
+        <div class="token">
+          <div class="sample" style="background:#93c5fd;"></div>
+          <div class="meta">
+            <strong>--brand-primary-disabled</strong>
+            <code>#93c5fd</code>
+            <span>Primary when no chat transcript is selected</span>
+          </div>
+        </div>
+        <div class="token">
+          <div class="sample" style="background:#dbeafe; border-color:#bfdbfe;"></div>
+          <div class="meta">
+            <strong>--brand-tint</strong>
+            <code>#dbeafe</code>
+            <span>Confidence indicator background, pre-fill highlight</span>
+          </div>
+        </div>
+      </div>
+
+      <h3 style="margin-top:24px;">Component contact sheet &mdash; Generate button</h3>
+      <p>One component, three states, rendered live so the reviewer can see what they would ship.</p>
+      <div class="contact-sheet" aria-label="Generate button contact sheet">
+        <figure>
+          <button type="button" class="demo-btn primary">Generate from chat</button>
+          <figcaption>Default</figcaption>
+        </figure>
+        <figure>
+          <button type="button" class="demo-btn primary" disabled>Generate from chat</button>
+          <figcaption>Disabled (no transcript)</figcaption>
+        </figure>
+        <figure>
+          <button type="button" class="demo-btn secondary">Open transcript</button>
+          <figcaption>Secondary action</figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <section id="try-it" class="section">
+      <h2>Try it</h2>
+      <p>Run the full prototype locally:</p>
+      <pre><code># Start the prototype (uses fixture chat transcripts)
+cd prototypes/summary-from-chat
+make run
+# Open http://localhost:5173 and click "Generate from chat" on any seeded transcript.</code></pre>
+
+      <h3>Interactive: tune the extraction confidence threshold</h3>
+      <p>Below is a live in-artifact sandbox demonstrating the second prototype variable: at what confidence score do we pre-fill a field vs leave it blank? Slide and watch which of the 12 fields the prototype would pre-fill. Use the copy button to capture the threshold you want to ship with.</p>
+      <div id="confidence-sandbox" style="border:1px solid var(--line); border-radius:8px; padding:18px; margin-top:12px; background:var(--soft);">
+        <label style="display:flex; align-items:center; gap:12px; font-weight:600;">
+          Confidence threshold:
+          <input id="confidence-slider" type="range" min="0" max="100" value="60" style="flex:1;">
+          <output id="confidence-value" style="min-width:48px; text-align:right; color:var(--blue); font-variant-numeric:tabular-nums;">60%</output>
+        </label>
+        <p style="margin-top:14px;">Pre-filled: <strong id="prefill-count-num">7</strong> of <strong id="prefill-total">12</strong> fields</p>
+        <ul id="prefill-list" style="margin:0; padding-left:22px; font-size:.92rem;"></ul>
+        <button id="copy-button" type="button" style="margin-top:14px; background:var(--blue); color:white; border:0; padding:8px 16px; border-radius:6px; font-weight:600; cursor:pointer;">Copy threshold for the prompt</button>
+        <span id="copy-status" style="margin-left:10px; color:var(--green); font-size:.85rem;"></span>
+      </div>
+      <p style="margin-top:14px; font-size:.82rem; color:var(--muted);">Tip: the URL hash updates as you slide. Bookmark or share the URL to capture this exact threshold.</p>
+      <script>
+        // Tiny URL-state utility (~40 lines). JSON-in-hash, replaceState
+        // (no back-button pollution), allow-listed keys to prevent prototype
+        // pollution, Object.create(null) for parsed state. Pattern adapted from
+        // community HTML-tool patterns and OWASP deserialization guidance.
+        const MAX_URL = 2000;
+        const STATE_VERSION = 1;
+        function loadUrlState(allowKeys, defaults) {
+          const h = location.hash.slice(1);
+          if (!h || h.length > MAX_URL) return Object.assign({}, defaults);
+          try {
+            const parsed = JSON.parse(decodeURIComponent(h));
+            if (typeof parsed !== "object" || parsed === null) return Object.assign({}, defaults);
+            if (parsed.v !== STATE_VERSION) return Object.assign({}, defaults);
+            const out = Object.create(null);
+            for (const k of allowKeys) {
+              if (Object.prototype.hasOwnProperty.call(parsed, k)) out[k] = parsed[k];
+            }
+            return Object.assign({}, defaults, out);
+          } catch (e) {
+            return Object.assign({}, defaults);
+          }
+        }
+        function saveUrlState(state) {
+          const payload = Object.assign({ v: STATE_VERSION }, state);
+          const s = encodeURIComponent(JSON.stringify(payload));
+          if (s.length > MAX_URL) return;
+          const url = location.pathname + location.search + "#" + s;
+          if (history.replaceState) {
+            history.replaceState(null, "", url);
+          } else {
+            location.hash = s;
+          }
+        }
+
+        (() => {
+          const fields = [
+            { name: "Subject", confidence: 95 },
+            { name: "Product area", confidence: 90 },
+            { name: "Severity", confidence: 80 },
+            { name: "Affected version", confidence: 75 },
+            { name: "Steps to reproduce", confidence: 70 },
+            { name: "Expected behavior", confidence: 55 },
+            { name: "Actual behavior", confidence: 50 },
+            { name: "Environment", confidence: 65 },
+            { name: "Customer tier", confidence: 60 },
+            { name: "First seen", confidence: 35 },
+            { name: "Attachments", confidence: 30 },
+            { name: "Duplicate of", confidence: 25 },
+          ];
+          const slider = document.getElementById("confidence-slider");
+          const value = document.getElementById("confidence-value");
+          const countNum = document.getElementById("prefill-count-num");
+          const totalEl = document.getElementById("prefill-total");
+          const listEl = document.getElementById("prefill-list");
+          const copyBtn = document.getElementById("copy-button");
+          const copyStatus = document.getElementById("copy-status");
+          totalEl.textContent = String(fields.length);
+
+          const ALLOW_KEYS = ["threshold"];
+          const initial = loadUrlState(ALLOW_KEYS, { threshold: 60 });
+          const initialThreshold = Number(initial.threshold);
+          if (Number.isFinite(initialThreshold) && initialThreshold >= 0 && initialThreshold <= 100) {
+            slider.value = String(initialThreshold);
+          }
+
+          const update = () => {
+            const threshold = Number(slider.value);
+            value.textContent = threshold + "%";
+            const filled = fields.filter((f) => f.confidence >= threshold);
+            countNum.textContent = String(filled.length);
+            // Safe DOM construction: createElement + textContent only.
+            // Never assign innerHTML with interpolated values.
+            while (listEl.firstChild) {
+              listEl.removeChild(listEl.firstChild);
+            }
+            for (const field of filled) {
+              const li = document.createElement("li");
+              li.append(document.createTextNode(field.name + " "));
+              const span = document.createElement("span");
+              span.style.color = "var(--muted)";
+              span.textContent = "(" + field.confidence + "%)";
+              li.append(span);
+              listEl.append(li);
+            }
+            saveUrlState({ threshold: threshold });
+          };
+          slider.addEventListener("input", update);
+          copyBtn.addEventListener("click", async () => {
+            const threshold = Number(slider.value);
+            const filled = fields.filter((f) => f.confidence >= threshold);
+            const snippet =
+              "extraction_confidence_threshold: " + threshold +
+              "  # " + filled.length + "/" + fields.length + " fields pre-filled";
+            try {
+              await navigator.clipboard.writeText(snippet);
+              copyStatus.textContent = "Copied.";
+            } catch {
+              copyStatus.textContent = "Copy failed; selection: " + snippet;
+            }
+            setTimeout(() => { copyStatus.textContent = ""; }, 2400);
+          });
+          update();
+        })();
+      </script>
+
+      <p style="margin-top:24px;">Positive signal: a user edits the prototype's output rather than discarding it. Negative signal: they say "I'll just type it myself" within 90 seconds.</p>
+    </section>
+
+    <footer class="provenance" data-provenance="true">
+      <p>Generated by <code>claude-opus-4-7</code> on 2026-05-25 &middot; reviewed by <code>Jordan Ellis</code> &middot; source: canonical-example.</p>
+      <script type="application/ld+json" id="provenance">
+        {
+          "@context": "https://schema.org/",
+          "@type": "CreativeWork",
+          "@id": "urn:human-html:2026-05-25:prototype:canonical-example",
+          "additionalType": "ai-generated-artifact",
+          "artifactKind": "prototype",
+          "dateCreated": "2026-05-25",
+          "creator": { "@type": "SoftwareApplication", "name": "claude-opus-4-7" },
+          "promptHash": "<sha256 of prompt; canonical example, no real prompt>",
+          "reviewer": "Jordan Ellis",
+          "source": "canonical-example"
+        }
+      </script>
+    </footer>
+  </main>
+</body>
+</html>

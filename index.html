@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>human-html</title>
+  <style>
+    :root {
+      --accent: #0d7d74;
+      --ink: #1a2226;
+      --muted: #5b6a70;
+      --line: #e2e8e7;
+      --bg: #f7faf9;
+      --card: #ffffff;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font: 16px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      color: var(--ink);
+      background: var(--bg);
+    }
+    .wrap { max-width: 900px; margin: 0 auto; padding: 3rem 1.25rem 4rem; }
+    header { border-bottom: 3px solid var(--accent); padding-bottom: 1.5rem; margin-bottom: 2rem; }
+    h1 { font-size: 2.1rem; margin: 0 0 .4rem; letter-spacing: -.02em; }
+    .pitch { color: var(--muted); font-size: 1.1rem; margin: 0; max-width: 40rem; }
+    pre {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-left: 3px solid var(--accent);
+      border-radius: 6px;
+      padding: .85rem 1rem;
+      overflow-x: auto;
+      font: .95rem/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      margin: 1.5rem 0 2.5rem;
+    }
+    h2 { font-size: 1.15rem; margin: 0 0 1rem; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .06em; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 1rem; }
+    .card {
+      display: block;
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 1rem 1.1rem;
+      text-decoration: none;
+      color: inherit;
+      transition: border-color .15s, transform .15s;
+    }
+    .card:hover { border-color: var(--accent); transform: translateY(-2px); }
+    .kind { color: var(--accent); font-weight: 700; font-size: .95rem; letter-spacing: .01em; }
+    .desc { color: var(--muted); font-size: .92rem; margin: .35rem 0 0; }
+    footer { margin-top: 3rem; padding-top: 1.5rem; border-top: 1px solid var(--line); color: var(--muted); font-size: .9rem; }
+    footer a { color: var(--accent); }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>human-html</h1>
+      <p class="pitch">Review surfaces a teammate actually reads, not a Markdown wall that gets skimmed. One self-contained HTML page per plan, review, or decision, enforced by a validated content contract.</p>
+    </header>
+
+    <pre>npx skills add rhnfzl/human-html</pre>
+
+    <h2>The nine kinds</h2>
+    <div class="grid">
+      <a class="card" href="examples/plan-canonical.html">
+        <span class="kind">plan</span>
+        <p class="desc">A forward-looking work plan with scope, milestones, risks, and a rollback path.</p>
+      </a>
+      <a class="card" href="examples/review-canonical.html">
+        <span class="kind">review</span>
+        <p class="desc">A critique of a code change or PR, with findings ranked by severity.</p>
+      </a>
+      <a class="card" href="examples/architecture-canonical.html">
+        <span class="kind">architecture</span>
+        <p class="desc">An explainer of how a system works, with diagrams and open questions.</p>
+      </a>
+      <a class="card" href="examples/understanding-canonical.html">
+        <span class="kind">understanding</span>
+        <p class="desc">What the team learned tracing a flow end to end through the code.</p>
+      </a>
+      <a class="card" href="examples/research-canonical.html">
+        <span class="kind">research</span>
+        <p class="desc">External evidence synthesized into an options comparison and a recommendation.</p>
+      </a>
+      <a class="card" href="examples/decision-canonical.html">
+        <span class="kind">decision</span>
+        <p class="desc">A locked choice laid out with options, trade-offs, and consequences.</p>
+      </a>
+      <a class="card" href="examples/prototype-canonical.html">
+        <span class="kind">prototype</span>
+        <p class="desc">A live, interactive demo that still reads with JavaScript disabled.</p>
+      </a>
+      <a class="card" href="examples/status-canonical.html">
+        <span class="kind">status</span>
+        <p class="desc">A snapshot of where work stands: progress, blockers, and next steps.</p>
+      </a>
+      <a class="card" href="examples/incident-canonical.html">
+        <span class="kind">incident</span>
+        <p class="desc">A postmortem with a timeline, impact, root cause, and corrective actions.</p>
+      </a>
+    </div>
+
+    <footer>
+      Source and docs on <a href="https://github.com/rhnfzl/human-html">github.com/rhnfzl/human-html</a>. MIT licensed.
+    </footer>
+  </div>
+</body>
+</html>

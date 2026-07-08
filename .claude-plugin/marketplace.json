@@ -1,0 +1,13 @@
+{
+  "name": "rhnfzl",
+  "owner": {
+    "name": "rhnfzl"
+  },
+  "plugins": [
+    {
+      "name": "human-html",
+      "source": "./",
+      "description": "HTML review surfaces humans actually read, enforced by a validated content contract: plans, reviews, architecture, decisions, incidents, and more."
+    }
+  ]
+}

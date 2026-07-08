@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="artifact-kind" content="understanding">
+  <meta name="artifact-audience" content="human">
+  <meta name="artifact-created" content="2026-05-25">
+  <meta name="artifact-source" content="canonical-example">
+  <title>Understanding &mdash; Canonical Example</title>
+  <script type="module">
+    import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.esm.min.mjs";
+    mermaid.initialize({ startOnLoad: true, theme: "default", securityLevel: "loose" });
+  </script>
+  <style>
+    :root { --ink:#172033; --muted:#5d6b7f; --line:#dce3ec; --soft:#f6f8fb; --blue:#226fb2; --orange:#c5542d; --green:#2d7a55; font-family:Inter,system-ui,-apple-system,sans-serif; }
+    * { box-sizing: border-box; }
+    body { margin:0; color:var(--ink); background:#fff; }
+    main { width:min(1180px, calc(100vw - 40px)); margin:0 auto; padding:42px 0 70px; }
+    header { border-bottom:1px solid var(--line); padding-bottom:24px; margin-bottom:28px; }
+    .eyebrow { color:var(--blue); font-size:.78rem; font-weight:750; text-transform:uppercase; letter-spacing:.12em; }
+    h1 { margin:10px 0 12px; font-size:clamp(2rem,4.4vw,3.4rem); line-height:1.05; }
+    h2 { margin:0 0 12px; font-size:1.35rem; }
+    p { color:var(--ink); line-height:1.6; max-width:78ch; }
+    .pm-summary { background:var(--soft); border-left:4px solid var(--blue); padding:20px 22px; border-radius:8px; margin:16px 0 32px; }
+    .pm-summary h2 { color:var(--blue); margin-bottom:12px; }
+    .pm-summary ul { margin:0; padding-left:20px; } .pm-summary li { margin-bottom:8px; }
+    .pm-summary strong { color:var(--blue); }
+    nav.toc { background:var(--soft); border:1px solid var(--line); border-radius:8px; padding:14px 20px; margin:16px 0 32px; }
+    nav.toc strong { display:block; margin-bottom:8px; font-size:.8rem; text-transform:uppercase; color:var(--ink); }
+    nav.toc ol { margin:0; padding-left:22px; columns:2; column-gap:24px; }
+    nav.toc a { color:var(--blue); text-decoration:none; }
+    section.section { margin-top:32px; }
+    code { background:var(--soft); border:1px solid var(--line); border-radius:6px; padding:2px 5px; }
+    .mermaid svg { max-width:100%; height:auto; }
+    .meta-ribbon { display:flex; flex-wrap:wrap; gap:18px; padding:12px 18px; margin:0 0 24px; background:var(--soft); border:1px solid var(--line); border-radius:8px; font-size:.85rem; color:var(--muted); }
+    .meta-ribbon strong { color:var(--ink); margin-right:6px; }
+    .read-map { background:#fff; border:1px solid var(--line); border-radius:8px; padding:14px 18px; margin:0 0 24px; font-size:.88rem; }
+    .read-map div { margin:4px 0; } .read-map strong { color:var(--blue); margin-right:6px; }
+    .read-map a { color:var(--blue); text-decoration:none; }
+    .provenance { margin-top:48px; padding-top:18px; border-top:1px solid var(--line); font-size:.82rem; color:var(--muted); }
+    .provenance code { background:transparent; border:0; color:var(--ink); font-family:ui-monospace,Menlo,monospace; }
+    .provenance a { color:var(--blue); text-decoration:none; }
+  </style>
+</head>
+<body data-human-html-artifact="true">
+  <main>
+    <header>
+      <p class="eyebrow">understanding &middot; 2026-05-25 &middot; canonical example</p>
+      <h1>How a user chat message reaches the Platform API</h1>
+    </header>
+
+    <div class="meta-ribbon" data-meta-ribbon="true" aria-label="Artifact metadata">
+      <span><strong>Kind</strong> understanding</span>
+      <span><strong>Created</strong> 2026-05-25</span>
+      <span><strong>Owner</strong> Jordan Ellis</span>
+      <span><strong>Status</strong> Draft</span>
+      <span><strong>Read time</strong> ~5 min</span>
+      <span><strong>Source</strong> canonical-example</span>
+    </div>
+
+    <section data-audience="pm" class="pm-summary">
+      <h2>In plain terms</h2>
+      <ul>
+        <li><strong>What this does for the user:</strong> When a user types a question in the AI chat, four backend services hand the request to each other before the answer comes back. This doc shows that path so PMs and new hires can understand why some failures live in one layer and not another.</li>
+        <li><strong>Why it matters:</strong> Bug reports like "chat is slow" or "approval didn't trigger" almost always originate in one specific layer. Knowing which layer owns what cuts triage time in half.</li>
+        <li><strong>What's being asked:</strong> Read this once. Use the layer map next time a user chat issue lands in your queue.</li>
+      </ul>
+    </section>
+
+    <aside class="read-map" aria-label="Reading map">
+      <div><strong>Exec (2 min):</strong> <a href="#what-it-is">What it is</a> &middot; <a href="#where-to-dig">Where to dig</a></div>
+      <div><strong>PM (5 min):</strong> <a href="#what-it-is">What it is</a> &middot; <a href="#how-it-works">How it works</a> &middot; <a href="#gotchas">Gotchas</a></div>
+      <div><strong>Engineer (15 min):</strong> All sections</div>
+    </aside>
+
+    <nav class="toc" aria-label="On this page">
+      <strong>On this page</strong>
+      <ol>
+        <li><a href="#what-it-is">What this is</a></li>
+        <li><a href="#how-it-works">How it works</a></li>
+        <li><a href="#gotchas">Gotchas</a></li>
+        <li><a href="#where-to-dig">Where to dig</a></li>
+      </ol>
+    </nav>
+
+    <section id="what-it-is" class="section">
+      <h2>What this thing is</h2>
+      <p>The "request chain" is the sequence of services a user chat message passes through, from the browser to the Platform API and back. Four services participate, each owning a distinct responsibility: routing, agent orchestration, tool dispatch, business API.</p>
+    </section>
+
+    <section id="how-it-works" class="section">
+      <h2>How it works</h2>
+      <p>The user types in the web UI. The Django frontend gateway authenticates the session and proxies the chat request to the Agent Service (FastAPI). The Agent Service runs the LLM agent loop, which calls tools on the MCP server. MCP translates each tool call into a Platform API request. Results flow back through the same chain.</p>
+      <div class="mermaid">
+flowchart LR
+  U[Browser] --> FE[Front End]
+  FE -->|SSO JWT| GW[Gateway Service<br/>Django proxy]
+  GW -->|forwards JWT| AGT[Agent Service<br/>FastAPI agent loop]
+  AGT -->|X-Acme-* headers| MCP[MCP Server<br/>tool dispatch]
+  MCP -->|basic auth| API[Platform API]
+  API -.JSON.-> MCP
+  MCP -.results.-> AGT
+  AGT -.SSE chunks.-> GW
+  GW -.SSE chunks.-> FE
+  FE -.rendered chat.-> U
+      </div>
+    </section>
+
+    <section id="gotchas" class="section">
+      <h2>Gotchas</h2>
+      <ul>
+        <li><strong>"Chat broken" tickets are usually Gateway Service:</strong> the proxy layer fails before the Agent Service ever sees the request, so Agent Service logs are empty when the user reports the issue.</li>
+        <li><strong>Auth headers don't pass through transparently:</strong> the SSO JWT from the FE is unpacked at Gateway Service; Agent Service sends MCP a different shape (<code>X-Acme-Token</code> + <code>X-Acme-Client-Id</code> + <code>X-Acme-Client-Secret</code>) extracted from the JWT's <code>service_tokens</code> claim.</li>
+        <li><strong>SSE buffering can hide errors:</strong> a network hiccup between GW and FE looks identical to AGT crashing mid-response. Check both before assuming one or the other.</li>
+      </ul>
+
+      <details style="margin-top:18px; border:1px solid var(--line); border-radius:8px; padding:12px 16px; background:var(--soft);">
+        <summary style="cursor:pointer; font-weight:600; color:var(--ink);">Deep dive &mdash; JWT claim shape and how the extraction happens in each layer</summary>
+        <p style="margin-top:12px;">Gateway Service receives the SSO JWT in the <code>Authorization: Bearer &lt;jwt&gt;</code> header. Inside the JWT payload, the <code>service_tokens</code> claim is an object:</p>
+        <pre style="background:#0f172a; color:#e2e8f0; padding:14px; border-radius:8px; overflow:auto; font-size:.85rem;"><code>{
+  "sub": "user-1234",
+  "service_tokens": {
+    "api_token": "&lt;opaque Platform bearer&gt;",
+    "client_id": "&lt;tenant client id&gt;",
+    "client_secret": "&lt;tenant secret&gt;"
+  },
+  "iat": ..., "exp": ...
+}</code></pre>
+        <p>Gateway Service extracts <code>service_tokens</code> on each chat call and forwards the three values as the three <code>X-Acme-*</code> headers when calling Agent Service's <code>/chat/completions</code> endpoint. Agent Service then re-presents them to MCP, which proxies to the Platform API as basic auth. This is why a "missing client_id" error in MCP almost always originates in Gateway Service's JWT extraction, not in Agent Service.</p>
+
+        <p style="margin-top:18px;"><strong>Extract and forward, by language</strong> &mdash; same operation, three client perspectives. Use Tab to enter the tablist; arrow keys to switch.</p>
+        <style>
+          .tabs { display:flex; gap:4px; border-bottom:1px solid var(--line); margin-top:8px; }
+          .tabs [role="tab"] { background:transparent; border:0; padding:8px 14px; cursor:pointer; font-family:inherit; font-size:.9rem; color:var(--muted); border-bottom:2px solid transparent; }
+          .tabs [role="tab"][aria-selected="true"] { color:var(--blue); border-bottom-color:var(--blue); font-weight:600; }
+          .tabs [role="tab"]:focus { outline:2px solid var(--blue); outline-offset:2px; }
+          [role="tabpanel"] { padding-top:12px; }
+        </style>
+        <div role="tablist" aria-label="JWT extraction by language" class="tabs">
+          <button role="tab" id="jwt-tab-py"   aria-controls="jwt-panel-py"   aria-selected="true"  tabindex="0">Python (Gateway Service)</button>
+          <button role="tab" id="jwt-tab-ts"   aria-controls="jwt-panel-ts"   aria-selected="false" tabindex="-1">TypeScript (alt client)</button>
+          <button role="tab" id="jwt-tab-curl" aria-controls="jwt-panel-curl" aria-selected="false" tabindex="-1">cURL (debug probe)</button>
+        </div>
+        <div id="jwt-panel-py" role="tabpanel" aria-labelledby="jwt-tab-py">
+          <pre style="background:#0f172a; color:#e2e8f0; padding:14px; border-radius:8px; overflow:auto; font-size:.85rem;"><code>import jwt
+from django.http import HttpRequest
+
+def forward_to_agent_service(request: HttpRequest):
+    raw = request.headers["Authorization"].removeprefix("Bearer ")
+    payload = jwt.decode(raw, key=settings.SSO_PUBLIC_KEY,
+                         algorithms=["RS256"])
+    ai = payload["service_tokens"]
+    return httpx.post(
+        f"{AGENT_SERVICE_URL}/chat/completions",
+        headers={
+            "X-Acme-Token": ai["api_token"],
+            "X-Acme-Client-Id": ai["client_id"],
+            "X-Acme-Client-Secret": ai["client_secret"],
+        },
+        json=request.json(),
+    )</code></pre>
+        </div>
+        <div id="jwt-panel-ts" role="tabpanel" aria-labelledby="jwt-tab-ts" hidden>
+          <pre style="background:#0f172a; color:#e2e8f0; padding:14px; border-radius:8px; overflow:auto; font-size:.85rem;"><code>import { jwtVerify, importSPKI } from "jose";
+
+async function forwardToAgentService(req: Request): Promise&lt;Response&gt; {
+  const token = req.headers.get("authorization")?.replace("Bearer ", "");
+  const key = await importSPKI(SSO_PUBLIC_KEY_PEM, "RS256");
+  const { payload } = await jwtVerify(token!, key);
+  const ai = payload.service_tokens as { api_token: string; client_id: string; client_secret: string };
+  return fetch(`${AGENT_SERVICE_URL}/chat/completions`, {
+    method: "POST",
+    headers: {
+      "X-Acme-Token": ai.api_token,
+      "X-Acme-Client-Id": ai.client_id,
+      "X-Acme-Client-Secret": ai.client_secret,
+      "Content-Type": "application/json",
+    },
+    body: await req.text(),
+  });
+}</code></pre>
+        </div>
+        <div id="jwt-panel-curl" role="tabpanel" aria-labelledby="jwt-tab-curl" hidden>
+          <pre style="background:#0f172a; color:#e2e8f0; padding:14px; border-radius:8px; overflow:auto; font-size:.85rem;"><code># Bypass Gateway Service to probe Agent Service directly with the three headers.
+# Useful when a chat ticket comes in and you want to isolate whether the bug is
+# in GW's JWT extraction or downstream.
+
+API_TOKEN=$(jq -r .service_tokens.api_token &lt; jwt-payload.json)
+CLIENT_ID=$(jq -r .service_tokens.client_id &lt; jwt-payload.json)
+CLIENT_SECRET=$(jq -r .service_tokens.client_secret &lt; jwt-payload.json)
+
+curl -sS "$AGENT_SERVICE_URL/chat/completions" \
+  -H "X-Acme-Token: $API_TOKEN" \
+  -H "X-Acme-Client-Id: $CLIENT_ID" \
+  -H "X-Acme-Client-Secret: $CLIENT_SECRET" \
+  -H "Content-Type: application/json" \
+  -d @chat-request.json</code></pre>
+        </div>
+        <script>
+          (() => {
+            const tabs = Array.from(document.querySelectorAll('[role="tablist"][aria-label="JWT extraction by language"] [role="tab"]'));
+            const panels = tabs.map((t) => document.getElementById(t.getAttribute("aria-controls")));
+            const select = (idx) => {
+              tabs.forEach((t, i) => {
+                const active = i === idx;
+                t.setAttribute("aria-selected", String(active));
+                t.setAttribute("tabindex", active ? "0" : "-1");
+                panels[i].hidden = !active;
+              });
+              tabs[idx].focus();
+            };
+            tabs.forEach((tab, idx) => {
+              tab.addEventListener("click", () => select(idx));
+              tab.addEventListener("keydown", (e) => {
+                if (e.key === "ArrowRight") { e.preventDefault(); select((idx + 1) % tabs.length); }
+                else if (e.key === "ArrowLeft") { e.preventDefault(); select((idx - 1 + tabs.length) % tabs.length); }
+                else if (e.key === "Home") { e.preventDefault(); select(0); }
+                else if (e.key === "End") { e.preventDefault(); select(tabs.length - 1); }
+              });
+            });
+          })();
+        </script>
+      </details>
+    </section>
+
+    <section id="where-to-dig" class="section">
+      <h2>Where to dig</h2>
+      <ul>
+        <li><code>gateway/app/views.py</code> &mdash; Gateway Service proxy entry point</li>
+        <li><code>acme-agent-service/agent_service/api/routers/chat.py</code> &mdash; Agent Service chat router</li>
+        <li><code>acme-mcp/server.py</code> &mdash; MCP tool dispatch surface</li>
+        <li><code>docs/references/full-request-chain.md</code> &mdash; deeper reference covering auth header extraction and error envelopes</li>
+      </ul>
+    </section>
+
+    <footer class="provenance" data-provenance="true">
+      <p>Generated by <code>claude-opus-4-7</code> on 2026-05-25 &middot; reviewed by <code>Jordan Ellis</code> &middot; source: canonical-example.</p>
+      <script type="application/ld+json" id="provenance">
+        {
+          "@context": "https://schema.org/",
+          "@type": "CreativeWork",
+          "@id": "urn:human-html:2026-05-25:understanding:canonical-example",
+          "additionalType": "ai-generated-artifact",
+          "artifactKind": "understanding",
+          "dateCreated": "2026-05-25",
+          "creator": { "@type": "SoftwareApplication", "name": "claude-opus-4-7" },
+          "promptHash": "<sha256 of prompt; canonical example, no real prompt>",
+          "reviewer": "Jordan Ellis",
+          "source": "canonical-example"
+        }
+      </script>
+    </footer>
+  </main>
+</body>
+</html>
