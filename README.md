@@ -89,7 +89,7 @@ As with any skill, read `SKILL.md` before you install.
 
 ## Agent support
 
-Claude Code, Codex, OpenCode, and Gemini CLI read Agent Skills natively. Cursor and others are covered by the universal installers (`npx skills add`, `openskills`).
+human-html is a standard [Agent Skill](https://agentskills.io), so it works anywhere that reads the format. Confirmed native support (the agent auto-loads `SKILL.md`, no installer needed): Claude Code, Codex, Cursor, GitHub Copilot, Gemini CLI, OpenCode, Zed, Amp, Warp, Kiro, Crush, Qwen Code, and Pi. Anything else is covered by the universal installers (`npx skills add`, `openskills`), which target 70+ agents including Windsurf, Cline, and Aider.
 
 ## License
 
