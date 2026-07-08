@@ -259,7 +259,7 @@
     <div class="tiles">
       <div class="tile good"><span class="n">~3,200</span><span class="k">lines in "thin bootstrap" server.py</span></div>
       <div class="tile warn"><span class="n">50</span><span class="k">@mcp.tool wrappers</span></div>
-      <div class="tile crit"><span class="n">19</span><span class="k">helpers in one _helpers.py</span></div>
+      <div class="tile crit"><span class="n">49</span><span class="k">defs in one _helpers.py</span></div>
       <div class="tile info"><span class="n">0</span><span class="k">communities detected</span></div>
     </div>
 
@@ -403,7 +403,7 @@ ctx = ApiContext.from_server(server_ctx)</code></pre>
     <section id="c3" class="section">
       <p class="eyebrow">Candidate 3</p>
       <h2>_helpers.py is a seven-concern junk drawer</h2>
-      <p><span class="chip good">Strong</span> <em>PM lead: nineteen helpers serving seven unrelated concerns share one 1,298-line file, so every bug fix touches the same crowded file. Splitting it by concern makes each piece easy to find and easy to test.</em></p>
+      <p><span class="chip good">Strong</span> <em>PM lead: forty-nine helpers serving seven unrelated concerns share one 1,298-line file, so every bug fix touches the same crowded file. Splitting it by concern makes each piece easy to find and easy to test.</em></p>
       <p><code class="m">server/tool_bundles/helpers.py</code></p>
 
       <h3>The friction</h3>
