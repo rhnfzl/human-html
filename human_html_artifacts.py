@@ -1783,6 +1783,9 @@ _SCAFFOLD_STYLE = """
     section:target > h2 { color: var(--accent-2); }
     .grid-cols-2, .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s-6); }
     .grid-3 { display: grid; grid-template-columns: repeat(3,1fr); gap: var(--s-6); }
+    /* grid items default to min-width:auto and will not shrink below a wide child (a long <pre> or code
+       line), pushing the page past a phone viewport. min-width:0 lets the child's overflow-x:auto scroll. */
+    .grid-cols-2 > *, .grid-2 > *, .grid-3 > *, .compare-before, .compare-after { min-width: 0; }
     .compare-before { background: var(--high-bg); border-left: 4px solid var(--high); border-radius: var(--radius); padding: 16px; }
     .compare-after { background: var(--good-bg); border-left: 4px solid var(--good); border-radius: var(--radius); padding: 16px; }
     .compare-before > strong:first-child, .compare-after > strong:first-child { display: block; margin-bottom: 8px; font-family: var(--mono); font-size: var(--fs-cap); letter-spacing: .08em; text-transform: uppercase; }
@@ -1794,7 +1797,7 @@ _SCAFFOLD_STYLE = """
     tr:last-child td { border-bottom: 0; }
     .table-scroll { overflow-x: auto; border-radius: var(--radius); }
     .table-scroll table { display: table; }
-    code { background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 2px 5px; font-family: var(--mono); font-size: .88em; }
+    code { background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 2px 5px; font-family: var(--mono); font-size: .88em; overflow-wrap: anywhere; }
     pre { background: #0f172a; color: #e2e8f0; border-radius: var(--radius); padding: 14px; overflow: auto; border: 1px solid var(--line); }
     pre code { background: transparent; border: 0; color: inherit; }
     .mermaid svg { max-width: 100%; height: auto; }
