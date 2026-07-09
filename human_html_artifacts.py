@@ -1376,9 +1376,100 @@ _KIND_COLORS = {
     "prototype": "#db2777", "status": "#6b7280", "incident": "#b91c1c",
 }
 
+# ---------------------------------------------------------------------------
+# Theme system: a light/dark toggle baked into every artifact and the gallery.
+# Base :root is light and renders on any engine. The dark palette (contrast-verified)
+# is emitted by _dark_scheme_css() into two screen-scoped selectors: an explicit
+# toggle choice (:root[data-theme="dark"]) and the OS preference with no explicit
+# choice (:root:not([data-theme])). Wrapping the dark tokens in @media screen keeps
+# PRINT on the light base, so PDF handoff stays light. Default follows the reader's
+# OS; an explicit choice persists in localStorage. Progressive enhancement: with JS
+# off, the page still follows the OS via the media query and the (non-functional)
+# toggle button stays hidden. No .innerHTML is used, so the no-JS content contract
+# (the js-content-fallback rule) is untouched.
+# ---------------------------------------------------------------------------
+
+_SCAFFOLD_DARK_TOKENS = (
+    "        color-scheme: dark;\n"
+    "        --bg:#0f1522; --surface:#161e2e; --surface-2:#1c2536; --surface-3:#232e42;\n"
+    "        --ink:#e8edf5; --ink-2:#c3ccdb; --muted:#96a2b5; --faint:#8593a8;\n"
+    "        --line:#253145; --line-strong:#33415a;\n"
+    "        --accent:#6aa8dd; --accent-2:#85bce6; --accent-bg:#152740; --accent-line:#2c4a6b;\n"
+    "        --crit:#f19488; --crit-bg:#351d22; --crit-line:#6b3936;\n"
+    "        --high:#eda06b; --high-bg:#33251a; --high-line:#6b4a30;\n"
+    "        --warn:#d8b45c; --warn-bg:#312a16; --warn-line:#665626;\n"
+    "        --good:#74c99b; --good-bg:#16301f; --good-line:#2e5c42;\n"
+    "        --info:#6aa8dd; --info-bg:#152740; --info-line:#2c4a6b;\n"
+    "        --neutral:#9aa6ba; --neutral-bg:#232c3c; --neutral-line:#3a465a;\n"
+    "        --shadow-sm:0 1px 2px rgba(0,0,0,.35);\n"
+    "        --shadow:0 4px 14px rgba(0,0,0,.45), 0 1px 3px rgba(0,0,0,.3);"
+)
+
+# Gallery uses a smaller token subset; --warn-* here back the .skipped banner.
+_INDEX_DARK_TOKENS = (
+    "        color-scheme: dark;\n"
+    "        --ink:#e8edf5; --muted:#96a2b5; --line:#253145; --soft:#1c2536;\n"
+    "        --bg:#0f1522; --surface:#161e2e;\n"
+    "        --accent:#6aa8dd; --accent-2:#e0895f; --good:#74c99b;\n"
+    "        --warn-bg:#33251a; --warn-line:#6b4a30; --warn-fg:#eda06b;"
+)
+
+
+def _dark_scheme_css(tokens: str) -> str:
+    """Emit the dark palette into two screen-scoped selectors (explicit toggle +
+    OS preference). @media screen keeps print on the light base for PDF handoff."""
+    return (
+        "    @media screen {\n"
+        '      :root[data-theme="dark"] {\n'
+        f"{tokens}\n"
+        "      }\n"
+        "    }\n"
+        "    @media screen and (prefers-color-scheme: dark) {\n"
+        "      :root:not([data-theme]) {\n"
+        f"{tokens}\n"
+        "      }\n"
+        "    }"
+    )
+
+
+# Blocking head init: applies a saved theme before first paint (no flash) and flags
+# JS-on (.theme-js) so the toggle appears only when it can work.
+_THEME_INIT = """  <script>
+    (function(){try{var r=document.documentElement;r.classList.add('theme-js');var t=localStorage.getItem('hh-theme');if(t==='dark'||t==='light')r.dataset.theme=t;}catch(e){}})();
+  </script>"""
+
+_THEME_TOGGLE_BUTTON = '  <button class="theme-toggle" type="button" aria-label="Switch theme" title="Toggle light / dark"></button>'
+
+# Fixed sun/moon toggle. Hidden until .theme-js is set (JS on) and hidden in print.
+# --surface-2/--line-strong fall back to gallery tokens so one style fits both templates.
+_THEME_TOGGLE_STYLE = r"""    .theme-toggle { display:none; }
+    .theme-js .theme-toggle { position:fixed; top:16px; right:16px; z-index:100; width:40px; height:40px; padding:0; display:inline-flex; align-items:center; justify-content:center; font:inherit; font-size:18px; line-height:1; cursor:pointer; background:var(--surface-2, var(--soft)); color:var(--muted); border:1px solid var(--line); border-radius:999px; }
+    .theme-js .theme-toggle:hover { color:var(--ink); border-color:var(--line-strong, var(--line)); }
+    .theme-js .theme-toggle:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+    .theme-toggle::before { content:"\263E"; }
+    :root[data-theme="dark"] .theme-toggle::before { content:"\2600"; }
+    @media (prefers-color-scheme:dark){ :root:not([data-theme]) .theme-toggle::before{ content:"\2600"; } }
+    @media print { .theme-toggle { display:none; } }"""
+
+_THEME_TOGGLE_SCRIPT = """  <script>
+    (function(){
+      var btn=document.querySelector('.theme-toggle'); if(!btn) return;
+      function cur(){ return document.documentElement.dataset.theme || (window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light'); }
+      function label(){ btn.setAttribute('aria-label', cur()==='dark'?'Switch to light theme':'Switch to dark theme'); }
+      label();
+      btn.addEventListener('click', function(){
+        var next=cur()==='dark'?'light':'dark';
+        document.documentElement.dataset.theme=next;
+        try{ localStorage.setItem('hh-theme', next); }catch(e){}
+        label();
+      });
+    })();
+  </script>"""
+
 _INDEX_STYLE = """
     :root { color-scheme: light; --ink:#172033; --muted:#5a6577; --line:#dbe2ec; --soft:#f2f5f9; --bg:#f6f8fb; --surface:#fff;
       --accent:#226fb2; --accent-2:#c5542d; --good:#2d7a55;
+      --warn-bg:#fff7ed; --warn-line:#f97316; --warn-fg:#9a3412;   /* backs .skipped; flips in dark */
       --display:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,ui-serif,serif;
       font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", "Helvetica Neue", sans-serif; }
     * { box-sizing:border-box; }
@@ -1393,22 +1484,22 @@ _INDEX_STYLE = """
     a:hover { text-decoration:underline; }
     code { background:var(--soft); border:1px solid var(--line); border-radius:6px; padding:2px 5px; font-size:.88em; }
     .kind { display:inline-block; border:1px solid color-mix(in srgb, var(--accent) 30%, var(--line));
-      background:color-mix(in srgb, var(--accent) 8%, white); color:var(--accent);
+      background:color-mix(in srgb, var(--accent) 8%, var(--surface)); color:var(--accent);
       border-radius:999px; padding:3px 10px; font-size:.74rem; font-weight:700; letter-spacing:.02em; }
     .toolbar { display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin:0 0 14px; }
     .toolbar input[type=search] { flex:1 1 260px; padding:10px 12px; border:1px solid var(--line);
-      border-radius:8px; font:inherit; color:var(--ink); }
+      border-radius:8px; font:inherit; color:var(--ink); background:var(--surface); }
     .chips { display:flex; flex-wrap:wrap; gap:6px; }
     .chip { border:1px solid var(--line); background:var(--soft); color:var(--muted); border-radius:999px;
       padding:5px 11px; font-size:.78rem; font-weight:650; cursor:pointer; }
-    .chip[aria-pressed=true] { background:color-mix(in srgb, var(--accent) 12%, white); color:var(--accent);
+    .chip[aria-pressed=true] { background:color-mix(in srgb, var(--accent) 12%, var(--surface)); color:var(--accent);
       border-color:color-mix(in srgb, var(--accent) 35%, var(--line)); }
     .count { color:var(--muted); font-size:.82rem; margin:0 0 16px; }
-    .skipped { background:#fff7ed; border:1px solid #f97316; color:#9a3412; border-radius:8px;
+    .skipped { background:var(--warn-bg); border:1px solid var(--warn-line); color:var(--warn-fg); border-radius:8px;
       padding:10px 14px; margin:0 0 18px; font-size:.88rem; }
-    .skipped code { background:#fff; }
+    .skipped code { background:var(--surface); }
     .cards { display:grid; grid-template-columns:repeat(auto-fill, minmax(300px,1fr)); gap:16px; }
-    .card { border:1px solid var(--line); border-radius:10px; padding:15px 17px; background:#fff;
+    .card { border:1px solid var(--line); border-radius:10px; padding:15px 17px; background:var(--surface);
       display:flex; flex-direction:column; gap:8px; }
     .card[hidden] { display:none; }
     .card .top { display:flex; justify-content:space-between; align-items:center; gap:10px; }
@@ -1542,12 +1633,16 @@ def render_index(artifacts: list[Artifact], skipped: int = 0) -> str:
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Human HTML Artifacts</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ctext y='13' font-size='13'%3E🗂️%3C/text%3E%3C/svg%3E">
+{_THEME_INIT}
   <style>
 {_INDEX_STYLE}
+{_THEME_TOGGLE_STYLE}
+{_dark_scheme_css(_INDEX_DARK_TOKENS)}
   </style>
   <noscript><style>.toolbar, .count {{ display:none; }}</style></noscript>
 </head>
 <body>
+{_THEME_TOGGLE_BUTTON}
   <main>
     <header>
       <h1>Human HTML Artifacts</h1>
@@ -1568,6 +1663,7 @@ def render_index(artifacts: list[Artifact], skipped: int = 0) -> str:
   <script>
 {_INDEX_SCRIPT}
   </script>
+{_THEME_TOGGLE_SCRIPT}
 </body>
 </html>
 """
@@ -1619,7 +1715,7 @@ _KIND_FAVICON = {
 
 _SCAFFOLD_STYLE = """
     :root {
-      color-scheme: light;                     /* light-only scaffold; NO dark media query anywhere */
+      color-scheme: light;                     /* base = light, renders on any engine; dark tokens live in the @media screen blocks appended after this constant */
       /* surfaces: cool off-white, slight blue-grey hue bias (never pure grey/white) */
       --bg: #f6f8fb; --surface: #ffffff; --surface-2: #f2f5f9; --surface-3: #e9eef4;
       /* ink: navy-biased grey ramp (never pure black) */
@@ -1699,7 +1795,7 @@ _SCAFFOLD_STYLE = """
     .table-scroll { overflow-x: auto; border-radius: var(--radius); }
     .table-scroll table { display: table; }
     code { background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 2px 5px; font-family: var(--mono); font-size: .88em; }
-    pre { background: #0f172a; color: #e2e8f0; border-radius: var(--radius); padding: 14px; overflow: auto; }
+    pre { background: #0f172a; color: #e2e8f0; border-radius: var(--radius); padding: 14px; overflow: auto; border: 1px solid var(--line); }
     pre code { background: transparent; border: 0; color: inherit; }
     .mermaid svg { max-width: 100%; height: auto; }
     .mermaid:not([data-processed]) { font-family: var(--mono); font-size: var(--fs-sm); white-space: pre; overflow-x: auto; background: var(--surface-2); border: 1px dashed var(--line-strong); border-radius: var(--radius); padding: var(--s-6); color: var(--muted); }
@@ -1727,9 +1823,16 @@ _MERMAID_SCRIPT = """
        a <div class="mermaid"> later and it still renders (the guard checks the DOM at load). */
     if (document.querySelector(".mermaid")) {
       const { default: mermaid } = await import("https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.esm.min.mjs");
+      /* Pick the palette at load from the resolved theme (data-theme, else the OS preference).
+         Diagrams render to static SVG, so this matches the page on load; a mid-session toggle
+         re-themes them on the next reload. Keep both sets in sync with the :root light/dark tokens. */
+      const _root = document.documentElement;
+      const _dark = _root.dataset.theme ? _root.dataset.theme === "dark"
+                                        : window.matchMedia("(prefers-color-scheme: dark)").matches;
+      const _lightVars = { primaryColor: "#eef5fb", primaryBorderColor: "#b9d5ec", primaryTextColor: "#172033", lineColor: "#5a6577", fontFamily: "inherit", fontSize: "14px" };
+      const _darkVars = { primaryColor: "#152740", primaryBorderColor: "#2c4a6b", primaryTextColor: "#e8edf5", lineColor: "#96a2b5", fontFamily: "inherit", fontSize: "14px" };
       mermaid.initialize({ startOnLoad: false, securityLevel: "loose", theme: "base",
-        /* keep themeVariables in sync with the :root tokens above (single file, two spots) */
-        themeVariables: { primaryColor: "#eef5fb", primaryBorderColor: "#b9d5ec", primaryTextColor: "#172033", lineColor: "#5a6577", fontFamily: "inherit", fontSize: "14px" } });
+        themeVariables: _dark ? _darkVars : _lightVars });
       await mermaid.run();   /* module scripts defer, so the DOM is parsed; run() renders every .mermaid once */
     }
   </script>
@@ -2340,13 +2443,17 @@ def render_artifact(title: str, kind: str, date: str, source: str) -> str:
   <meta name="artifact-keywords" content="">
   <title>{escaped_title}</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ctext y='13' font-size='13'%3E{_KIND_FAVICON.get(kind, '📄')}%3C/text%3E%3C/svg%3E">
+{_THEME_INIT}
   <style>
 {_SCAFFOLD_STYLE}
+{_THEME_TOGGLE_STYLE}
+{_dark_scheme_css(_SCAFFOLD_DARK_TOKENS)}
 {extra_style}
   </style>
 {_MERMAID_SCRIPT}
 </head>
 <body data-human-html-artifact="true">
+{_THEME_TOGGLE_BUTTON}
   <main>
     <header>
       <p class="eyebrow">{kind} &middot; {date}</p>
@@ -2360,6 +2467,7 @@ def render_artifact(title: str, kind: str, date: str, source: str) -> str:
 {provenance}
   </main>
 {_LAYOUT_AUDIT}
+{_THEME_TOGGLE_SCRIPT}
 </body>
 </html>
 """

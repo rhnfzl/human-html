@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.2.0 - 2026-07-09
+
+Dark mode: every artifact and the gallery index now ship a built-in light/dark toggle (fixed top-right, sun/moon).
+
+- **Follows the reader's OS by default.** First open with no saved choice matches `prefers-color-scheme`; the toggle overrides and persists per-site in `localStorage`. With JavaScript off the page still follows the OS via a CSS media query and the (non-functional) toggle button stays hidden, so nothing is a dead control.
+- **Degrade-safe and print-safe.** The base `:root` stays light and renders on any engine; the contrast-verified dark palette is emitted into two screen-scoped selectors (an explicit `:root[data-theme="dark"]` choice and the OS media query). Wrapping the dark tokens in `@media screen` keeps print-to-PDF light for clean handoff. A blocking head script applies a saved theme before first paint (no flash) and uses no `.innerHTML`, so the no-JS content contract is untouched.
+- **Dark palette.** A cool, navy-biased set mirroring the light tokens one-for-one: elevation inverts (raised surfaces get lighter), the six severity triples are re-tuned for a dark ground, the code block gains a border so it does not melt into the page, and shadows drop their tint. All text pairings clear WCAG AA.
+- **Mermaid diagrams** pick their palette at load from the resolved theme, so a diagram matches the page it opens in; a mid-session toggle re-themes diagrams on the next reload.
+- **Branding dark.** A plain `:root` brand override still styles light only; to brand dark, append a `:root[data-theme="dark"]` override. `SKILL.md` and `references/patterns.md` updated: the scaffold is no longer described as light-only.
+
 ## 1.1.4 - 2026-07-09
 
 Scaffold robustness: two fixes so a shipped artifact cannot overflow horizontally (which fired the runtime layout-audit banner and clipped content on a phone).

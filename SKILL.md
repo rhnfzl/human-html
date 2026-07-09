@@ -3,7 +3,7 @@ name: human-html
 description: Use when creating a human review surface, such as a plan, review, architecture explainer, understanding doc, research synthesis, decision aid, prototype, status report, or incident postmortem. Put the artifact under docs/human-html/ as HTML instead of Markdown. Markdown stays for scratch notes, durable references, ticket notes, drafts, and meetings. Provides scaffolds, validation, index refresh, glossary support, and hooks for Claude Code and Codex.
 license: MIT
 metadata:
-  version: "1.1.4"
+  version: "1.2.0"
   author: "rhnfzl"
 ---
 
@@ -325,7 +325,15 @@ Before styling, check `CLAUDE.md`, a theme/tokens file, and brand skills. Preced
 <style>:root { --accent: …; --accent-2: …; --accent-bg: …; --accent-line: …; --bg: …; --display: …; }</style>
 ```
 
-Override accent / surface / display tokens only. Never touch the severity triples (they're semantic and contrast-locked to their tints) and never introduce a dark scheme where the workspace is light-only (light-only is a per-workspace setting some workspaces choose, not a universal skill rule; other workspaces may want dark). If the brand accent is low-contrast on the tinted backgrounds, keep the scaffold accent for text and use the brand hue for the display face and stripes only.
+Override accent / surface / display tokens only. Never touch the severity triples (they're semantic and contrast-locked to their tints). If the brand accent is low-contrast on the tinted backgrounds, keep the scaffold accent for text and use the brand hue for the display face and stripes only.
+
+**Dark mode.** Every artifact and the gallery ship a light/dark toggle (fixed, top-right). The default follows the reader's OS (`prefers-color-scheme`); an explicit choice persists in `localStorage`; print always renders light. A plain `:root` brand override above styles the LIGHT theme only, because the scaffold's dark palette lives in more specific `:root[data-theme="dark"]` (and matching media) selectors that win over a plain `:root`. To brand the dark theme too, append a second override keyed to the dark selector:
+
+```html
+<style>:root[data-theme="dark"] { --accent: …; --bg: …; }</style>
+```
+
+To pin an artifact to open in light regardless of the reader's OS, set `<html data-theme="light">` (an individual reader can still switch with the toggle).
 
 ## Words are design material
 

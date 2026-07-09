@@ -437,9 +437,9 @@ Severity badges for `incident` kind use the same palette: SEV-1 = error red, SEV
 
 ---
 
-## Component classes (built into the scaffold - light-only, no extra CSS needed)
+## Component classes (built into the scaffold, no extra CSS needed)
 
-The shared scaffold ships an author-applied component library (upgraded 2026-07-07). All classes are opt-in - the default markup emits none of them, so they never affect validation. Severity modifier on every component is one of `crit high warn good info neutral`. All colors come from the layered token system in `_SCAFFOLD_STYLE` (`--accent`, the `--<sev>` / `--<sev>-bg` / `--<sev>-line` triples, `--s-*` spacing scale, `--fs-*` type scale, `--display` serif for numbers).
+The shared scaffold ships an author-applied component library (upgraded 2026-07-07). All classes are opt-in - the default markup emits none of them, so they never affect validation. Severity modifier on every component is one of `crit high warn good info neutral`. All colors come from the layered token system in `_SCAFFOLD_STYLE` (`--accent`, the `--<sev>` / `--<sev>-bg` / `--<sev>-line` triples, `--s-*` spacing scale, `--fs-*` type scale, `--display` serif for numbers). Because every class is token-driven, it adapts to the built-in dark theme automatically.
 
 ```html
 <!-- KPI tiles: serif number + mono label + optional caption. auto-fit grid. -->
