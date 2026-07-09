@@ -476,6 +476,7 @@ More component classes and discipline:
 - `.btn` - opt-in styled button, `prototype` kind mostly; never restyles a bare `<button>`, so the canonical ARIA-tabs examples keep their own look.
 - `.eyebrow` - one eyebrow, in the header, carrying true metadata (kind · date). A per-section eyebrow is allowed only when it encodes real grouping the heading doesn't already say (workstream, epic, phase); never a restatement of the h2. An eyebrow that repeats its heading is decoration and gets deleted.
 - `.spark` / `.bars` / `.progress` / `.delta` - dataviz primitives; recipes and severity modifiers in `references/diagram-types.md`.
+- `.deflist` - a `<dl>` of label + wrapping description (risks, key terms, glossary rows, a chip plus a paragraph). Use this, never `.bars`, for label + prose: `.bars` is a progress grid whose `max-content` columns do not wrap a long `<dd>` and overflow the page. Recipe in `references/diagram-types.md`.
 
 **Token retunes:** `--faint` is text-safe AA; the `--warn` / `--high` foreground values are contrast-locked to their `--*-bg` tints - retune the pair together, never one alone.
 

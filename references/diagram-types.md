@@ -247,6 +247,17 @@ The `.spark` class (and `.spark.good` / `.warn` / `.crit`) is built into the sca
 
 The `.fill` severity classes are `crit` / `high` / `warn` / `good` (default is `--accent`). Both `.progress` and `.bars` print correctly (the scaffold's `@media print` keeps their fills) - the old inline-`style` bars vanished in print-to-PDF.
 
+**Do not use `.bars` for a label + prose definition list** (risks, key terms, a chip plus a description). `.bars` is a `max-content 1fr max-content` progress grid; feed it long `<dd>` paragraphs and they land in a `max-content` column that never wraps, so the artifact overflows horizontally on a phone (the layout-audit banner fires). Reach for `.deflist` instead - a `max-content 1fr` grid whose description column wraps and caps at a readable measure, collapsing to one column under 560px:
+
+```html
+<dl class="deflist">
+  <dt><span class="chip high">SCHEMA DRIFT</span></dt>
+  <dd>Producer and consumer disagree on the event shape; no contract test guards the boundary.</dd>
+  <dt><span class="chip warn">BACKFILL COST</span></dt>
+  <dd>Re-processing the archive is ~9 hours of compute; acceptable once, not per deploy.</dd>
+</dl>
+```
+
 Reach for these before a charting library - they cost no CDN and survive offline / strict-CSP / print.
 
 ## Interactive charts (progressive enhancement) - the default for explanatory data
