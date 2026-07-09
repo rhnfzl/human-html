@@ -1,0 +1,68 @@
+name: release
+
+# Pushing a vX.Y.Z tag is the ONLY release step. This workflow turns that tag into a
+# GitHub Release automatically, so the Release object can never be forgotten (a pushed
+# tag is a git ref; a Release is a separate API object that used to need a manual
+# `gh release create`). Notes come straight from the matching CHANGELOG.md section.
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+
+permissions:
+  contents: write   # required to create the Release
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Derive version from tag
+        id: v
+        run: |
+          tag="${GITHUB_REF_NAME}"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "version=${tag#v}" >> "$GITHUB_OUTPUT"
+
+      # Guard: a tag whose version disagrees with the shipped files (or has no CHANGELOG
+      # entry) is a release-hygiene bug. Fail loudly here instead of publishing a mismatch.
+      - name: Verify version consistency
+        env:
+          VERSION: ${{ steps.v.outputs.version }}
+        run: |
+          set -euo pipefail
+          fail=0
+          plugin=$(jq -r '.version' .claude-plugin/plugin.json)
+          skill=$(sed -n 's/^  version: *"\(.*\)"/\1/p' SKILL.md | head -1)
+          [ "$plugin" = "$VERSION" ] || { echo "::error::.claude-plugin/plugin.json version '$plugin' != tag '$VERSION'"; fail=1; }
+          [ "$skill" = "$VERSION" ]  || { echo "::error::SKILL.md version '$skill' != tag '$VERSION'"; fail=1; }
+          grep -qE "^## ${VERSION//./\\.} " CHANGELOG.md || { echo "::error::CHANGELOG.md has no '## $VERSION' section"; fail=1; }
+          exit $fail
+
+      # Slice the CHANGELOG section for this version: from its "## X.Y.Z" heading to the
+      # next "## " heading, dropping the heading line itself.
+      - name: Extract release notes
+        env:
+          VERSION: ${{ steps.v.outputs.version }}
+        run: |
+          set -euo pipefail
+          awk -v v="$VERSION" '
+            $0 ~ "^## " v " " {grab=1; next}
+            grab && /^## / {exit}
+            grab {print}
+          ' CHANGELOG.md > release-notes.md
+          echo "----- notes -----"; cat release-notes.md
+
+      # Idempotent: re-running on an existing Release must not fail the workflow.
+      - name: Create or update the GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.v.outputs.tag }}
+        run: |
+          set -euo pipefail
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release edit "$TAG" --notes-file release-notes.md --latest
+          else
+            gh release create "$TAG" --title "$TAG" --notes-file release-notes.md --latest --verify-tag
+          fi
