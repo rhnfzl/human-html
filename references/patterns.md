@@ -4,7 +4,7 @@
 
 The patterns below go beyond the file-format switch. Adopt them selectively when the artifact's kind invites them.
 
-### Collapsible `<details>` sections for deep dives
+## Collapsible `<details>` sections for deep dives
 
 For artifacts where the main argument fits on one screen but supporting evidence is voluminous (review concerns with the full failing log; understanding docs with the deep-dive into one component; research syntheses with the underlying data), wrap the deep content in `<details>` so a skimmer sees the headline and a deep reader can expand:
 
@@ -17,7 +17,7 @@ For artifacts where the main argument fits on one screen but supporting evidence
 
 Use sparingly. A heavily-collapsed artifact hides what the reader needs; a flat artifact buries it. The right call is to keep the load-bearing argument always visible and collapse only the *evidence* a reader might want to verify.
 
-### Interactivity: explanation in any kind, product simulation only in `prototype`
+## Interactivity: explanation in any kind, product simulation only in `prototype`
 
 Interactivity that *simulates the product* (a wizard, a stateful form, an app mockup) is the `prototype` kind's specialty: feeling the proposed thing IS the point there, and that same chrome would be noise in a status report or decision aid. A prototype that *demonstrates* (a slider that tunes a duration, a button that mutates state and shows the result, a copy-to-clipboard for the parameters that worked) lets the reader feel the proposed change instead of just reading about it. The `examples/prototype-canonical.html` reference includes a worked interactive slider + copy button demonstrating this pattern. Interactivity that *explains the content*, by contrast, is welcome in **any** kind - the distinction is drawn just below.
 
@@ -28,7 +28,7 @@ The distinction that matters is **not** chart-vs-chrome - it is what the interac
 
 So a slider is not banned because it is "chrome" - it is welcome when it drives *understanding of the idea*, and reserved when it is *product simulation*.
 
-### Tabbed code samples
+## Tabbed code samples
 
 When the same operation is worth showing in multiple representations (Python / TypeScript / cURL, or current-vs-proposed config, or before/after JSON), tabs let the reader pick the view they care about without scrolling past three alternative versions. Follow the W3C ARIA Authoring Practices tabs pattern so the widget is accessible to screen readers and keyboard-only users:
 
@@ -49,7 +49,7 @@ Keyboard behavior per the W3C pattern: only one tab in the tab order at a time (
 
 Best for: `understanding` artifacts (alternative client implementations), `review` artifacts (before/after of the same function in multiple files), `architecture` artifacts (the same change expressed at API / config / data-flow levels).
 
-### Copy button on code blocks (opt-in)
+## Copy button on code blocks (opt-in)
 
 For `review` / `understanding` artifacts with runnable commands, add a copy-to-clipboard button - but **inject it with JS** so surfaces that run no JavaScript never show a dead control (graceful degradation by construction). It uses `createElement` / `textContent`, so the `js-content-fallback` (`.innerHTML`) check never fires. Requires a secure context (https / localhost); the `navigator.clipboard` guard makes it vanish elsewhere.
 
@@ -77,7 +77,7 @@ CSS: `.copy-btn { position: absolute; top: 8px; right: 8px; font-family: var(--m
 
 Keep it visually quiet - this must not out-shout the content. Not a scaffold default: it would be the first always-on control in every artifact. (Label discipline: a control says what it does and confirms the result - `Copy` → `Copied`; see SKILL.md, "Words are design material".)
 
-### Design system integration (swatches and component contact sheets)
+## Design system integration (swatches and component contact sheets)
 
 When the artifact documents a visual system (tokens, components, brand colors, typography scales), render the values as the rendered things they are, not as text descriptions. A design token is a named value; the artifact should show all three parts together - **token name, raw value, and a rendered sample** - so the reader sees what the token *is* at the same time as what it *means*. Render the token name, its value, and a live sample together:
 
@@ -110,7 +110,7 @@ Best for: `prototype` artifacts that propose a visual system, `decision` artifac
 
 Before adopting or overriding tokens, honor what's already there - the user's words, then the workspace's existing design system, then scaffold defaults; see SKILL.md, "Honor what's already there", for the precedence order and the brand-override `:root` recipe.
 
-### Arrow-key deck navigation
+## Arrow-key deck navigation
 
 For long artifacts with many `<h2>` sections (architecture reviews with 8+ candidates, plans with 10+ stages, status reports with many workstreams), a small script that maps left / right arrow keys to anchor jumps gives the reader a slideshow-style walkthrough without leaving the page. The implementation needs accessibility guards so it never steals keystrokes from text inputs, tab widgets, or other interactive elements:
 
@@ -162,9 +162,9 @@ Accessibility guards: the script returns early if the reader is typing in a form
 
 `examples/architecture-canonical.html` includes a worked example. The script self-disables for short artifacts (fewer than 4 sections) so it never gets in the way for the common case.
 
-Best for: artifacts long enough that scrolling becomes the reader's main UX (review walkthroughs, multi-candidate architecture deep dives, status reports with many workstreams). Skip for short artifacts (3 sections or fewer) &mdash; the nav is enough.
+Best for: artifacts long enough that scrolling becomes the reader's main UX (review walkthroughs, multi-candidate architecture deep dives, status reports with many workstreams). Skip for short artifacts (3 sections or fewer) - the nav is enough.
 
-### Rail scroll-spy (opt-in, `.railed` artifacts only, 4+ sections)
+## Rail scroll-spy (opt-in, `.railed` artifacts only, 4+ sections)
 
 An `IntersectionObserver` toggles `aria-current` on the rail links; the artifact gains no JS by default. Create the observer **once**, then observe each section:
 
@@ -192,7 +192,7 @@ An `IntersectionObserver` toggles `aria-current` on the rail links; the artifact
 
 CSS: `nav.toc a[aria-current] { font-weight: 700; color: var(--accent-2); }`
 
-### Skip link (recommended when 8+ links precede content)
+## Skip link (recommended when 8+ links precede content)
 
 For artifacts where the ribbon + read-map + TOC put 8+ links before content, make the first child of `<body>`:
 
@@ -204,7 +204,7 @@ CSS: `.skip { position: absolute; left: -999px; } .skip:focus { position: fixed;
 
 Degrades to an invisible link; pure HTML/CSS. Kept out of the scaffold shell for now - body-markup changes to `render_artifact` are deliberately rare.
 
-### Single-file is the default; cross-links are the exception
+## Single-file is the default; cross-links are the exception
 
 The source argues for "single-file architecture: one HTML file, zero external dependencies, autonomous forever." This skill keeps that as the **default posture**: most artifacts you ship are one self-contained HTML file that opens in any browser, prints to PDF cleanly, and survives being emailed around as an attachment. We bake that posture in by preferring `<abbr title="...">term</abbr>` inline tooltips over `<a href="GLOSSARY.md#term">` cross-links whenever a definition fits in a tooltip. The hover tooltip preserves single-file independence; the cross-link does not.
 
@@ -218,7 +218,7 @@ When you author an artifact that genuinely needs 100% standalone delivery (a sta
 
 The skill's posture in one line: **one self-contained HTML file per artifact by default; deviations are explicit and motivated, not accidental.**
 
-### Hosting & sharing interactive artifacts (serve a URL, don't attach the file)
+## Hosting & sharing interactive artifacts (serve a URL, don't attach the file)
 
 **An interactive artifact (one with JavaScript: filters, sliders, sortable tables, charts) must be SERVED over a URL - never shared as a file attachment.** Chat and preview surfaces render HTML+CSS but run **no JavaScript**: Slack / Teams / email attachments don't render it, file-manager and in-app previews don't, and **iOS Quick Look disables JS entirely**. Worse, iOS Safari can't reliably run the JS of a *local* `file://` HTML at all (security sandbox) - so "just open the .html on your phone" fails even outside Quick Look. The artifact isn't broken; the *delivery* is. (Verified the hard way: an interactive artifact passed 28/28 Playwright interaction checks in WebKit + Chromium, yet showed blank as a file on a phone - purely because no JS ran. See Rule 9.)
 
@@ -231,7 +231,7 @@ The fix is to host it and share the **link**:
 
 When you hand a human an interactive artifact, hand them a **URL**, not a `.html`.
 
-### Sharing & hosting
+## Sharing & hosting
 
 A menu, in priority order. The skill never publishes anything on its own: nothing leaves the machine unless the human runs the publish script.
 
@@ -247,13 +247,13 @@ A menu, in priority order. The skill never publishes anything on its own: nothin
 
 Whatever the host, still pair with Rule 9 progressive enhancement so a no-JS preview degrades gracefully.
 
-### Sortable tables (opt-in)
+## Sortable tables (opt-in)
 
 Ship the full static `<table>` pre-rendered in the author's deliberate default order; a small script upgrades `<th data-sortable>` headers to buttons with `aria-sort` cycling (none → ascending → descending) and a comparator that tries `Number(cell)` before `localeCompare`. Headers only become buttons when JS runs, so no-JS readers see a normal, correctly-ordered table. Worth it above ~10 rows in research / status / incident action tables; below that, sort the rows yourself and ship them static. Any artifact relying on this interactivity must be **served over a URL**, not opened as a file preview.
 
 ---
 
-### Metadata ribbon
+## Metadata ribbon
 
 A visible top-of-artifact strip showing the load-bearing metadata (author / owner / status / date / read-time / tags) lets a skimmer immediately know who-owns and how-fresh without reading further. Mark with `data-meta-ribbon="true"` so the validator can detect it; the validator WARNs if it is missing (does not block).
 
@@ -272,7 +272,7 @@ The `<meta name="artifact-read-time" content="6 min">` HTML metadata field is th
 
 For `incident` artifacts, the ribbon follows the postmortem shape from `examples/incident-canonical.html`: severity pill (`SEV-1`..`SEV-4`), incident date, resolved time, owner, status, and read time. Other kinds keep the generic created / source ribbon.
 
-### Reading guide
+## Reading guide
 
 A compact strip offering a **Quick read** (the summary + the recommendation/outcome) versus a **Full read** (all sections), so a reader can pick depth without guessing. Keep it depth-based, not role-based - do not label sections by job title (PM / engineer / exec).
 
@@ -285,7 +285,7 @@ A compact strip offering a **Quick read** (the summary + the recommendation/outc
 
 Best for `architecture`, `decision`, `review`, `plan`, `incident` artifacts long enough that a reader needs a starting point. Rule 6 WARNs when those kinds have more than 3 `<h2>` sections and no reading-guide block.
 
-### Provenance footer
+## Provenance footer
 
 Every artifact is AI-generated to some degree. A provenance footer captures the prompt, model, date, and human reviewer so the artifact is auditable six months later. Mark with `data-provenance="true"` and embed a `<script type="application/ld+json" id="provenance">`; the validator WARNs if either the footer or the documented JSON-LD fields are missing.
 
@@ -311,7 +311,7 @@ Every artifact is AI-generated to some degree. A provenance footer captures the 
 
 Required fields per the AI-BOM / model-card synthesis: `@id` or `id`, `creator` (model + version), `promptHash` or `prompt`, `dateCreated`, `reviewer`. Prompts containing PII should be hashed and archived externally rather than embedded.
 
-### BLUF compact opener mode (alternative to the 3-bullet PM-summary)
+## BLUF compact opener mode (alternative to the 3-bullet PM-summary)
 
 The 3-bullet PM-summary (Rule 1) is the default. For time-critical artifacts where 3 bullets is too much (an incident artifact emailed to a CTO; a yes/no decision needing a 30-second read), BLUF (Bottom Line Up Front) is the alternative. Same `data-audience="pm"` marker, different body shape: one short sentence stating the decision or ask, then a one-sentence rationale.
 
@@ -323,7 +323,7 @@ The 3-bullet PM-summary (Rule 1) is the default. For time-critical artifacts whe
 
 The validator only checks for the `data-audience="pm"` marker, so either form satisfies the contract. Both work; pick the one that fits the reader's time budget.
 
-### Appendix lane
+## Appendix lane
 
 For artifacts where the main argument is short but the supporting evidence is voluminous (long traces, full failing logs, raw data tables), an "Appendix" section using `<details>` collapsibles keeps the main narrative tight while shipping full evidence.
 
@@ -345,7 +345,7 @@ Best for `incident`, `architecture`, `research` artifacts where evidence depth m
 
 Print force-open of collapsed `<details>` is Chromium-only - evidence-critical content must never live *only* behind a collapsible, or it prints blank on other engines.
 
-### Owners and deadlines on action sections
+## Owners and deadlines on action sections
 
 Any section that lists actions (plan / Sequence, incident / Corrective actions, review / Required changes) should make owner and deadline explicit.
 
@@ -360,7 +360,7 @@ Any section that lists actions (plan / Sequence, incident / Corrective actions, 
 
 Not validated as a hard rule; documented as the convention so future scaffolds bake it in.
 
-### Wide tables - the scroll-wrapper is the preferred pattern
+## Wide tables - the scroll-wrapper is the preferred pattern
 
 Wrap any wide table in a scroll region rather than relying on the mobile `table { display: block }` fallback - `display:block` drops the implicit `role=table` in Chromium/WebKit, so AT users lose row/column navigation on phones, and the plain overflow region is not keyboard-scrollable.
 
@@ -370,9 +370,9 @@ Wrap any wide table in a scroll region rather than relying on the mobile `table 
 </div>
 ```
 
-`.table-scroll table` keeps real `display: table` at every width (it out-specifies the 820px `display:block` fallback), so wrapped tables stay semantic; `role="region"` + `aria-label` + `tabindex="0"` restore AT table semantics and make the scroll region keyboard-reachable. The scaffolds already wrap the tables they emit. The card-reflow pattern (per-cell `data-label`) remains the alternative when a table should reflow into stacked cards rather than scroll.
+`.table-scroll table` keeps real `display: table` at every width (it out-specifies the 820px `display:block` fallback), so wrapped tables stay semantic because they remain real `<table>` elements; `role="region"` + `aria-label` + `tabindex="0"` do not add table semantics, they only make the scroll container keyboard-reachable and give it an accessible name. The scaffolds already wrap the tables they emit. The card-reflow pattern (per-cell `data-label`) remains the alternative when a table should reflow into stacked cards rather than scroll.
 
-### Read-size hint
+## Read-size hint
 
 Single optional metadata field that tells the reader up front whether this is a 2-minute or 20-minute read. Surface in the metadata ribbon. Helps the reader budget time and helps a scheduler decide if it fits the next gap on a calendar.
 
@@ -382,7 +382,7 @@ Single optional metadata field that tells the reader up front whether this is a 
 
 Suggested defaults by kind: `plan` 5 min, `review` 4 min, `architecture` 10 min, `understanding` 5 min, `research` 5 min, `decision` 5 min, `prototype` 6 min, `status` 4 min, `incident` 6 min.
 
-### URL-state utility for interactive widgets
+## URL-state utility for interactive widgets
 
 For artifacts with sliders / toggles / form controls (mostly the `prototype` kind), URL-state encoding lets the reader bookmark a specific state and share it via URL.
 
@@ -418,7 +418,7 @@ Tiny no-build implementation (~40 lines, safe against prototype pollution):
 
 Safety: allow-list keys (prevents `__proto__` injection); `Object.create(null)` for parsed state; `history.replaceState` to avoid back-button pollution; max 2KB URL. Worked example in `examples/prototype-canonical.html`.
 
-### Status color tokens (WCAG-AA)
+## Status color tokens (WCAG-AA)
 
 Standardize semantic colors across artifacts (info / success / warning / error) with a WCAG AA 4.5:1 contrast minimum. Never rely on color alone (also use icon or text label).
 
@@ -437,7 +437,7 @@ Severity badges for `incident` kind use the same palette: SEV-1 = error red, SEV
 
 ---
 
-### Component classes (built into the scaffold - light-only, no extra CSS needed)
+## Component classes (built into the scaffold - light-only, no extra CSS needed)
 
 The shared scaffold ships an author-applied component library (upgraded 2026-07-07). All classes are opt-in - the default markup emits none of them, so they never affect validation. Severity modifier on every component is one of `crit high warn good info neutral`. All colors come from the layered token system in `_SCAFFOLD_STYLE` (`--accent`, the `--<sev>` / `--<sev>-bg` / `--<sev>-line` triples, `--s-*` spacing scale, `--fs-*` type scale, `--display` serif for numbers).
 
@@ -483,7 +483,7 @@ More component classes and discipline:
 
 ---
 
-### Worked example + self-explanation (comprehension pattern; best in `understanding` / `research`)
+## Worked example + self-explanation (comprehension pattern; best in `understanding` / `research`)
 
 To teach a concept, walking the reader through **one concrete instance** step-by-step (a "worked example") builds a mental model as well as, or better than, stating the rule - the catch from the research is that the reader must actually *process* it, which a **self-explanation prompt** forces. Both are pure HTML; no JS.
 
@@ -503,7 +503,7 @@ To teach a concept, walking the reader through **one concrete instance** step-by
 
 Default to one instance; add a second only when it *contrasts* the main misconception or a boundary case (contrasting cases genuinely aid transfer) - not as filler.
 
-### Learner-paced stepper (segmentation - reveal a build-up one step at a time)
+## Learner-paced stepper (segmentation - reveal a build-up one step at a time)
 
 Breaking a continuous explanation into **learner-paced segments** improves transfer (the segmentation effect; effect size ~1.36 in Mayer & Moreno). For a build-up the reader must absorb in order (a derivation, a pipeline, an incident timeline), a stepper beats both a wall of text and scrollytelling: the reader controls the pace and never loses the thread (scrollytelling, by contrast, over-structures and fatigues readers when overused, and fights the print / self-contained posture).
 

@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.1.3 - 2026-07-09
+
+Review fixes.
+
+- `scripts/publish-s3.sh`: refuse to overwrite an existing object at the same key unless `HUMAN_HTML_S3_OVERWRITE=1` is set, and stop the auth-failure retry hint from double-applying `HUMAN_HTML_S3_PREFIX`.
+- `references/patterns.md`: fix the heading hierarchy (sections were H3 under an H1 with no H2), and correct the accessibility note (a scroll wrapper's `role="region"` does not add table semantics; the table stays semantic because it is a real `<table>`).
+- `references/workflow-integrations.md`: add the required `confidence` field to the Decision schema and example, sync the Q3 JSON-LD text with the rendered question, and fix a dangling cross-reference.
+- Scrubbed the remaining em dashes from the reference docs.
+
 ## 1.1.2 - 2026-07-08
 
 - Migrated all nine canonical examples onto one shared house design system, so the gallery reads as a single consistent set. Each kept its content, metadata, comparison visuals, and (for prototype) its interactive sandbox; only the presentation was re-based onto the current scaffold.

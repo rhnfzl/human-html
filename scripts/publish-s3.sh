@@ -17,8 +17,9 @@
 #   HUMAN_HTML_S3_REGION   optional: bucket region; unset = aws CLI config/profile decides
 #   HUMAN_HTML_S3_PREFIX   optional key prefix, e.g. "reviews/"
 #   HUMAN_HTML_S3_EXPIRES  optional presign lifetime in seconds (default 604800)
+#   HUMAN_HTML_S3_OVERWRITE  optional: set to 1 to replace an existing object at the same key (default: refuse)
 #
-# Exit codes: 0 ok · 1 bucket not configured · 2 usage · 3 AWS not authenticated · 4 bucket unreachable · 5 upload failed
+# Exit codes: 0 ok · 1 bucket not configured · 2 refused (usage / aws missing / would overwrite) · 3 AWS not authenticated · 4 bucket unreachable · 5 upload failed
 set -euo pipefail
 
 BUCKET="${HUMAN_HTML_S3_BUCKET:-}"
@@ -30,7 +31,7 @@ if [[ -z "$BUCKET" ]]; then
 HUMAN_HTML_S3_BUCKET is not set; nothing was uploaded.
 This helper is optional and publishes to an S3 bucket YOU own:
   export HUMAN_HTML_S3_BUCKET=your-bucket-name
-Optional: HUMAN_HTML_S3_REGION, HUMAN_HTML_S3_PREFIX, HUMAN_HTML_S3_EXPIRES (presign seconds).
+Optional: HUMAN_HTML_S3_REGION, HUMAN_HTML_S3_PREFIX, HUMAN_HTML_S3_EXPIRES (presign seconds), HUMAN_HTML_S3_OVERWRITE=1 (replace existing object).
 See references/patterns.md "Sharing & hosting" for setup details.
 EOF
   exit 1
@@ -89,7 +90,8 @@ esac
 if ! printf '%s' "$base" | grep -Eq '^[0-9]{4}-[0-9]{2}-[0-9]{2}-[a-z]+-[a-z0-9-]+\.html$'; then
   echo "Note: '$base' isn't a YYYY-MM-DD-kind-slug.html name; human_html_artifacts.py check will flag it in this lane." >&2
 fi
-key="${2:-$(basename "$file")}"
+requested_key="${2:-$(basename "$file")}"
+key="$requested_key"
 [[ -n "$PREFIX" ]] && key="${PREFIX%/}/$key"
 
 # 0) The aws CLI must exist at all (distinct from auth, checked next).
@@ -108,7 +110,7 @@ if ! aws sts get-caller-identity >/dev/null 2>&1; then
 AWS is not authenticated on this machine.
 The artifact stays local: $file
 Authenticate (e.g. 'aws sso login' or set your credentials/profile), then re-run:
-  $0 "$file" "$key"
+  $0 "$file" "$requested_key"
 EOF
   exit 3
 fi
@@ -124,7 +126,14 @@ if [[ -n "${head_rc:-}" ]]; then
   exit 4
 fi
 
-# 3) Upload as text/html so the browser renders it inline (not a download).
+# 3) Refuse to clobber an existing object at this key unless explicitly allowed.
+if aws s3api head-object --bucket "$BUCKET" --key "$key" ${region_args[@]+"${region_args[@]}"} >/dev/null 2>&1 \
+    && [[ "${HUMAN_HTML_S3_OVERWRITE:-}" != "1" ]]; then
+  echo "Refusing to overwrite existing s3://$BUCKET/$key. Set HUMAN_HTML_S3_OVERWRITE=1 to replace it." >&2
+  exit 2
+fi
+
+# 4) Upload as text/html so the browser renders it inline (not a download).
 if ! aws s3 cp "$file" "s3://$BUCKET/$key" \
       --content-type "text/html; charset=utf-8" \
       ${region_args[@]+"${region_args[@]}"} >/dev/null; then
@@ -132,7 +141,7 @@ if ! aws s3 cp "$file" "s3://$BUCKET/$key" \
   exit 5
 fi
 
-# 4) Return an OPEN URL the reader can click and have render in the browser.
+# 5) Return an OPEN URL the reader can click and have render in the browser.
 #    Public bucket / static-website hosting -> the clean direct URL renders as-is.
 #    Private bucket -> a presigned URL (the same kind the console "Open" button makes);
 #    the object was uploaded as text/html so it renders inline rather than downloading.
