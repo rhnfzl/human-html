@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.2.1 - 2026-07-09
+
+Fix a pre-existing horizontal overflow at phone width, and harden the generator against its cause.
+
+- **Three canonical examples (architecture, review, understanding) no longer overflow at 390px.** They predate the v1.1.4 overflow discipline: a wide `<table>` without the responsive reflow (architecture), `.compare-before` / `.compare-after` grid items without `min-width:0` so a wide `<pre>` forced the track past the viewport (review), and a long unbroken path in inline `<code>` with no wrap (understanding). The overflow was present before the v1.2.0 dark-mode change, not introduced by it.
+- **Generator hardened against the same class.** Grid items (`.grid-cols-2` / `.grid-2` / `.grid-3` children and the compare blocks) now carry `min-width:0` so a wide child scrolls instead of pushing the page, and inline `code` gets `overflow-wrap:anywhere` so a long path or token breaks. Verified with torture content (over-long `<pre>` lines in a compare grid plus a 72-character nonbreaking token) at 390px in both themes: zero overflow, layout-audit silent.
+
 ## 1.2.0 - 2026-07-09
 
 Dark mode: every artifact and the gallery index now ship a built-in light/dark toggle (fixed top-right, sun/moon).
