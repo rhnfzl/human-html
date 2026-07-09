@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.1.4 - 2026-07-09
+
+Scaffold robustness: two fixes so a shipped artifact cannot overflow horizontally (which fired the runtime layout-audit banner and clipped content on a phone).
+
+- **Meta-ribbon no longer overflows on a long value.** `.meta-ribbon span` was `white-space:nowrap`, so a single long value (e.g. a wordy `Status`) could not wrap and pushed past a 390px phone viewport. It is now `white-space:normal; overflow-wrap:anywhere` - short label/value pairs still sit together (the flex container wraps between spans), only an over-long value wraps internally.
+- **`.bars` misused as a definition list no longer blows out the page.** `.bars` is a `max-content 1fr max-content` progress grid; feeding it `<dt>`/`<dd>` prose forced long descriptions into a `max-content` column that never wrapped (a multi-thousand-pixel blowout). `.bars dd` now carries `min-width:0; overflow-wrap:anywhere` so a misuse degrades instead of exploding.
+- **New `.deflist` component** for the label + wrapping description pattern (risks, key terms, glossary rows, a chip plus a paragraph) - a 2-column `max-content 1fr` grid whose description wraps and caps at a readable measure, collapsing to one column under 560px. `references/diagram-types.md` and `references/patterns.md` now steer authors to `.deflist` and warn against `.bars` for this use.
+- **New `figure.diagram` / `.diagram-scroll` / `.diagram-src` scaffold styles** for shipping a diagram as inline SVG (self-contained: renders under Quick Look, email, and offline) with the source kept in an adjacent `<details>`. The scroll wrapper contains a too-wide diagram to its own scrollbar rather than the page. The existing guidance already recommended inline SVG for the shipped state; these are the house styles for it.
+
 ## 1.1.3 - 2026-07-09
 
 Review fixes.

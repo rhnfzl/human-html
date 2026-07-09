@@ -556,8 +556,8 @@ _SLOP_EMOJI_RE = re.compile(r"[\U0001F000-\U0001FAFF]")
 # House style: no em/en dashes in artifact prose (use a comma, colon,
 # parentheses, or " - "). Code-bearing regions are exempt: dashes inside
 # <pre>/<code>/<script>/<style> are often syntax, not prose. Both the literal
-# characters and their HTML entities/numeric refs count - a &mdash; renders as
-# an em dash just the same, so the rule must catch the encoded forms too.
+# characters and their HTML entities/numeric refs count: a named or numeric
+# entity renders as an em dash just the same, so the rule catches encoded forms.
 _DASH_EXEMPT_RE = re.compile(r"<(pre|code|script|style)\b.*?</\1\s*>", re.I | re.S)
 _EM_EN_DASH_RE = re.compile(
     r"[–—]|&mdash;|&ndash;|&#8212;|&#8211;|&#x2014;|&#x2013;", re.IGNORECASE
@@ -1551,7 +1551,7 @@ def render_index(artifacts: list[Artifact], skipped: int = 0) -> str:
   <main>
     <header>
       <h1>Human HTML Artifacts</h1>
-      <p class="lede">Review, plan, architecture, understanding, research, decision, prototype, status, and incident artifacts &mdash; built for humans to read.</p>
+      <p class="lede">Review, plan, architecture, understanding, research, decision, prototype, status, and incident artifacts, built for humans to read.</p>
       <div class="meta">{len(artifacts)} artifact(s) &middot; latest {html.escape(latest)}</div>
     </header>
 {banner}    <div class="toolbar">
@@ -1703,6 +1703,14 @@ _SCAFFOLD_STYLE = """
     pre code { background: transparent; border: 0; color: inherit; }
     .mermaid svg { max-width: 100%; height: auto; }
     .mermaid:not([data-processed]) { font-family: var(--mono); font-size: var(--fs-sm); white-space: pre; overflow-x: auto; background: var(--surface-2); border: 1px dashed var(--line-strong); border-radius: var(--radius); padding: var(--s-6); color: var(--muted); }
+    /* shipped diagram: inline SVG in a scroll wrapper, mermaid/source kept in an adjacent <details>.
+       The wrapper's overflow-x contains a too-wide diagram to its own scrollbar instead of the page. */
+    figure.diagram { margin: var(--s-7) 0; }
+    .diagram-scroll { overflow-x: auto; }
+    .diagram-scroll svg { max-width: 100%; height: auto; display: block; margin: 0 auto; }
+    .diagram-src { margin-top: var(--s-4); }
+    .diagram-src summary { cursor: pointer; color: var(--muted); font-size: var(--fs-sm); }
+    .diagram-src pre { white-space: pre; overflow-x: auto; }
     .needs-verification { display: inline-block; font-family: var(--mono); padding: 2px 8px; border-radius: var(--radius-sm); font-size: var(--fs-cap); font-weight: 700; background: var(--warn-bg); color: var(--warn); border: 1px solid var(--warn-line); }
     /* responsive overrides for components live next to the component (in _EXTRA_SCAFFOLD_STYLE) */
     @media (max-width: 820px) {
@@ -1742,7 +1750,7 @@ _LAYOUT_AUDIT = """
 
 _EXTRA_SCAFFOLD_STYLE = """
     .meta-ribbon { display:flex; flex-wrap:wrap; gap:var(--s-4) var(--s-9); padding:var(--s-5) var(--s-7); margin:0 0 var(--s-9); background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); box-shadow:var(--shadow-sm); font-size:var(--fs-sm); color:var(--muted); }
-    .meta-ribbon span { white-space:nowrap; }
+    .meta-ribbon span { white-space:normal; overflow-wrap:anywhere; }
     .meta-ribbon strong { color:var(--faint); font-family:var(--mono); font-size:var(--fs-cap); letter-spacing:.1em; text-transform:uppercase; font-weight:600; margin-right:var(--s-2); }
     .read-map { background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:var(--s-5) var(--s-7); margin:0 0 var(--s-9); font-size:var(--fs-sm); color:var(--ink); box-shadow:var(--shadow-sm); }
     .read-map div { margin:var(--s-1) 0; }
@@ -1836,11 +1844,22 @@ _EXTRA_SCAFFOLD_STYLE = """
     /* ---- bar rows / progress meter ---- */
     .bars { display:grid; grid-template-columns:max-content 1fr max-content; gap:var(--s-2) var(--s-4); align-items:center; margin:var(--s-6) 0; }
     .bars dt { font-family:var(--mono); font-size:var(--fs-sm); color:var(--muted); margin:0; }
-    .bars dd { margin:0; }
+    /* min-width:0 + wrap: if a plain <dd> paragraph is fed to this progress grid by mistake,
+       it wraps and degrades instead of forcing a max-content column and blowing out the page
+       (a chip + description definition list belongs in .deflist, not .bars). */
+    .bars dd { margin:0; min-width:0; overflow-wrap:anywhere; }
     .bars .val { font-variant-numeric:tabular-nums; font-size:var(--fs-sm); }
     .bars .track, .progress { background:var(--surface-2); border-radius:999px; overflow:hidden; min-width:60px; margin:0; }
     .bars .fill, .progress .fill { display:block; height:12px; border-radius:inherit; background:var(--sv,var(--accent)); width:var(--w,50%); }
     .fill.crit { --sv:var(--crit); } .fill.high { --sv:var(--high); } .fill.warn { --sv:var(--warn); } .fill.good { --sv:var(--good); }
+    /* ---- definition list: chip/label + wrapping description (risks, key terms, glossary rows) ----
+       Use this, NOT .bars, for a <dl> of label + prose. .bars is a 3-col progress grid whose
+       max-content columns never wrap a long <dd>; .deflist is a 2-col grid whose 1fr description
+       column wraps and caps at a readable measure. Collapses to one column on narrow screens. */
+    .deflist { display:grid; grid-template-columns:max-content 1fr; gap:var(--s-4) var(--s-6); align-items:baseline; margin:var(--s-6) 0; }
+    .deflist dt { margin:0; }
+    .deflist dd { margin:0; color:var(--ink-2); max-width:72ch; min-width:0; overflow-wrap:anywhere; }
+    @media (max-width:560px){ .deflist{ grid-template-columns:1fr; gap:var(--s-2); } .deflist dd{ margin:0 0 var(--s-5); } }
     /* ---- delta: direction glyph is AT-hidden; carry direction in the text (signed value) ---- */
     .delta { font-family:var(--mono); font-size:var(--fs-sm); font-weight:700; font-variant-numeric:tabular-nums; }
     .delta.good { color:var(--good); } .delta.bad { color:var(--crit); } .delta.flat { color:var(--muted); }
@@ -2035,7 +2054,7 @@ flowchart LR
     </section>
     <section id="where-to-dig" class="section">
       <h2>Where to dig</h2>
-      <ul><li><code>path/to/file.py</code> &mdash; what to look for</li></ul>
+      <ul><li><code>path/to/file.py</code> - what to look for</li></ul>
     </section>"""
     elif kind == "research":
         nav = [("question", "Question"), ("method", "Method"), ("findings", "Findings"), ("synthesis", "Synthesis"), ("open", "Open threads")]
