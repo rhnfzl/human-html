@@ -15,12 +15,12 @@ Recommended block shape: a visible "Decisions" section with a human-readable sum
   <h2>Decisions captured</h2>
   <ol>
     <li>
-      <p><strong>DR-001 &mdash; Use OAuth2 client credentials for service-to-service auth.</strong>
+      <p><strong>DR-001 - Use OAuth2 client credentials for service-to-service auth.</strong>
       <em>Rationale:</em> simpler token-refresh story than mTLS; aligned with the current auth service.
       <em>Implementation note:</em> add issuer config, migrate <code>service_clients</code> table, update CI tests.</p>
     </li>
     <li>
-      <p><strong>DR-002 &mdash; Keep cookie-based sessions for one sprint as the rollback path.</strong>
+      <p><strong>DR-002 - Keep cookie-based sessions for one sprint as the rollback path.</strong>
       <em>Rationale:</em> minimises blast radius if JWT rollout regresses; cookie middleware stays in code, gated by feature flag.</p>
     </li>
   </ol>
@@ -42,6 +42,7 @@ Recommended block shape: a visible "Decisions" section with a human-readable sum
       ],
       "patchPreferences": { "format": "unified-diff", "perHunk": true },
       "status": "accepted",
+      "confidence": "high",
       "author": "Jordan Ellis",
       "dateCreated": "2026-05-25"
     }
@@ -52,7 +53,7 @@ Recommended block shape: a visible "Decisions" section with a human-readable sum
 
 Field shape (camelCase, derived from ADR + agent-handoff research):
 
-- Required: `@context`, `@type` (`Decision` or `PatchDecision`), `id`, `summary`, `status` (one of `proposed`, `accepted`, `rejected`, `deferred`).
+- Required: `@context`, `@type` (`Decision` or `PatchDecision`), `id`, `summary`, `status` (one of `proposed`, `accepted`, `rejected`, `deferred`), `confidence` (`high`/`medium`/`low`, per the confidence tiers below).
 - Recommended: `task` (the imperative instruction), `constraints`, `acceptanceCriteria`, `targets[]` (`{path, purpose, hunkId?}`), `priority` (`low`/`medium`/`high`), `dateCreated`, `author`.
 - Optional: `patchPreferences`, `tests[]`, `assignees`, `links` (related ADRs, tickets).
 
@@ -107,7 +108,7 @@ Footnote-style annotations beat marginalia / sticky notes / threaded comments fo
     "questions": [
       {"id": "Q1", "topic": "rollout sequencing", "text": "Why land Candidate 2 stage 1 before Candidate 3?", "speaker": "Marcus", "timestamp": "14:08", "status": "answered", "answer": "Because the helpers split in Candidate 3 needs BundleCfg from stage 1.", "anchor": "#sequence"},
       {"id": "Q2", "topic": "rollout sequencing", "text": "Should the same sequencing apply to the Agent Service mirror?", "speaker": "Sam", "timestamp": "14:21", "status": "deferred", "owner": "Sam", "dueDate": "2026-06-01", "anchor": "#recommendation"},
-      {"id": "Q3", "topic": "risk & rollback", "text": "What is the rollback plan if Candidate 1 regresses?", "status": "inferred", "confidence": 0.82, "rationale": "Rollback was not raised but is the obvious next question for a wide-blast-radius refactor."}
+      {"id": "Q3", "topic": "risk and rollback", "text": "What is the rollback plan if Candidate 1's register_tool_bundle regresses one of the 50 wrappers in production?", "status": "inferred", "confidence": 0.82, "rationale": "Rollback was not raised but is the obvious next question for a wide-blast-radius refactor."}
     ]
   }
   </script>
@@ -116,13 +117,13 @@ Footnote-style annotations beat marginalia / sticky notes / threaded comments fo
 
 Categorization (research-backed thresholds):
 
-- `answered` &mdash; question asked during the meeting and answered live. Include the answer inline.
-- `deferred` / `action_item` &mdash; question asked but punted; include owner + due date.
-- `inferred` &mdash; question that did not get asked but probably should have. Required: `confidence` field (0-1) and `rationale`. Surface defaults: `confidence >= 0.9` auto-show, `0.7-0.9` show with provenance label, `<0.7` hide behind an "inferred ideas" toggle. Use conservative wording ("Could a follow-up ask...") when grounding is absent.
+- `answered` - question asked during the meeting and answered live. Include the answer inline.
+- `deferred` / `action_item` - question asked but punted; include owner + due date.
+- `inferred` - question that did not get asked but probably should have. Required: `confidence` field (0-1) and `rationale`. Surface defaults: `confidence >= 0.9` auto-show, `0.7-0.9` show with provenance label, `<0.7` hide behind an "inferred ideas" toggle. Use conservative wording ("Could a follow-up ask...") when grounding is absent.
 
 Grouping: by topic, not by speaker. Topic grouping surfaces cross-cutting concerns; speaker grouping hides patterns and personalises follow-up.
 
-When `data-meeting-qa="true"` is present, Rule 7 validates the embedded `#meeting-qa-data` JSON-LD (see Rule 7 above). The overlay itself remains optional and post-presentation; the validator only fires once you add the marker. Worked example in `examples/architecture-canonical.html`.
+When `data-meeting-qa="true"` is present, the meeting Q&A overlay rule validates the embedded `#meeting-qa-data` JSON-LD (that rule is defined in `SKILL.md`). The overlay itself remains optional and post-presentation; the validator only fires once you add the marker. Worked example in `examples/architecture-canonical.html`.
 
 ---
 
