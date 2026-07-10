@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/human-html-banner.webp" alt="human-html" width="640">
+</p>
+
 # human-html
 
 [![skills.sh](https://skills.sh/b/rhnfzl/human-html)](https://skills.sh/rhnfzl/human-html)
