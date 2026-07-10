@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.2.3 - 2026-07-10
+
+Security-posture housekeeping. No functional change to generated artifacts.
+
+- **Add `SECURITY.md`.** Documents the skill's two intentional external touch-points and why they are safe: the optional bring-your-own-bucket S3 publish helper (uploads to a bucket you own, then prints a link - never downloads or executes), and the optional client-side, version-pinned, self-gating Mermaid CDN import used only for *live* (non-shipped) diagrams. Gives human auditors and LLM-assisted skill scanners the rationale in-repo.
+- **CI: bump `actions/checkout@v4` to `@v5`** in the release workflow; the v4 pin runs on the deprecated Node 20 runner.
+
 ## 1.2.2 - 2026-07-10
 
 Clear the Snyk `E005` "suspicious download URL" audit finding on `scripts/publish-s3.sh`, and harden the returned link.
