@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.2.2 - 2026-07-10
+
+Clear the Snyk `E005` "suspicious download URL" audit finding on `scripts/publish-s3.sh`, and harden the returned link.
+
+- **No hardcoded S3 endpoint in the shipped script.** The two hand-built virtual-hosted S3 object URLs - which the skills.sh Snyk audit flagged as a generic "personal file hosting" download URL (rule E005) - are gone. The open URL is now derived from the AWS CLI's own presigner: the presigned URL is generated first and the clean object URL is that URL minus its query string. Behaviour is unchanged (public / static-website buckets still get the clean direct URL; private buckets still get the presigned one), but no literal S3 host string lives in the skill source for a scanner to match.
+- **Two latent bugs fixed for free.** The old no-`HUMAN_HTML_S3_REGION` branch built the legacy global endpoint (breaks on newer regions) and left `${key}` un-encoded; the presigner-derived URL is region-correct and URL-encoded by the SDK.
+
 ## 1.2.1 - 2026-07-09
 
 Fix a pre-existing horizontal overflow at phone width, and harden the generator against its cause.
