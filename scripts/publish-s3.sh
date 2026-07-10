@@ -142,24 +142,23 @@ if ! aws s3 cp "$file" "s3://$BUCKET/$key" \
 fi
 
 # 5) Return an OPEN URL the reader can click and have render in the browser.
-#    Public bucket / static-website hosting -> the clean direct URL renders as-is.
-#    Private bucket -> a presigned URL (the same kind the console "Open" button makes);
-#    the object was uploaded as text/html so it renders inline rather than downloading.
-if [[ -n "$REGION" ]]; then
-  obj_url="https://${BUCKET}.s3.${REGION}.amazonaws.com/${key}"
-else
-  obj_url="https://${BUCKET}.s3.amazonaws.com/${key}"
+#    The link is derived from the AWS CLI's own presigner for the object THIS script
+#    just uploaded to the user's own bucket - no S3 endpoint is hardcoded here, so the
+#    host stays region-correct and URL-encoded and no literal download URL lives in the
+#    skill source. The presigned URL minus its query string is the clean object URL:
+#      Public / static-website bucket -> the clean URL returns 200 and renders as-is.
+#      Private bucket                 -> the clean URL is denied, so we return the presigned one.
+exp="${HUMAN_HTML_S3_EXPIRES:-604800}"   # request 7 days; capped by session for temp creds
+presigned="$(aws s3 presign "s3://${BUCKET}/${key}" --expires-in "$exp" ${region_args[@]+"${region_args[@]}"} 2>/dev/null || true)"
+if [[ -z "$presigned" ]]; then
+  echo "uploaded, but could not build a link for s3://${BUCKET}/${key} (presign failed)" >&2
+  exit 5
 fi
+obj_url="${presigned%%\?*}"   # strip the query string -> the clean, unsigned object URL
 code="$(curl -s -o /dev/null -m 10 -w '%{http_code}' "$obj_url" 2>/dev/null || echo 000)"
 if [[ "$code" == "200" ]]; then
   echo "$obj_url"
 else
-  exp="${HUMAN_HTML_S3_EXPIRES:-604800}"   # request 7 days; capped by session for temp creds
-  presigned="$(aws s3 presign "s3://${BUCKET}/${key}" --expires-in "$exp" ${region_args[@]+"${region_args[@]}"} 2>/dev/null || true)"
-  if [[ -z "$presigned" ]]; then
-    echo "uploaded, but presign failed for s3://${BUCKET}/${key}" >&2
-    exit 5
-  fi
   if [[ "$presigned" == *X-Amz-Security-Token* ]]; then
     echo "Private bucket: returning a presigned OPEN URL. NOTE: your AWS creds are temporary (SSO/STS), so this link stays valid only until your session token expires (well under the requested ${exp}s), not permanently. For a durable link, enable static-website hosting on the bucket or put CloudFront in front of it." >&2
   else
