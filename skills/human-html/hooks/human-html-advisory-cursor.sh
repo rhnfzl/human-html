@@ -1,4 +1,8 @@
 #!/usr/bin/env bash
+# PLAYBOOK-HOOK-EVENT: PreToolUse
+# PLAYBOOK-HOOK-MATCHER: Edit|Write|MultiEdit|NotebookEdit
+# PLAYBOOK-HOOK-CURSOR-MATCHER: Edit|Write|MultiEdit|NotebookEdit|StrReplace
+# PLAYBOOK-HOOK-CURSOR-WRAPPER: human-html-advisory-cursor.sh
 # Cursor preToolUse wrapper for human-html-advisory.sh.
 #
 # Cursor surfaces hook guidance via JSON stdout (agent_message), not stderr.

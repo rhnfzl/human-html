@@ -23,6 +23,14 @@ npx skills add rhnfzl/human-html
 
 Then ask your agent for a plan, review, or postmortem. The agent scaffolds, validates, and indexes everything; the `docs/human-html/` lane appears in a workspace with the first artifact.
 
+Enable the optional advisory and autoindex hooks globally for Claude Code, Codex, Cursor, and Windsurf:
+
+```bash
+python3 <skill-dir>/activate_hooks.py
+```
+
+The command merges with existing settings and is safe to rerun. Replace `<skill-dir>` with the installed skill path shown by your installer, commonly `~/.agents/skills/human-html`.
+
 <details>
 <summary>Other install routes and manual use</summary>
 
@@ -63,6 +71,7 @@ Each kind has its own scaffold and a canonical example showing what good looks l
 |---|---|
 | `skills/human-html/SKILL.md` | The contract: rules, per-kind scaffolds, illustration menu, hook wiring |
 | `skills/human-html/human_html_artifacts.py` | `init` / `new` / `check` / `index` / `deps` |
+| `skills/human-html/activate_hooks.py` | Idempotently enables the optional hooks for supported agents |
 | `skills/human-html/hooks/` | Optional advisory nudge + gallery autoindex; advisory-only, always exit 0 |
 | `skills/human-html/examples/` | Nine canonical artifacts, one per kind, warning-free |
 | `skills/human-html/references/` | Adoptable patterns, diagram decision tree, workflow integrations |
