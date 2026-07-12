@@ -38,7 +38,10 @@ class ActivateHooksTest(unittest.TestCase):
             existing.write_text(
                 json.dumps({"theme": "dark", "hooks": {"PreToolUse": [
                     {"matcher": "Read", "hooks": []},
-                    {"matcher": "Write", "hooks": [{"command": "/old/human-html-advisory.sh"}]},
+                    {"matcher": "Write", "hooks": [
+                        {"command": "/old/human-html-advisory.sh"},
+                        {"command": "/usr/local/bin/keep-me"},
+                    ]},
                 ]}})
             )
 
@@ -49,9 +52,10 @@ class ActivateHooksTest(unittest.TestCase):
             self.assertEqual(snapshots, {path: path.read_text() for path in second})
             claude = json.loads(existing.read_text())
             self.assertEqual("dark", claude["theme"])
-            self.assertEqual(2, len(claude["hooks"]["PreToolUse"]))
+            self.assertEqual(3, len(claude["hooks"]["PreToolUse"]))
             self.assertIn(str(SCRIPT.parent), json.dumps(claude["hooks"]["PreToolUse"]))
             self.assertNotIn("/old/", json.dumps(claude["hooks"]["PreToolUse"]))
+            self.assertIn("/usr/local/bin/keep-me", json.dumps(claude["hooks"]["PreToolUse"]))
 
             cursor = json.loads((home / ".cursor/hooks.json").read_text())
             self.assertEqual(1, cursor["version"])

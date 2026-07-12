@@ -22,17 +22,28 @@ def _load(path: Path) -> dict:
 
 
 def _upsert_owned_hook(entries: list, entry: dict, marker: str, nested: bool = False) -> None:
-    def command(item: dict) -> str:
-        hooks = item.get("hooks", []) if nested else [item]
-        return " ".join(str(hook.get("command", "")) for hook in hooks if isinstance(hook, dict))
+    def owned(item: dict) -> bool:
+        try:
+            command = shlex.split(str(item.get("command", "")))[0]
+        except (IndexError, ValueError):
+            return False
+        return Path(command).name == marker
 
-    matches = [index for index, item in enumerate(entries) if isinstance(item, dict) and marker in command(item)]
-    if not matches:
-        entries.append(entry)
-        return
-    entries[matches[0]] = entry
-    for index in reversed(matches[1:]):
-        del entries[index]
+    if nested:
+        preserved = []
+        for item in entries:
+            if not isinstance(item, dict) or not isinstance(item.get("hooks"), list):
+                preserved.append(item)
+                continue
+            hooks = [hook for hook in item["hooks"] if not (isinstance(hook, dict) and owned(hook))]
+            if len(hooks) == len(item["hooks"]):
+                preserved.append(item)
+            elif hooks:
+                preserved.append({**item, "hooks": hooks})
+        entries[:] = preserved
+    else:
+        entries[:] = [item for item in entries if not (isinstance(item, dict) and owned(item))]
+    entries.append(entry)
 
 
 def _write(path: Path, data: dict) -> None:
@@ -76,9 +87,9 @@ def activate(home: Path, skill_dir: Path) -> list[Path]:
     windsurf_path = home / ".codeium/windsurf/hooks.json"
     windsurf_data = _load(windsurf_path)
     hooks = windsurf_data.setdefault("hooks", {})
-    _upsert_owned_hook(hooks.setdefault("pre_write_code", []), {"command": f"{windsurf} advisory", "show_output": True}, "human-html-windsurf.sh advisory")
+    _upsert_owned_hook(hooks.setdefault("pre_write_code", []), {"command": f"{windsurf} advisory", "show_output": True}, "human-html-windsurf.sh")
     for event in ("post_write_code", "post_run_command"):
-        _upsert_owned_hook(hooks.setdefault(event, []), {"command": f"{windsurf} autoindex", "show_output": False}, "human-html-windsurf.sh autoindex")
+        _upsert_owned_hook(hooks.setdefault(event, []), {"command": f"{windsurf} autoindex", "show_output": False}, "human-html-windsurf.sh")
     _write(windsurf_path, windsurf_data)
     written.append(windsurf_path)
     return written
