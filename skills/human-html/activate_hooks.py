@@ -21,13 +21,18 @@ def _load(path: Path) -> dict:
     return value
 
 
-def _add(entries: list, entry: dict, marker: str, nested: bool = False) -> None:
+def _upsert_owned_hook(entries: list, entry: dict, marker: str, nested: bool = False) -> None:
     def command(item: dict) -> str:
         hooks = item.get("hooks", []) if nested else [item]
         return " ".join(str(hook.get("command", "")) for hook in hooks if isinstance(hook, dict))
 
-    if not any(marker in command(item) for item in entries if isinstance(item, dict)):
+    matches = [index for index, item in enumerate(entries) if isinstance(item, dict) and marker in command(item)]
+    if not matches:
         entries.append(entry)
+        return
+    entries[matches[0]] = entry
+    for index in reversed(matches[1:]):
+        del entries[index]
 
 
 def _write(path: Path, data: dict) -> None:
@@ -54,8 +59,8 @@ def activate(home: Path, skill_dir: Path) -> list[Path]:
         hooks = data.setdefault("hooks", {})
         pre = hooks.setdefault("PreToolUse", [])
         post = hooks.setdefault("PostToolUse", [])
-        _add(pre, {"matcher": pre_matcher, "hooks": [{"type": "command", "command": advisory, "timeout": 5}]}, "human-html-advisory.sh", True)
-        _add(post, {"matcher": post_matcher, "hooks": [{"type": "command", "command": autoindex, "timeout": 10}]}, "human-html-autoindex.sh", True)
+        _upsert_owned_hook(pre, {"matcher": pre_matcher, "hooks": [{"type": "command", "command": advisory, "timeout": 5}]}, "human-html-advisory.sh", True)
+        _upsert_owned_hook(post, {"matcher": post_matcher, "hooks": [{"type": "command", "command": autoindex, "timeout": 10}]}, "human-html-autoindex.sh", True)
         _write(path, data)
         written.append(path)
 
@@ -63,17 +68,17 @@ def activate(home: Path, skill_dir: Path) -> list[Path]:
     cursor = _load(cursor_path)
     cursor.setdefault("version", 1)
     hooks = cursor.setdefault("hooks", {})
-    _add(hooks.setdefault("preToolUse", []), {"command": cursor_advisory, "matcher": "Edit|Write|MultiEdit|NotebookEdit|StrReplace", "timeout": 5}, "human-html-advisory-cursor.sh")
-    _add(hooks.setdefault("postToolUse", []), {"command": autoindex, "matcher": "Edit|Write|MultiEdit|StrReplace|Shell", "timeout": 10}, "human-html-autoindex.sh")
+    _upsert_owned_hook(hooks.setdefault("preToolUse", []), {"command": cursor_advisory, "matcher": "Edit|Write|MultiEdit|NotebookEdit|StrReplace", "timeout": 5}, "human-html-advisory-cursor.sh")
+    _upsert_owned_hook(hooks.setdefault("postToolUse", []), {"command": autoindex, "matcher": "Edit|Write|MultiEdit|StrReplace|Shell", "timeout": 10}, "human-html-autoindex.sh")
     _write(cursor_path, cursor)
     written.append(cursor_path)
 
     windsurf_path = home / ".codeium/windsurf/hooks.json"
     windsurf_data = _load(windsurf_path)
     hooks = windsurf_data.setdefault("hooks", {})
-    _add(hooks.setdefault("pre_write_code", []), {"command": f"{windsurf} advisory", "show_output": True}, "human-html-windsurf.sh advisory")
+    _upsert_owned_hook(hooks.setdefault("pre_write_code", []), {"command": f"{windsurf} advisory", "show_output": True}, "human-html-windsurf.sh advisory")
     for event in ("post_write_code", "post_run_command"):
-        _add(hooks.setdefault(event, []), {"command": f"{windsurf} autoindex", "show_output": False}, "human-html-windsurf.sh autoindex")
+        _upsert_owned_hook(hooks.setdefault(event, []), {"command": f"{windsurf} autoindex", "show_output": False}, "human-html-windsurf.sh autoindex")
     _write(windsurf_path, windsurf_data)
     written.append(windsurf_path)
     return written
