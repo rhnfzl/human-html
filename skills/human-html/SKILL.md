@@ -509,13 +509,20 @@ Built-in baseline allowlist (applies to every workspace, no customization needed
 
 ### Per-workspace adoption
 
-To opt a new workspace into the harness:
+Enable the hooks once for every workspace used by Claude Code, Codex, Cursor, and Windsurf:
+
+```bash
+python3 <skill-dir>/activate_hooks.py
+```
+
+The command merges into each agent's global JSON settings, preserves unrelated hooks and settings, and is idempotent. Windsurf uses the bundled adapter because its hook event names and JSON input differ from the other agents.
+
+To initialize a new workspace:
 
 ```bash
 cd <workspace>
 python3 <skill-dir>/human_html_artifacts.py init
 python3 <skill-dir>/human_html_artifacts.py deps   # report optional companions + how to get them
-# wire the two hooks into .claude/settings.json, .codex/hooks.json, and .cursor/hooks.json
 # optionally seed .human-html-allowlist with workspace-specific MD lanes
 # edit docs/human-html/GLOSSARY.md to add domain terms specific to this workspace
 ```
