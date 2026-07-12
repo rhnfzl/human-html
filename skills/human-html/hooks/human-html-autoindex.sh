@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# PLAYBOOK-HOOK-EVENT: PostToolUse
+# PLAYBOOK-HOOK-MATCHER: Edit|Write|MultiEdit|Bash
+# PLAYBOOK-HOOK-CURSOR-MATCHER: Edit|Write|MultiEdit|StrReplace|Shell
 # PostToolUse autoindex hook (part of the human-html skill).
 #
 # Regenerates docs/human-html/index.html after direct editor writes, Codex
