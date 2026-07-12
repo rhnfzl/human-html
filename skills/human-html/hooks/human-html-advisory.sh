@@ -1,4 +1,8 @@
 #!/usr/bin/env bash
+# PLAYBOOK-HOOK-EVENT: PreToolUse
+# PLAYBOOK-HOOK-MATCHER: Edit|Write|MultiEdit|NotebookEdit
+# PLAYBOOK-HOOK-CURSOR-MATCHER: Edit|Write|MultiEdit|NotebookEdit|StrReplace
+# PLAYBOOK-HOOK-CURSOR-WRAPPER: human-html-advisory-cursor.sh
 # PreToolUse advisory hook (part of the human-html skill).
 #
 # Nudges toward HTML when an HIL-shaped Markdown write is about to land

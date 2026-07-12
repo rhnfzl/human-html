@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+Hook automation can now be enabled with one idempotent command after installation.
+
+- **Global hook activation.** `python3 <skill-dir>/activate_hooks.py` merges the advisory and autoindex hooks into Claude Code, Codex, Cursor, and Windsurf settings without replacing unrelated configuration.
+- **Windsurf support.** A thin adapter translates Cascade's write and command hook payloads into the existing agent-neutral hook input.
+- **Discoverable wiring metadata.** The shipped hooks include their event and matcher headers for downstream installers.
+
 ## 1.2.4 - 2026-07-12
 
 Fix a broken remote install: `npx skills add rhnfzl/human-html` now ships the full skill, not just `SKILL.md`. No change to generated artifacts.
