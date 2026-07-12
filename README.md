@@ -28,7 +28,7 @@ Then ask your agent for a plan, review, or postmortem. The agent scaffolds, vali
 
 - `npx openskills install rhnfzl/human-html` (AGENTS.md ecosystems)
 - Claude Code natively: `/plugin marketplace add rhnfzl/human-html`, then `/plugin install human-html@rhnfzl`
-- Manual: clone this repo and symlink it into your agent's skills directory
+- Manual: clone this repo and symlink `skills/human-html/` into your agent's skills directory
 - Drive the CLI yourself: `python3 <skill-dir>/human_html_artifacts.py new|check|index`, where `<skill-dir>` is wherever the installer put the skill (e.g. `~/.claude/skills/human-html`). `init` is optional and seeds a workspace glossary.
 
 </details>
@@ -89,7 +89,7 @@ The skill does nothing behind your back:
 - No network calls in the core loop, and the validator runs fully offline.
 - The hooks are advisory-only and always exit 0.
 
-As with any skill, read `SKILL.md` before you install.
+As with any skill, read `skills/human-html/SKILL.md` before you install.
 
 ## Agent support
 
