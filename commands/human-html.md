@@ -53,13 +53,13 @@ The harness recognises nine kinds. Pick the one that matches the artifact:
    ```
    If the directory does not exist, run:
    ```bash
-   python3 "$CLAUDE_PLUGIN_ROOT"/human_html_artifacts.py init
+   python3 "$CLAUDE_PLUGIN_ROOT"/skills/human-html/human_html_artifacts.py init
    ```
    This seeds `docs/human-html/` with the README (contract restatement), `GLOSSARY.md`, and an empty `index.html`.
 
 4. **Scaffold the artifact.** Run:
    ```bash
-   python3 "$CLAUDE_PLUGIN_ROOT"/human_html_artifacts.py new <kind> "<title>"
+   python3 "$CLAUDE_PLUGIN_ROOT"/skills/human-html/human_html_artifacts.py new <kind> "<title>"
    ```
    The script writes `docs/human-html/YYYY-MM-DD-<kind>-<slug>.html` with required metadata (artifact-kind, artifact-audience=human, artifact-created, artifact-source, data-human-html-artifact=true) and refreshes `index.html`.
 
@@ -69,7 +69,7 @@ The harness recognises nine kinds. Pick the one that matches the artifact:
 
 7. **Validate.** Run:
    ```bash
-   python3 "$CLAUDE_PLUGIN_ROOT"/human_html_artifacts.py check
+   python3 "$CLAUDE_PLUGIN_ROOT"/skills/human-html/human_html_artifacts.py check
    ```
    The check enforces filename format, metadata presence, valid local links, the no-root-HTML rule, and the content contract.
 
@@ -95,4 +95,4 @@ If the user wants to revise an existing artifact:
 
 ## Reference
 
-The canonical skill (script, hooks, baseline allowlist, per-workspace customization knob, full content contract) lives at `"$CLAUDE_PLUGIN_ROOT"/SKILL.md`. The pattern comes from the industry layer-split framing that converged in mid-2026: HTML for human review, Markdown for agent memory.
+The canonical skill (script, hooks, baseline allowlist, per-workspace customization knob, full content contract) lives at `"$CLAUDE_PLUGIN_ROOT"/skills/human-html/SKILL.md`. The pattern comes from the industry layer-split framing that converged in mid-2026: HTML for human review, Markdown for agent memory.

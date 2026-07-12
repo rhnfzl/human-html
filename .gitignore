@@ -1,3 +1,12 @@
 __pycache__/
 .DS_Store
 *.pyc
+
+# Agent / tooling state (local only, never commit)
+.claude/
+.agents/
+.agent-harness/
+.superpowers/
+.code-review-graph/
+.playbook-owned
+skills-lock.json

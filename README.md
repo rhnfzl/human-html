@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/human-html-banner.webp" alt="human-html" width="640">
+  <img src="skills/human-html/assets/human-html-banner.webp" alt="human-html" width="640">
 </p>
 
 # human-html
@@ -28,7 +28,7 @@ Then ask your agent for a plan, review, or postmortem. The agent scaffolds, vali
 
 - `npx openskills install rhnfzl/human-html` (AGENTS.md ecosystems)
 - Claude Code natively: `/plugin marketplace add rhnfzl/human-html`, then `/plugin install human-html@rhnfzl`
-- Manual: clone this repo and symlink it into your agent's skills directory
+- Manual: clone this repo and symlink `skills/human-html/` into your agent's skills directory
 - Drive the CLI yourself: `python3 <skill-dir>/human_html_artifacts.py new|check|index`, where `<skill-dir>` is wherever the installer put the skill (e.g. `~/.claude/skills/human-html`). `init` is optional and seeds a workspace glossary.
 
 </details>
@@ -47,26 +47,26 @@ Each kind has its own scaffold and a canonical example showing what good looks l
 
 | Kind | The reader wants to |
 |---|---|
-| [plan](https://rhnfzl.github.io/human-html/examples/plan-canonical.html) | execute: outcome, sequence, risks, rollback |
-| [review](https://rhnfzl.github.io/human-html/examples/review-canonical.html) | inspect a change: verdict first, concerns ranked |
-| [architecture](https://rhnfzl.github.io/human-html/examples/architecture-canonical.html) | understand a proposed change to system shape |
-| [understanding](https://rhnfzl.github.io/human-html/examples/understanding-canonical.html) | understand how something works today |
-| [research](https://rhnfzl.github.io/human-html/examples/research-canonical.html) | learn what the digging found |
-| [decision](https://rhnfzl.github.io/human-html/examples/decision-canonical.html) | decide: options, consequences, reversibility |
-| [prototype](https://rhnfzl.github.io/human-html/examples/prototype-canonical.html) | feel a proposed thing before it exists |
-| [status](https://rhnfzl.github.io/human-html/examples/status-canonical.html) | catch up: where we are, blockers, next |
-| [incident](https://rhnfzl.github.io/human-html/examples/incident-canonical.html) | learn from failure: timeline, root cause, actions |
+| [plan](https://rhnfzl.github.io/human-html/skills/human-html/examples/plan-canonical.html) | execute: outcome, sequence, risks, rollback |
+| [review](https://rhnfzl.github.io/human-html/skills/human-html/examples/review-canonical.html) | inspect a change: verdict first, concerns ranked |
+| [architecture](https://rhnfzl.github.io/human-html/skills/human-html/examples/architecture-canonical.html) | understand a proposed change to system shape |
+| [understanding](https://rhnfzl.github.io/human-html/skills/human-html/examples/understanding-canonical.html) | understand how something works today |
+| [research](https://rhnfzl.github.io/human-html/skills/human-html/examples/research-canonical.html) | learn what the digging found |
+| [decision](https://rhnfzl.github.io/human-html/skills/human-html/examples/decision-canonical.html) | decide: options, consequences, reversibility |
+| [prototype](https://rhnfzl.github.io/human-html/skills/human-html/examples/prototype-canonical.html) | feel a proposed thing before it exists |
+| [status](https://rhnfzl.github.io/human-html/skills/human-html/examples/status-canonical.html) | catch up: where we are, blockers, next |
+| [incident](https://rhnfzl.github.io/human-html/skills/human-html/examples/incident-canonical.html) | learn from failure: timeline, root cause, actions |
 
 ## What's in the box
 
 | Piece | What it does |
 |---|---|
-| `SKILL.md` | The contract: rules, per-kind scaffolds, illustration menu, hook wiring |
-| `human_html_artifacts.py` | `init` / `new` / `check` / `index` / `deps` |
-| `hooks/` | Optional advisory nudge + gallery autoindex; advisory-only, always exit 0 |
-| `examples/` | Nine canonical artifacts, one per kind, warning-free |
-| `references/` | Adoptable patterns, diagram decision tree, workflow integrations |
-| `scripts/publish-s3.sh` | Optional S3 sharing; requires `HUMAN_HTML_S3_BUCKET`, no defaults |
+| `skills/human-html/SKILL.md` | The contract: rules, per-kind scaffolds, illustration menu, hook wiring |
+| `skills/human-html/human_html_artifacts.py` | `init` / `new` / `check` / `index` / `deps` |
+| `skills/human-html/hooks/` | Optional advisory nudge + gallery autoindex; advisory-only, always exit 0 |
+| `skills/human-html/examples/` | Nine canonical artifacts, one per kind, warning-free |
+| `skills/human-html/references/` | Adoptable patterns, diagram decision tree, workflow integrations |
+| `skills/human-html/scripts/publish-s3.sh` | Optional S3 sharing; requires `HUMAN_HTML_S3_BUCKET`, no defaults |
 
 ## Requirements
 
@@ -89,7 +89,7 @@ The skill does nothing behind your back:
 - No network calls in the core loop, and the validator runs fully offline.
 - The hooks are advisory-only and always exit 0.
 
-As with any skill, read `SKILL.md` before you install.
+As with any skill, read `skills/human-html/SKILL.md` before you install.
 
 ## Agent support
 

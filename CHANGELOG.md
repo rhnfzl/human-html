@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.2.4 - 2026-07-12
+
+Fix a broken remote install: `npx skills add rhnfzl/human-html` now ships the full skill, not just `SKILL.md`. No change to generated artifacts.
+
+- **The skill moved into `skills/human-html/`.** The `skills` installer copies a skill's full payload only when it lives in a subdirectory; a root-level remote skill shipped `SKILL.md` alone, dropping the engine, references, templates, examples, and hooks, so the installed skill told the agent to run a script and read files that were never installed. Relocating the skill into `skills/human-html/` puts it on the subdirectory code path, so every support file lands. Mirrors the `slide-sage` and `explore-unknowns` layout.
+- **Re-install note for existing users.** If a previous install left the skill referencing a script or reference files that were not present, re-run `npx skills add rhnfzl/human-html` (or your installer's equivalent) to pull the complete payload.
+- **Plugin channel unchanged.** The Claude Code plugin still installs from the same marketplace (`source: "./"`); the slash command and hooks resolve the relocated engine via `$CLAUDE_PLUGIN_ROOT/skills/human-html/`. Manual "clone and symlink" now targets `skills/human-html/`, and the release version-guard reads the relocated `SKILL.md`.
+
 ## 1.2.3 - 2026-07-10
 
 Security-posture housekeeping. No functional change to generated artifacts.
