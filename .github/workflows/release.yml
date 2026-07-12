@@ -34,7 +34,7 @@ jobs:
           set -euo pipefail
           fail=0
           plugin=$(jq -r '.version' .claude-plugin/plugin.json)
-          skill=$(sed -n 's/^  version: *"\(.*\)"/\1/p' skills/human-html/SKILL.md | head -1)
+          skill=$(sed -n 's/^version: *//p' skills/human-html/SKILL.md | head -1)
           [ "$plugin" = "$VERSION" ] || { echo "::error::.claude-plugin/plugin.json version '$plugin' != tag '$VERSION'"; fail=1; }
           [ "$skill" = "$VERSION" ]  || { echo "::error::skills/human-html/SKILL.md version '$skill' != tag '$VERSION'"; fail=1; }
           grep -qE "^## ${VERSION//./\\.} " CHANGELOG.md || { echo "::error::CHANGELOG.md has no '## $VERSION' section"; fail=1; }
