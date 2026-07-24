@@ -357,6 +357,15 @@ This is **taught, not linted**: readability is judgment. Automated scores (Flesc
 
 ## Before you ship
 
+**Render-and-verify is required whenever the artifact has diagrams or non-trivial layout - do NOT hand a file to a human on the strength of the HTML source alone.** Live CDN mermaid is fragile: mermaid's batch `run()` can leave later diagrams unsized (missing viewBox -> they render *blank*), it clips node labels, and Quick Look / email / offline run no JS at all, so the diagrams are simply absent. The loop, embedded in the harness:
+
+1. **Make diagrams durable** - `python3 <skill-dir>/human_html_artifacts.py embed-svg <file>` renders every live `<div class="mermaid">` to inline light + dark SVG (source kept in a collapsed `<details>`). No CDN, no JS, no timing bug; renders everywhere. (Needs `mmdc`: `npm i -g @mermaid-js/mermaid-cli`. Without it, keep live mermaid but you MUST still render-check it.)
+2. **Render it** - `python3 <skill-dir>/human_html_artifacts.py render <file>` (add `--height` for a tall page) writes a PNG.
+3. **Actually look at the PNG.** Read it. Check every diagram rendered (no blank gaps), no clipped labels, no horizontal overflow, tables and tiles laid out. Re-render in dark too if the content uses it.
+4. **Fix and repeat** until the rendered image is clean. Only then deliver.
+
+This is not optional polish: a blank or clipped diagram is a broken deliverable, and it is invisible in the HTML source.
+
 Fast self-checks before declaring an artifact done:
 
 - **Squint test** - blur your eyes: is the hierarchy still readable (one clear H1, scannable sections)?
@@ -424,6 +433,13 @@ python3 <skill-dir>/human_html_artifacts.py new <kind> "<title>"
 
 # Validate file contract + content contract; exits non-zero on errors, exits 0 on warnings
 python3 <skill-dir>/human_html_artifacts.py check
+
+# Render live mermaid diagrams to durable inline light+dark SVG (needs mmdc). Do this before shipping any
+# artifact with diagrams - see "Before you ship".
+python3 <skill-dir>/human_html_artifacts.py embed-svg <file>
+
+# Headless-render an artifact to a PNG so you can view + verify it (diagrams, layout) before delivering.
+python3 <skill-dir>/human_html_artifacts.py render <file> [--width N] [--height N] [--out PNG]
 
 # Manually regenerate the gallery (rarely needed; the autoindex hook handles it)
 python3 <skill-dir>/human_html_artifacts.py index

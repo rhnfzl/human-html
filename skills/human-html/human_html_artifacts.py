@@ -1801,6 +1801,14 @@ _SCAFFOLD_STYLE = """
     pre { background: #0f172a; color: #e2e8f0; border-radius: var(--radius); padding: 14px; overflow: auto; border: 1px solid var(--line); }
     pre code { background: transparent; border: 0; color: inherit; }
     .mermaid svg { max-width: 100%; height: auto; }
+    /* Mermaid node labels clip on the right when the page's kerning / ligatures / letter-spacing widen the
+       final SVG text past mermaid's own measurement. Neutralize those inside the diagram, and let a label
+       spill into the node's padding rather than be cut off. */
+    .mermaid text, .mermaid .nodeLabel, .mermaid .edgeLabel,
+    .mermaid foreignObject div, .mermaid foreignObject span, .mermaid foreignObject p {
+      font-feature-settings: normal; font-variant-ligatures: none; letter-spacing: normal; text-rendering: auto;
+    }
+    .mermaid foreignObject { overflow: visible; }
     .mermaid:not([data-processed]) { font-family: var(--mono); font-size: var(--fs-sm); white-space: pre; overflow-x: auto; background: var(--surface-2); border: 1px dashed var(--line-strong); border-radius: var(--radius); padding: var(--s-6); color: var(--muted); }
     /* shipped diagram: inline SVG in a scroll wrapper, mermaid/source kept in an adjacent <details>.
        The wrapper's overflow-x contains a too-wide diagram to its own scrollbar instead of the page. */
@@ -1835,6 +1843,7 @@ _MERMAID_SCRIPT = """
       const _lightVars = { primaryColor: "#eef5fb", primaryBorderColor: "#b9d5ec", primaryTextColor: "#172033", lineColor: "#5a6577", fontFamily: "inherit", fontSize: "14px" };
       const _darkVars = { primaryColor: "#152740", primaryBorderColor: "#2c4a6b", primaryTextColor: "#e8edf5", lineColor: "#96a2b5", fontFamily: "inherit", fontSize: "14px" };
       mermaid.initialize({ startOnLoad: false, securityLevel: "loose", theme: "base",
+        flowchart: { htmlLabels: true, padding: 12, useMaxWidth: true },
         themeVariables: _dark ? _darkVars : _lightVars });
       await mermaid.run();   /* module scripts defer, so the DOM is parsed; run() renders every .mermaid once */
     }
@@ -2713,6 +2722,138 @@ def cmd_deps(fix: bool = False) -> int:
     return 0
 
 
+# ---- diagram durability (embed-svg) + headless verification (render) --------------------------------
+# Live CDN mermaid is fine for drafts, but mermaid's batch run() can leave later diagrams unsized
+# (missing viewBox -> blank) and clips labels; and Quick Look / email / offline run no JS at all. So for
+# a SHIPPED artifact, render each diagram to inline SVG once. `render` then lets the agent SEE the result
+# and iterate before handing the file to a human.
+
+_DIAG_LIGHT = {"primaryColor": "#eef5fb", "primaryBorderColor": "#b9d5ec",
+               "primaryTextColor": "#172033", "lineColor": "#5a6577"}
+_DIAG_DARK = {"primaryColor": "#152740", "primaryBorderColor": "#2c4a6b",
+              "primaryTextColor": "#e8edf5", "lineColor": "#96a2b5"}
+_DIAG_FONT = "ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif"
+_DIAG_KEYWORDS = (r'(?:flowchart|graph|sequenceDiagram|stateDiagram(?:-v2)?|erDiagram|classDiagram|'
+                  r'gantt|pie|journey|gitGraph|mindmap|timeline)')
+_DIAG_STYLE_MARKER = "/* embed-svg: theme-toggled inline diagrams */"
+_DIAG_STYLE = """
+    /* embed-svg: theme-toggled inline diagrams */
+    .diagram-dark { display: none; }
+    :root[data-theme="dark"] .diagram-light { display: none; }
+    :root[data-theme="dark"] .diagram-dark { display: block; }
+    @media (prefers-color-scheme: dark) {
+      :root:not([data-theme]) .diagram-light { display: none; }
+      :root:not([data-theme]) .diagram-dark { display: block; }
+    }
+    .diagram-scroll svg { max-width: 100%; height: auto; display: block; margin: 0 auto; }
+"""
+
+
+def _mmdc_svg(src: str, theme_vars: dict, tmp: str) -> str:
+    import subprocess
+    conf = os.path.join(tmp, "c.json")
+    json.dump({"theme": "base",
+               "themeVariables": {**theme_vars, "fontFamily": _DIAG_FONT, "fontSize": "15px"},
+               "flowchart": {"htmlLabels": True, "padding": 10, "useMaxWidth": True}},
+              open(conf, "w"))
+    pptr = os.path.join(tmp, "p.json")
+    json.dump({"args": ["--no-sandbox"]}, open(pptr, "w"))
+    inp = os.path.join(tmp, "d.mmd")
+    open(inp, "w").write(src)
+    out = os.path.join(tmp, "d.svg")
+    r = subprocess.run(["mmdc", "-i", inp, "-o", out, "-b", "transparent", "-c", conf, "-p", pptr],
+                       capture_output=True, text=True)
+    if r.returncode != 0:
+        raise RuntimeError(f"mmdc failed:\n{r.stderr.strip()}\n--- source:\n{src}")
+    svg = open(out).read()
+    return svg[svg.index("<svg"):]
+
+
+def cmd_embed_svg(path: str) -> int:
+    """Replace every live <div class="mermaid"> block with pre-rendered inline light + dark SVG (durable:
+    no CDN, no JS, no headless-timing bug; renders in Quick Look / email / offline). The source is kept in a
+    collapsed <details>. Diagrams that already match one theme are shown/hidden by the page theme."""
+    import shutil
+    import tempfile
+    if not shutil.which("mmdc"):
+        print("embed-svg needs mmdc (mermaid CLI): npm i -g @mermaid-js/mermaid-cli", file=sys.stderr)
+        return 1
+    text = Path(path).read_text()
+    blocks = list(re.finditer(r'<div class="mermaid">\s*(' + _DIAG_KEYWORDS + r'\b.*?)</div>',
+                              text, re.DOTALL))
+    if not blocks:
+        print("no live mermaid diagrams to embed")
+        return 0
+    with tempfile.TemporaryDirectory() as tmp:
+        for m in reversed(blocks):        # back-to-front so byte offsets stay valid
+            src = m.group(1).strip()
+            light = _mmdc_svg(src, _DIAG_LIGHT, tmp)
+            dark = _mmdc_svg(src, _DIAG_DARK, tmp)
+            repl = (f'<div class="diagram-scroll diagram-light">{light}</div>'
+                    f'<div class="diagram-scroll diagram-dark">{dark}</div>'
+                    f'<details class="diagram-src"><summary>Diagram source</summary>'
+                    f'<pre>{html.escape(src)}</pre></details>')
+            text = text[:m.start()] + repl + text[m.end():]
+    if _DIAG_STYLE_MARKER not in text:
+        text = text.replace("  </style>", _DIAG_STYLE + "  </style>", 1)
+    Path(path).write_text(text)
+    print(f"embedded {len(blocks)} diagram(s) as inline SVG (light + dark)")
+    return 0
+
+
+def _find_chrome() -> "str | None":
+    import shutil
+    env = os.environ.get("CHROME") or os.environ.get("CHROME_PATH")
+    if env and os.path.exists(env):
+        return env
+    for name in ("google-chrome", "google-chrome-stable", "chromium", "chromium-browser"):
+        found = shutil.which(name)
+        if found:
+            return found
+    for cand in ("/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+                 "/Applications/Chromium.app/Contents/MacOS/Chromium"):
+        if os.path.exists(cand):
+            return cand
+    return None
+
+
+def cmd_render(path: str, out: "str | None", width: int, height: int) -> int:
+    """Headless-render an artifact to a PNG so the agent can VIEW it and fix layout / broken or clipped
+    diagrams BEFORE handing the file to a human. Serves the file over an ephemeral localhost port so
+    relative assets and any CDN load."""
+    import functools
+    import socket
+    import subprocess
+    import threading
+    from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
+    chrome = _find_chrome()
+    if not chrome:
+        print("render needs Chrome/Chromium; set $CHROME to its path", file=sys.stderr)
+        return 1
+    f = Path(path).resolve()
+    out = out or str(f.with_suffix(".render.png"))
+    sock = socket.socket()
+    sock.bind(("127.0.0.1", 0))
+    port = sock.getsockname()[1]
+    sock.close()
+    handler = functools.partial(SimpleHTTPRequestHandler, directory=str(f.parent))
+    srv = ThreadingHTTPServer(("127.0.0.1", port), handler)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    r = None
+    try:
+        url = f"http://127.0.0.1:{port}/{f.name}"
+        r = subprocess.run([chrome, "--headless=new", "--disable-gpu", "--hide-scrollbars",
+                            f"--window-size={width},{height}", "--virtual-time-budget=8000",
+                            f"--screenshot={out}", url], capture_output=True, text=True, timeout=120)
+    finally:
+        srv.shutdown()
+    if not os.path.exists(out):
+        print(f"render failed: {(r.stderr if r else '').strip()[:400]}", file=sys.stderr)
+        return 1
+    print(out)
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -2746,6 +2887,18 @@ def main(argv: list[str] | None = None) -> int:
         help="json emits structured findings (file/code/message) to stdout for agents",
     )
 
+    embed_parser = subparsers.add_parser(
+        "embed-svg", help="render live mermaid diagrams in an artifact to durable inline SVG (needs mmdc)")
+    embed_parser.add_argument("file")
+
+    render_parser = subparsers.add_parser(
+        "render", help="headless-render an artifact to PNG so you can view + verify layout/diagrams")
+    render_parser.add_argument("file")
+    render_parser.add_argument("--out", help="output PNG path (default: <file>.render.png)")
+    render_parser.add_argument("--width", type=int, default=1000)
+    render_parser.add_argument("--height", type=int, default=6000,
+                               help="viewport height; raise for very tall artifacts")
+
     args = parser.parse_args(argv)
     if args.command == "init":
         cmd_init(args)
@@ -2760,6 +2913,10 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_deps(args.fix)
     if args.command == "check":
         return cmd_check(args.format)
+    if args.command == "embed-svg":
+        return cmd_embed_svg(args.file)
+    if args.command == "render":
+        return cmd_render(args.file, args.out, args.width, args.height)
     return 2
 
 
