@@ -2749,7 +2749,7 @@ _DIAG_STYLE = """
 """
 
 
-def _mmdc_svg(src: str, theme_vars: dict, tmp: str) -> str:
+def _mmdc_svg(src: str, theme_vars: dict, tmp: str, uid: str) -> str:
     import subprocess
     conf = os.path.join(tmp, "c.json")
     json.dump({"theme": "base",
@@ -2766,7 +2766,14 @@ def _mmdc_svg(src: str, theme_vars: dict, tmp: str) -> str:
     if r.returncode != 0:
         raise RuntimeError(f"mmdc failed:\n{r.stderr.strip()}\n--- source:\n{src}")
     svg = open(out).read()
-    return svg[svg.index("<svg"):]
+    svg = svg[svg.index("<svg"):]
+    # mmdc gives every SVG the same id ("my-svg") and scopes its internal <style> to that id. With several
+    # diagrams on one page those stylesheets collide (the LAST one wins for ALL of them, so a shown light
+    # diagram renders with the dark diagram's fills). Rename the id (and its style refs) to something unique.
+    m = re.search(r'<svg id="([^"]+)"', svg)
+    if m:
+        svg = svg.replace(m.group(1), uid)
+    return svg
 
 
 def cmd_embed_svg(path: str) -> int:
@@ -2785,10 +2792,10 @@ def cmd_embed_svg(path: str) -> int:
         print("no live mermaid diagrams to embed")
         return 0
     with tempfile.TemporaryDirectory() as tmp:
-        for m in reversed(blocks):        # back-to-front so byte offsets stay valid
+        for i, m in enumerate(reversed(blocks)):   # back-to-front so byte offsets stay valid
             src = m.group(1).strip()
-            light = _mmdc_svg(src, _DIAG_LIGHT, tmp)
-            dark = _mmdc_svg(src, _DIAG_DARK, tmp)
+            light = _mmdc_svg(src, _DIAG_LIGHT, tmp, f"hhdiag{i}l")
+            dark = _mmdc_svg(src, _DIAG_DARK, tmp, f"hhdiag{i}d")
             repl = (f'<div class="diagram-scroll diagram-light">{light}</div>'
                     f'<div class="diagram-scroll diagram-dark">{dark}</div>'
                     f'<details class="diagram-src"><summary>Diagram source</summary>'
