@@ -11,6 +11,7 @@ on:
 
 permissions:
   contents: write   # required to create the Release
+  actions: read     # required to read ci.yml's run history for this commit
 
 jobs:
   release:
@@ -40,23 +41,31 @@ jobs:
           grep -qE "^## ${VERSION//./\\.} " CHANGELOG.md || { echo "::error::CHANGELOG.md has no '## $VERSION' section"; fail=1; }
           exit $fail
 
-      # ci.yml runs the suite on every push and PR across Python 3.11-3.13; this repeats it
-      # at the tag because a tag is the last point before the skill reaches everyone who
-      # installs it, and a release is worth re-checking on its own commit rather than
-      # trusting that a green PR run covered exactly this tree.
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-
-      - name: Run the test suite
-        run: python3 -m unittest discover -s tests -v
-
-      # The shipped examples ARE the documentation an agent copies from, so an example
-      # that violates the contract is worse than a docs bug: the example wins. Fail the
-      # release rather than publish one. ci.yml runs this same script on every push and PR,
-      # so the release gate and the PR gate cannot drift apart.
-      - name: Validate the shipped examples
-        run: python3 .github/scripts/check_examples.py
+      # ci.yml already ran the suite and the example check for this commit, on push to main.
+      # Re-running them here would just repeat that work, but silently ASSUMING it happened
+      # is the other mistake: a tag can point at any commit, including one that never
+      # reached main and so was never checked. So verify rather than assume, and require a
+      # successful ci.yml run for this exact SHA.
+      #
+      # A tag push does not trigger ci.yml (it is scoped to branches), so this only ever
+      # matches an earlier run on the same commit, which is the intent.
+      - name: Require a green CI run for this exact commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          runs=$(gh api \
+            "repos/${GITHUB_REPOSITORY}/actions/workflows/ci.yml/runs?head_sha=${GITHUB_SHA}&per_page=100" \
+            --jq '[.workflow_runs[] | select(.conclusion == "success")] | length')
+          if [ "$runs" -eq 0 ]; then
+            echo "::error::no successful ci.yml run for ${GITHUB_SHA}. A release must be cut"\
+                 "from a commit CI has verified. Push the commit to main (or re-run CI on it)"\
+                 "and tag again."
+            gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/ci.yml/runs?head_sha=${GITHUB_SHA}" \
+              --jq '.workflow_runs[] | "  saw: \(.status)/\(.conclusion // "none") \(.html_url)"' || true
+            exit 1
+          fi
+          echo "ci.yml passed for ${GITHUB_SHA} ($runs successful run(s))"
 
       # Slice the CHANGELOG section for this version: from its "## X.Y.Z" heading to the
       # next "## " heading, dropping the heading line itself.
