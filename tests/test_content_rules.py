@@ -169,6 +169,40 @@ class DynamicModeTest(unittest.TestCase):
                     f"answer-first opener must block in {mode or 'standard'}: {errors}",
                 )
 
+    def test_unrecognised_mode_warns_instead_of_failing_silently(self):
+        """A typo'd mode must not quietly leave the author in standard mode.
+
+        Falling through to the full rule set is the right default, but doing it
+        silently means "dyanmic" looks identical to a validator that ignores the flag.
+        """
+        errors, warnings = hha.content_shape_violations(
+            Path("a.html"),
+            _artifact(self.LONG_BODY, mode="dyanmic"),
+            "2026-07-26",
+            REPO,
+            "plan",
+        )
+        self.assertTrue(
+            any("artifact-mode" in w for w in warnings),
+            f"a typo'd mode must warn: {warnings}",
+        )
+        # and it must still be held to the full rule set, not half-relaxed
+        self.assertTrue(
+            any("nav-anchors" in e for e in errors),
+            f"an unrecognised mode is standard, so nav must still block: {errors}",
+        )
+
+    def test_the_supported_modes_do_not_warn(self):
+        for mode in ("", "standard", "dynamic"):
+            with self.subTest(mode=mode or "absent"):
+                _, warnings = hha.content_shape_violations(
+                    Path("a.html"), _artifact("<p>x</p>", mode=mode), "2026-07-26", REPO, "plan"
+                )
+                self.assertFalse(
+                    any("artifact-mode" in w for w in warnings),
+                    f"{mode or 'absent'} is valid and must not warn: {warnings}",
+                )
+
     def test_legacy_audience_marker_still_satisfies_the_rule(self):
         """Artifacts written before the rename must keep validating."""
         legacy = _artifact("<p>x</p>").replace(
@@ -231,14 +265,11 @@ class EveryExampleTest(unittest.TestCase):
     def test_validator_reports_no_errors_for_any_example(self):
         offenders = []
         for path in self.EXAMPLES:
-            kind = hha.ArtifactHTMLParser()
-            kind.feed(path.read_text(encoding="utf-8"))
+            text = path.read_text(encoding="utf-8")
+            parser = hha.ArtifactHTMLParser()
+            parser.feed(text)
             errors, _ = hha.content_shape_violations(
-                path,
-                path.read_text(encoding="utf-8"),
-                "2026-07-26",
-                REPO,
-                kind.meta.get("artifact-kind", ""),
+                path, text, "2026-07-26", REPO, parser.meta.get("artifact-kind", "")
             )
             if errors:
                 offenders.append((path.name, errors))
@@ -249,9 +280,12 @@ class EveryExampleTest(unittest.TestCase):
         offenders = []
         for path in self.EXAMPLES:
             text = path.read_text(encoding="utf-8")
+            # Both directions of each pair: a file carrying only the closing form
+            # would otherwise pass, which is exactly how smart quotes arrive.
             hits = [name for char, name in
                     (("—", "em dash"), ("–", "en dash"),
-                     ("“", "curly quote"), ("’", "curly apostrophe"))
+                     ("“", "curly quote (open)"), ("”", "curly quote (close)"),
+                     ("‘", "curly apostrophe (open)"), ("’", "curly apostrophe (close)"))
                     if char in text]
             if hits:
                 offenders.append((path.name, hits))

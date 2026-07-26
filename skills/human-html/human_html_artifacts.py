@@ -634,7 +634,17 @@ def content_shape_violations(
     # that prescribe WHICH sections exist stand down. Nothing that protects the reader
     # (viewport, no-JS floor, a visual in every comparison, plain language, em dashes,
     # slop signals, provenance) is relaxed, because none of it depends on the shape.
-    dynamic = parser.meta.get("artifact-mode", "").strip().lower() == _DYNAMIC_MODE
+    mode = parser.meta.get("artifact-mode", "").strip().lower()
+    dynamic = mode == _DYNAMIC_MODE
+    # Fail loud on a typo. Falling through to the full rule set is the safe default, but
+    # silently: an author who wrote "dyanmic" would see required-section still firing and
+    # have no way to tell that the mode never took effect.
+    if mode and mode not in MODES:
+        _add(
+            warnings, parser, "artifact-mode",
+            f'{rel}: unrecognised artifact-mode "{mode}" (expected '
+            f"{' or '.join(MODES)}); treated as standard, so the shape rules still apply",
+        )
 
     if not parser.has_summary_block:
         _add(
