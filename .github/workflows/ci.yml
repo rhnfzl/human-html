@@ -1,0 +1,51 @@
+name: ci
+
+# Until this file existed, nothing ran the test suite automatically. release.yml fires only
+# on a vX.Y.Z tag, so every pull request merged with no check at all and a broken validator
+# would only surface at release time, after the version bump was already written.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+# A newer push supersedes an in-flight run on the same ref.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # README promises "Python 3.11+ is all you need", so the floor is tested rather
+        # than assumed. The suite and the validator are stdlib-only; nothing to install.
+        python-version: ['3.11', '3.12', '3.13']
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Run the test suite
+        run: python3 -m unittest discover -s tests -v
+
+  examples:
+    # The shipped examples are what agents copy from, so an example that violates the
+    # contract beats the documentation. Version-independent, so one job rather than a
+    # matrix leg per interpreter.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Validate the shipped examples
+        run: python3 .github/scripts/check_examples.py
