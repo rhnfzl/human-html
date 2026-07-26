@@ -101,6 +101,14 @@
     pre { background: #0f172a; color: #e2e8f0; border-radius: var(--radius); padding: 14px; overflow: auto; }
     pre code { background: transparent; border: 0; color: inherit; }
     .mermaid svg { max-width: 100%; height: auto; }
+    /* Mermaid node labels clip on the right when the page's kerning / ligatures / letter-spacing widen the
+       final SVG text past mermaid's own measurement. Neutralize those inside the diagram, and let a label
+       spill into the node's padding rather than be cut off. */
+    .mermaid text, .mermaid .nodeLabel, .mermaid .edgeLabel,
+    .mermaid foreignObject div, .mermaid foreignObject span, .mermaid foreignObject p {
+      font-feature-settings: normal; font-variant-ligatures: none; letter-spacing: normal; text-rendering: auto;
+    }
+    .mermaid foreignObject { overflow: visible; }
     .mermaid:not([data-processed]) { font-family: var(--mono); font-size: var(--fs-sm); white-space: pre; overflow-x: auto; background: var(--surface-2); border: 1px dashed var(--line-strong); border-radius: var(--radius); padding: var(--s-6); color: var(--muted); }
     .needs-verification { display: inline-block; font-family: var(--mono); padding: 2px 8px; border-radius: var(--radius-sm); font-size: var(--fs-cap); font-weight: 700; background: var(--warn-bg); color: var(--warn); border: 1px solid var(--warn-line); }
     /* responsive overrides for components live next to the component (in _EXTRA_SCAFFOLD_STYLE) */
@@ -278,6 +286,7 @@
     if (document.querySelector(".mermaid")) {
       const { default: mermaid } = await import("https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.esm.min.mjs");
       mermaid.initialize({ startOnLoad: false, securityLevel: "loose", theme: "base",
+        flowchart: { htmlLabels: true, padding: 12, useMaxWidth: true },
         /* keep themeVariables in sync with the :root tokens above (single file, two spots) */
         themeVariables: { primaryColor: "#eef5fb", primaryBorderColor: "#b9d5ec", primaryTextColor: "#172033", lineColor: "#5a6577", fontFamily: "inherit", fontSize: "14px" } });
       await mermaid.run();   /* module scripts defer, so the DOM is parsed; run() renders every .mermaid once */
@@ -317,9 +326,9 @@
     </section>
 
     <aside class="read-map" aria-label="Reading map">
-      <div><strong>Exec (2 min):</strong> <a href="#decision">Decision</a> &middot; <a href="#reversibility">Reversibility</a></div>
-      <div><strong>PM (5 min):</strong> <a href="#decision">Decision</a> &middot; <a href="#context">Context</a> &middot; <a href="#options">Current vs proposed</a></div>
-      <div><strong>Engineer (15 min):</strong> All sections</div>
+      <div><strong>Quick read (2 min):</strong> <a href="#decision">Decision</a> &middot; <a href="#reversibility">Reversibility</a></div>
+      <div><strong>Standard (5 min):</strong> <a href="#decision">Decision</a> &middot; <a href="#context">Context</a> &middot; <a href="#options">Current vs proposed</a></div>
+      <div><strong>Full read (15 min):</strong> All sections</div>
     </aside>
 
     <nav class="toc" aria-label="On this page">
