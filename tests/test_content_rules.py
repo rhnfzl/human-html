@@ -8,6 +8,7 @@ evidence of a real no-JS static floor.
 """
 
 import importlib.util
+import json
 import re
 import sys
 import unittest
@@ -370,6 +371,65 @@ class SimulateNoJsTest(unittest.TestCase):
         self.assertTrue(
             inline_display,
             "if no .js-only control carries an inline display any more, !important can go",
+        )
+
+
+class SourceFilesProvenanceTest(unittest.TestCase):
+    """The optional `sourceFiles` block, and why only the revision is enforced.
+
+    A files-read list without the revision it was read at cannot answer the question it
+    exists for: is this artifact still true about those files? With the revision a reader
+    runs `git diff <rev>..HEAD -- <paths>`. Without it the list is decoration.
+    """
+
+    def test_absent_block_is_silent(self):
+        """Opting out must cost nothing. This is a pattern, not a requirement."""
+        self.assertEqual(hha._source_files_warnings(Path("a.html"), {}), [])
+
+    def test_complete_block_is_silent(self):
+        obj = {"sourceFiles": {"paths": ["a.ts"], "readAtRevision": "9c2ad10"}}
+        self.assertEqual(hha._source_files_warnings(Path("a.html"), obj), [])
+
+    def test_paths_without_a_revision_warn(self):
+        obj = {"sourceFiles": {"paths": ["a.ts"]}}
+        warnings = hha._source_files_warnings(Path("a.html"), obj)
+        self.assertTrue(any("readAtRevision" in w for w in warnings), warnings)
+
+    def test_revision_without_paths_warns(self):
+        obj = {"sourceFiles": {"paths": [], "readAtRevision": "9c2ad10"}}
+        warnings = hha._source_files_warnings(Path("a.html"), obj)
+        self.assertTrue(any("non-empty array" in w for w in warnings), warnings)
+
+    def test_wrong_shape_warns_instead_of_crashing(self):
+        for bad in (["a.ts"], "a.ts", 3):
+            with self.subTest(value=bad):
+                warnings = hha._source_files_warnings(Path("a.html"), {"sourceFiles": bad})
+                self.assertTrue(warnings, f"{bad!r} should warn")
+
+    def test_the_worked_example_agrees_with_its_own_json_ld(self):
+        """The visible list and the JSON-LD are one fact written twice.
+
+        The failure mode is editing one and forgetting the other, which leaves a reader
+        running a `git diff` over a path set the artifact no longer claims to have read.
+        """
+        path = REPO / "skills/human-html/examples/understanding-canonical.html"
+        text = path.read_text(encoding="utf-8")
+        block = re.search(r'<details class="files-read">(.*?)</details>', text, re.DOTALL)
+        assert block is not None, "the worked example must keep its files-read block"
+        shown = re.findall(r"<li><code>([^<]+)</code></li>", block.group(1))
+
+        script = re.search(
+            r'<script type="application/ld\+json" id="provenance">(.*?)</script>',
+            text, re.DOTALL,
+        )
+        assert script is not None
+        declared = json.loads(script.group(1))["sourceFiles"]
+
+        self.assertEqual(shown, declared["paths"], "visible list and JSON-LD disagree")
+        self.assertIn(f"Files read ({len(shown)})", block.group(1), "summary count is stale")
+        self.assertIn(
+            declared["readAtRevision"], block.group(1),
+            "the revision in the JSON-LD is not the one shown to the reader",
         )
 
 

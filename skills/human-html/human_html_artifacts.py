@@ -965,6 +965,36 @@ def _provenance_field_warnings(rel: Path, parser: ArtifactHTMLParser) -> list[st
                 warnings.append(
                     f"{rel}: provenance JSON-LD missing fields: {', '.join(missing)}"
                 )
+            warnings.extend(_source_files_warnings(rel, obj))
+    return warnings
+
+
+def _source_files_warnings(rel: Path, obj: dict) -> list[str]:
+    """Check an OPTIONAL `sourceFiles` block, and only once the author opts in.
+
+    A "files read" list without the revision it was read at cannot answer the one question
+    it exists for: is this artifact still true about those files? With the revision a reader
+    runs `git diff <rev>..HEAD -- <paths>` and an empty result means nothing it consulted has
+    moved. Without it the list is decoration, so the revision is the part worth checking.
+
+    Nothing here fires unless `sourceFiles` is present. This is an adoptable pattern, not a
+    requirement, and a rule that nags every artifact into carrying one would be wrong.
+    """
+    source_files = obj.get("sourceFiles")
+    if source_files is None:
+        return []
+    if not isinstance(source_files, dict):
+        return [f"{rel}: provenance sourceFiles must be an object with paths + readAtRevision"]
+
+    warnings: list[str] = []
+    paths = source_files.get("paths")
+    if not isinstance(paths, list) or not paths:
+        warnings.append(f"{rel}: provenance sourceFiles.paths must be a non-empty array")
+    if not source_files.get("readAtRevision"):
+        warnings.append(
+            f"{rel}: provenance sourceFiles has no readAtRevision, so a reader cannot tell "
+            "whether the files have changed since; add the commit the artifact was written against"
+        )
     return warnings
 
 
