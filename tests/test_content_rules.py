@@ -439,30 +439,45 @@ class SourceFilesProvenanceTest(unittest.TestCase):
                     any("readAtRevision" in w for w in warnings), f"{why}: {warnings}"
                 )
 
-    def test_the_worked_example_agrees_with_its_own_json_ld(self):
+    def test_every_files_read_block_agrees_with_its_own_json_ld(self):
         """The visible list and the JSON-LD are one fact written twice.
 
         The failure mode is editing one and forgetting the other, which leaves a reader
         running a `git diff` over a path set the artifact no longer claims to have read.
+        Runs over every example carrying the block, so a new one is covered on arrival.
         """
-        path = REPO / "skills/human-html/examples/understanding-canonical.html"
-        text = path.read_text(encoding="utf-8")
-        block = re.search(r'<details class="files-read">(.*?)</details>', text, re.DOTALL)
-        assert block is not None, "the worked example must keep its files-read block"
-        shown = re.findall(r"<li><code>([^<]+)</code></li>", block.group(1))
+        examples = sorted((REPO / "skills/human-html/examples").glob("*.html"))
+        carriers = []
+        for path in examples:
+            text = path.read_text(encoding="utf-8")
+            block = re.search(r'<details class="files-read">(.*?)</details>', text, re.DOTALL)
+            if block is None:
+                continue
+            carriers.append(path.name)
+            with self.subTest(example=path.name):
+                shown = re.findall(r"<li><code>([^<]+)</code></li>", block.group(1))
+                self.assertTrue(shown, "the block lists no files")
 
-        script = re.search(
-            r'<script type="application/ld\+json" id="provenance">(.*?)</script>',
-            text, re.DOTALL,
-        )
-        assert script is not None
-        declared = json.loads(script.group(1))["sourceFiles"]
-
-        self.assertEqual(shown, declared["paths"], "visible list and JSON-LD disagree")
-        self.assertIn(f"Files read ({len(shown)})", block.group(1), "summary count is stale")
-        self.assertIn(
-            declared["readAtRevision"], block.group(1),
-            "the revision in the JSON-LD is not the one shown to the reader",
+                script = re.search(
+                    r'<script type="application/ld\+json" id="provenance">(.*?)</script>',
+                    text, re.DOTALL,
+                )
+                assert script is not None, f"{path.name} has no provenance JSON-LD"
+                declared = json.loads(script.group(1)).get("sourceFiles")
+                self.assertIsNotNone(
+                    declared, "a visible files-read block needs a sourceFiles object too"
+                )
+                self.assertEqual(shown, declared["paths"], "visible list and JSON-LD disagree")
+                self.assertIn(
+                    f"Files read ({len(shown)})", block.group(1), "summary count is stale"
+                )
+                self.assertIn(
+                    declared["readAtRevision"], block.group(1),
+                    "the revision in the JSON-LD is not the one shown to the reader",
+                )
+        self.assertGreaterEqual(
+            len(carriers), 2,
+            "at least two shipped examples should demonstrate the pattern; found: " + str(carriers),
         )
 
 
