@@ -7,6 +7,7 @@ examples/prototype-canonical.html -- so "passes js-content-fallback" was not
 evidence of a real no-JS static floor.
 """
 
+import fnmatch
 import importlib.util
 import json
 import re
@@ -439,25 +440,57 @@ class SourceFilesProvenanceTest(unittest.TestCase):
                     any("readAtRevision" in w for w in warnings), f"{why}: {warnings}"
                 )
 
+    def _files_read_parts(self, text: str) -> dict | None:
+        """Pull a files-read block apart, or None when the artifact carries no block.
+
+        Shared by the two guards below so they cannot end up disagreeing about what
+        counts as a listed path, which is how the `<li>` blind spot below survived.
+        """
+        block = re.search(r'<details class="files-read">(.*?)</details>', text, re.DOTALL)
+        if block is None:
+            return None
+        html = block.group(1)
+        summary = re.search(r"<summary\b[^>]*>(.*?)</summary>", html, re.DOTALL)
+        return {
+            "html": html,
+            "summary": summary.group(1) if summary else None,
+            # Attributes on the <li> are tolerated: markup this pattern fails to match is
+            # a visible path the guards cannot see, not a path that is absent.
+            "shown": re.findall(r"<li\b[^>]*>\s*<code>([^<]+)</code>", html),
+            "items": len(re.findall(r"<li\b", html)),
+            # The command is line-wrapped in the source; collapse before matching.
+            "command": re.search(r"<code>(git diff [^<]*)</code>", " ".join(html.split())),
+        }
+
     def test_every_files_read_block_agrees_with_its_own_json_ld(self):
         """The visible list and the JSON-LD are one fact written twice.
 
         The failure mode is editing one and forgetting the other, which leaves a reader
         running a `git diff` over a path set the artifact no longer claims to have read.
         Runs over every example carrying the block, so a new one is covered on arrival.
+
+        The revision is checked in the summary and in the command separately, not just
+        somewhere in the block: searching the whole block lets the summary drift to a
+        different revision while the command still carries the declared one, and the
+        summary is the revision the reader actually reads.
         """
         examples = sorted((REPO / "skills/human-html/examples").glob("*.html"))
         carriers = []
         for path in examples:
-            text = path.read_text(encoding="utf-8")
-            block = re.search(r'<details class="files-read">(.*?)</details>', text, re.DOTALL)
-            if block is None:
+            parts = self._files_read_parts(path.read_text(encoding="utf-8"))
+            if parts is None:
                 continue
             carriers.append(path.name)
             with self.subTest(example=path.name):
-                shown = re.findall(r"<li><code>([^<]+)</code></li>", block.group(1))
+                shown = parts["shown"]
                 self.assertTrue(shown, "the block lists no files")
+                self.assertEqual(
+                    len(shown), parts["items"],
+                    "an <li> in the block was not read as a path, so the visible list "
+                    "could gain or lose a file without this guard noticing",
+                )
 
+                text = path.read_text(encoding="utf-8")
                 script = re.search(
                     r'<script type="application/ld\+json" id="provenance">(.*?)</script>',
                     text, re.DOTALL,
@@ -469,11 +502,19 @@ class SourceFilesProvenanceTest(unittest.TestCase):
                 )
                 self.assertEqual(shown, declared["paths"], "visible list and JSON-LD disagree")
                 self.assertIn(
-                    f"Files read ({len(shown)})", block.group(1), "summary count is stale"
+                    f"Files read ({len(shown)})", parts["html"], "summary count is stale"
                 )
+
+                revision = declared["readAtRevision"]
+                self.assertIsNotNone(parts["summary"], "the block has no <summary>")
                 self.assertIn(
-                    declared["readAtRevision"], block.group(1),
-                    "the revision in the JSON-LD is not the one shown to the reader",
+                    revision, parts["summary"],
+                    "the revision in the summary is not the one the JSON-LD declares",
+                )
+                assert parts["command"] is not None, f"{path.name} states no staleness command"
+                self.assertIn(
+                    revision, parts["command"].group(1),
+                    "the revision in the command is not the one the JSON-LD declares",
                 )
         self.assertGreaterEqual(
             len(carriers), 2,
@@ -491,29 +532,76 @@ class SourceFilesProvenanceTest(unittest.TestCase):
         """
         examples = sorted((REPO / "skills/human-html/examples").glob("*.html"))
         for path in examples:
-            text = path.read_text(encoding="utf-8")
-            block = re.search(r'<details class="files-read">(.*?)</details>', text, re.DOTALL)
-            if block is None:
+            parts = self._files_read_parts(path.read_text(encoding="utf-8"))
+            if parts is None:
                 continue
             with self.subTest(example=path.name):
-                shown = re.findall(r"<li><code>([^<]+)</code></li>", block.group(1))
-                # The command is line-wrapped in the source; collapse before matching.
-                flat = " ".join(block.group(1).split())
-                command = re.search(r"<code>(git diff [^<]*)</code>", flat)
+                command = parts["command"]
                 assert command is not None, f"{path.name} states no staleness command"
                 _, separator, pathspec = command.group(1).partition(" -- ")
                 self.assertTrue(separator, "the staleness command has no `--` pathspec")
-                scopes = pathspec.split()
+                # A glob pathspec is quoted in the command so the shell leaves it to git.
+                scopes = [scope.strip("'\"") for scope in pathspec.split()]
                 self.assertTrue(scopes, "the staleness command has an empty pathspec")
-                for listed in shown:
+                for listed in parts["shown"]:
                     self.assertTrue(
                         any(
-                            listed == scope or listed.startswith(scope.rstrip("/") + "/")
+                            listed == scope
+                            or listed.startswith(scope.rstrip("/") + "/")
+                            # git's pathspec `*` crosses directory boundaries, and so does
+                            # fnmatch's, so a glob scope covers what git says it covers.
+                            or fnmatch.fnmatch(listed, scope)
                             for scope in scopes
                         ),
                         f"{listed} is listed as read but falls outside the pathspec "
                         f"{scopes}, so empty output would not prove it is untouched",
                     )
+
+    def test_the_documented_snippet_obeys_the_rules_it_is_printed_beside(self):
+        """The snippet in `patterns.md` is held *tighter* than a shipped artifact.
+
+        It is the copy source, so it outranks the prose next to it: whatever it does is
+        what the next artifact does. So its pathspec must match its declared paths
+        exactly, rather than merely containing them. An artifact is allowed to widen,
+        and `dynamic-port-correspondence.html` is where that exception is demonstrated
+        with the clause explaining it; a bare widening in the snippet teaches the
+        exception as the default and costs every copier a false alarm on an undeclared
+        file. Nothing checked the snippet until now, which is how it came to list
+        `routes/*.ts` while diffing the wider `routes/`.
+        """
+        doc = (REPO / "skills/human-html/references/patterns.md").read_text(encoding="utf-8")
+        parts = self._files_read_parts(doc)
+        self.assertIsNotNone(parts, "patterns.md no longer ships a files-read snippet")
+        assert parts is not None
+
+        # The JSON-LD half is a fragment in its own fence, so brace it back into an object.
+        fragment = re.search(r'("sourceFiles":\s*\{.*?\n\})', doc, re.DOTALL)
+        assert fragment is not None, "patterns.md ships no sourceFiles snippet"
+        declared = json.loads("{" + fragment.group(1) + "}")["sourceFiles"]
+
+        self.assertEqual(
+            parts["shown"], declared["paths"],
+            "the snippet's visible list and its JSON-LD disagree",
+        )
+        self.assertEqual(
+            len(parts["shown"]), parts["items"], "an <li> in the snippet was not read as a path"
+        )
+        revision = declared["readAtRevision"]
+        self.assertIsNotNone(parts["summary"], "the snippet has no <summary>")
+        self.assertIn(revision, parts["summary"], "the snippet's summary revision disagrees")
+        command = parts["command"]
+        assert command is not None, "the snippet states no staleness command"
+        self.assertIn(revision, command.group(1), "the snippet's command revision disagrees")
+
+        _, separator, pathspec = command.group(1).partition(" -- ")
+        self.assertTrue(separator, "the snippet's command has no `--` pathspec")
+        scopes = [scope.strip("'\"") for scope in pathspec.split()]
+        self.assertEqual(
+            scopes, parts["shown"],
+            "the snippet's pathspec must be exactly the paths it declares, in the same "
+            "order; widening is an artifact's call to make and to explain, and teaching "
+            "it as the default costs every copier a false alarm on an undeclared file",
+        )
 
 
 class EveryExampleTest(unittest.TestCase):
