@@ -83,6 +83,296 @@ class JsDomWriteDetectionTest(unittest.TestCase):
                 )
 
 
+def _artifact(body: str, *, mode: str = "", kind: str = "plan") -> str:
+    """Minimal in-force artifact: passes everything except what a test targets."""
+    mode_meta = f'<meta name="artifact-mode" content="{mode}">' if mode else ""
+    return f"""<!doctype html><html lang="en"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="artifact-kind" content="{kind}">{mode_meta}
+<meta name="artifact-created" content="2026-07-26">
+<title>t</title></head>
+<body data-human-html-artifact="true"><main>
+<div data-meta-ribbon="true">ribbon</div>
+<section data-summary="true"><h2>In plain terms</h2><ul><li>What: a thing.</li></ul></section>
+{body}
+<footer data-provenance="true">provenance</footer>
+</main></body></html>"""
+
+
+class DynamicModeTest(unittest.TestCase):
+    """Dynamic mode stands down the three SHAPE rules and nothing else.
+
+    The split exists because the rules were two populations wearing one coat:
+    `required-section` encodes "a plan looks like this", `viewport-meta` encodes
+    "a human on a phone can read this". Only the first kind is about structure, so
+    only the first kind can be relaxed when the author invents the structure.
+    """
+
+    # Five h2 sections, no <nav>, no reading guide, no "rollback" heading: enough to
+    # trip every shape rule at once.
+    LONG_BODY = "\n".join(
+        f'<section id="s{i}"><h2>Section {i}</h2><p>Body.</p></section>' for i in range(5)
+    )
+
+    def _check(self, mode: str) -> tuple[list[str], list[str]]:
+        return hha.content_shape_violations(
+            Path("a.html"), _artifact(self.LONG_BODY, mode=mode), "2026-07-26", REPO, "plan"
+        )
+
+    def test_standard_mode_blocks_on_nav_and_warns_on_shape(self):
+        errors, warnings = self._check("")
+        self.assertTrue(
+            any("nav-anchors" in e for e in errors), f"nav must block in standard: {errors}"
+        )
+        self.assertTrue(any("required-section" in w for w in warnings), warnings)
+        self.assertTrue(any("read-map" in w for w in warnings), warnings)
+
+    def test_dynamic_mode_downgrades_nav_and_drops_the_skeleton_rules(self):
+        errors, warnings = self._check("dynamic")
+        self.assertEqual(errors, [], f"dynamic mode must not block on shape: {errors}")
+        self.assertTrue(
+            any("nav-anchors" in w for w in warnings),
+            f"nav should still nudge, just not veto: {warnings}",
+        )
+        joined = " ".join(warnings)
+        self.assertNotIn("required-section", joined)
+        self.assertNotIn("read-map", joined)
+
+    def test_dynamic_mode_does_not_relax_reader_protection(self):
+        """The floor is the point: relaxing shape must not relax anything else."""
+        no_viewport = _artifact("<p>x</p>", mode="dynamic").replace(
+            '<meta name="viewport" content="width=device-width, initial-scale=1">', ""
+        )
+        errors, _ = hha.content_shape_violations(
+            Path("a.html"), no_viewport, "2026-07-26", REPO, "plan"
+        )
+        self.assertTrue(
+            any("viewport" in e for e in errors),
+            f"viewport-meta must still block in dynamic mode: {errors}",
+        )
+
+    def test_summary_block_is_required_in_both_modes(self):
+        for mode in ("", "dynamic"):
+            with self.subTest(mode=mode or "standard"):
+                stripped = re.sub(
+                    r'<section data-summary="true">.*?</section>',
+                    "",
+                    _artifact("<p>x</p>", mode=mode),
+                    flags=re.DOTALL,
+                )
+                errors, _ = hha.content_shape_violations(
+                    Path("a.html"), stripped, "2026-07-26", REPO, "plan"
+                )
+                self.assertTrue(
+                    any("summary-first" in e for e in errors),
+                    f"answer-first opener must block in {mode or 'standard'}: {errors}",
+                )
+
+    def test_unrecognised_mode_warns_instead_of_failing_silently(self):
+        """A typo'd mode must not quietly leave the author in standard mode.
+
+        Falling through to the full rule set is the right default, but doing it
+        silently means "dyanmic" looks identical to a validator that ignores the flag.
+        """
+        errors, warnings = hha.content_shape_violations(
+            Path("a.html"),
+            _artifact(self.LONG_BODY, mode="dyanmic"),
+            "2026-07-26",
+            REPO,
+            "plan",
+        )
+        self.assertTrue(
+            any("artifact-mode" in w for w in warnings),
+            f"a typo'd mode must warn: {warnings}",
+        )
+        # and it must still be held to the full rule set, not half-relaxed
+        self.assertTrue(
+            any("nav-anchors" in e for e in errors),
+            f"an unrecognised mode is standard, so nav must still block: {errors}",
+        )
+
+    def test_the_supported_modes_do_not_warn(self):
+        for mode in ("", "standard", "dynamic"):
+            with self.subTest(mode=mode or "absent"):
+                _, warnings = hha.content_shape_violations(
+                    Path("a.html"), _artifact("<p>x</p>", mode=mode), "2026-07-26", REPO, "plan"
+                )
+                self.assertFalse(
+                    any("artifact-mode" in w for w in warnings),
+                    f"{mode or 'absent'} is valid and must not warn: {warnings}",
+                )
+
+    def test_retired_rule_id_still_suppresses(self):
+        """Renaming a rule must not invalidate suppressions written against the old ID.
+
+        `pm-summary` became `summary-first`. `_add` matches the emitted ID exactly, so
+        without an alias every artifact carrying
+        `<!-- human-html-disable: pm-summary -->` turns a passing build into a BLOCKING
+        error on upgrade. That is a silent breaking change for installed workspaces.
+        """
+        for suppressed in ("pm-summary", "summary-first"):
+            with self.subTest(rule_id=suppressed):
+                art = _artifact(
+                    f"<!-- human-html-disable: {suppressed} -->"
+                ).replace('<section data-summary="true"><h2>In plain terms</h2>'
+                          "<ul><li>What: a thing.</li></ul></section>", "")
+                errors, _ = hha.content_shape_violations(
+                    Path("a.html"), art, "2026-07-26", REPO, "plan"
+                )
+                self.assertFalse(
+                    any("summary-first" in e for e in errors),
+                    f"suppressing {suppressed} must silence summary-first: {errors}",
+                )
+
+    def test_an_unsuppressed_missing_summary_still_blocks(self):
+        """Guard the guard: the alias must not silence the rule for everyone."""
+        art = _artifact("<p>x</p>").replace(
+            '<section data-summary="true"><h2>In plain terms</h2>'
+            "<ul><li>What: a thing.</li></ul></section>", "")
+        errors, _ = hha.content_shape_violations(
+            Path("a.html"), art, "2026-07-26", REPO, "plan"
+        )
+        self.assertTrue(any("summary-first" in e for e in errors), errors)
+
+    def test_mode_written_as_an_attribute_warns(self):
+        """The mode is a meta tag. Writing it as an attribute must not fail silently."""
+        art = _artifact("<p>x</p>").replace(
+            '<body data-human-html-artifact="true">',
+            '<body data-human-html-artifact="true" data-artifact-mode="dynamic">',
+        )
+        _, warnings = hha.content_shape_violations(
+            Path("a.html"), art, "2026-07-26", REPO, "plan"
+        )
+        self.assertTrue(
+            any("artifact-mode" in w for w in warnings),
+            f"an attribute-form mode must warn that it is not in effect: {warnings}",
+        )
+
+    def test_legacy_audience_marker_still_satisfies_the_rule(self):
+        """Artifacts written before the rename must keep validating."""
+        legacy = _artifact("<p>x</p>").replace(
+            '<section data-summary="true">', '<section data-audience="pm">'
+        )
+        errors, _ = hha.content_shape_violations(
+            Path("a.html"), legacy, "2026-07-26", REPO, "plan"
+        )
+        self.assertFalse(
+            any("summary-first" in e for e in errors),
+            'pre-rename data-audience="pm" must still count: ' + str(errors),
+        )
+
+
+class NoAudienceSegmentationTest(unittest.TestCase):
+    """No artifact names a job title at the reader, in prose OR in markup.
+
+    The read maps were relabelled depth-based for this reason; `data-audience="pm"`
+    was the same segmentation one layer down, so it was renamed to
+    `data-summary="true"`. This guards both halves from drifting back.
+    """
+
+    EXAMPLES = sorted((REPO / "skills/human-html/examples").glob("*.html"))
+
+    def test_examples_do_not_use_the_pre_rename_marker(self):
+        offenders = [
+            p.name for p in self.EXAMPLES if "data-audience" in p.read_text(encoding="utf-8")
+        ]
+        self.assertEqual(offenders, [], f'data-audience is retired: {offenders}')
+
+    def test_scaffold_emits_the_renamed_marker(self):
+        page = hha.render_artifact("T", "plan", "2026-07-26", "local")
+        self.assertIn('data-summary="true"', page)
+        self.assertNotIn("data-audience", page)
+
+    def test_dynamic_scaffold_omits_nav_read_map_and_kind_sections(self):
+        page = hha.render_artifact("T", "plan", "2026-07-26", "local", "dynamic")
+        self.assertIn('<meta name="artifact-mode" content="dynamic">', page)
+        self.assertNotIn("<nav", page)
+        # the markup, not the string: .read-map lives in the shared scaffold CSS,
+        # which is one constant for both modes and correctly stays.
+        self.assertNotIn('aria-label="Reading map"', page)
+        self.assertNotIn('class="read-map"', page)
+        # and it still carries the floor it cannot relax
+        self.assertIn('data-summary="true"', page)
+        self.assertIn("width=device-width", page)
+
+
+class EveryExampleTest(unittest.TestCase):
+    """Rules that hold for every shipped example, dynamic or kind-shaped.
+
+    The canonical tests above glob `*-canonical.html`, which would silently skip the
+    dynamic examples. These are the checks that do not care about shape at all, so
+    they run over everything in examples/.
+    """
+
+    EXAMPLES = sorted((REPO / "skills/human-html/examples").glob("*.html"))
+    DYNAMIC = sorted((REPO / "skills/human-html/examples").glob("dynamic-*.html"))
+
+    def test_validator_reports_no_errors_for_any_example(self):
+        offenders = []
+        for path in self.EXAMPLES:
+            text = path.read_text(encoding="utf-8")
+            parser = hha.ArtifactHTMLParser()
+            parser.feed(text)
+            errors, _ = hha.content_shape_violations(
+                path, text, "2026-07-26", REPO, parser.meta.get("artifact-kind", "")
+            )
+            if errors:
+                offenders.append((path.name, errors))
+        self.assertEqual(offenders, [], f"examples must validate clean: {offenders}")
+
+    def test_no_em_dashes_or_curly_quotes_in_any_example(self):
+        """House style, and it is what the em-dash rule warns on."""
+        offenders = []
+        for path in self.EXAMPLES:
+            text = path.read_text(encoding="utf-8")
+            # Both directions of each pair: a file carrying only the closing form
+            # would otherwise pass, which is exactly how smart quotes arrive.
+            hits = [name for char, name in
+                    (("—", "em dash"), ("–", "en dash"),
+                     ("“", "curly quote (open)"), ("”", "curly quote (close)"),
+                     ("‘", "curly apostrophe (open)"), ("’", "curly apostrophe (close)"))
+                    if char in text]
+            if hits:
+                offenders.append((path.name, hits))
+        self.assertEqual(offenders, [], f"house style: {offenders}")
+
+    def test_dynamic_examples_exist_and_declare_the_mode(self):
+        self.assertGreaterEqual(
+            len(self.DYNAMIC), 3, "at least three dynamic examples are shipped"
+        )
+        for path in self.DYNAMIC:
+            with self.subTest(example=path.name):
+                self.assertIn(
+                    '<meta name="artifact-mode" content="dynamic">',
+                    path.read_text(encoding="utf-8"),
+                )
+
+    def test_dynamic_examples_do_not_converge_on_one_shape(self):
+        """The point of shipping three is that none of them reads as the template.
+
+        If they all landed on the same kind or the same heading set, an author would
+        copy the shared shape and dynamic mode would have re-grown a skeleton.
+        """
+        kinds, headsets = set(), []
+        for path in self.DYNAMIC:
+            text = path.read_text(encoding="utf-8")
+            parser = hha.ArtifactHTMLParser()
+            parser.feed(text)
+            kinds.add(parser.meta.get("artifact-kind", ""))
+            headsets.append(frozenset(h.strip().lower() for h in parser.h2_headings))
+        self.assertGreaterEqual(len(kinds), 3, f"dynamic examples share a kind: {kinds}")
+        for i, a in enumerate(headsets):
+            for b in headsets[i + 1:]:
+                shared = a & b
+                # "in plain terms" is the summary block, which every artifact has.
+                shared -= {"in plain terms"}
+                self.assertLessEqual(
+                    len(shared), 1,
+                    f"two dynamic examples share headings, so one is becoming a template: {shared}",
+                )
+
+
 class CanonicalExampleContractTest(unittest.TestCase):
     """The shipped examples are what agents copy, so they must obey the rules.
 

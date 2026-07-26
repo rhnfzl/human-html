@@ -1,0 +1,908 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="artifact-kind" content="understanding">
+  <meta name="artifact-mode" content="dynamic">
+  <meta name="artifact-audience" content="human">
+  <meta name="artifact-created" content="2026-07-26">
+  <meta name="artifact-source" content="port-review: branch quota/ts-port @ 4f1c9ab vs main @ 9c2ad10">
+  <meta name="artifact-read-time" content="9 min">
+  <!-- Gallery card text. Leave empty to auto-derive from the summary block; fill for a sharper one-liner. -->
+  <meta name="artifact-summary" content="Region-by-region map of the token-bucket limiter from Rust to TypeScript: four regions preserved exactly, four changed on purpose, and the eight ways a tidy-looking rewrite would change the rate.">
+  <meta name="artifact-keywords" content="token bucket, rate limiter, rust, typescript, port, behaviour parity, correspondence map">
+  <title>Token-bucket limiter: Rust source to TypeScript port, region by region</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ctext y='13' font-size='13'%3E🪣%3C/text%3E%3C/svg%3E">
+    <script>
+    (function(){try{var r=document.documentElement;r.classList.add('theme-js');var t=localStorage.getItem('hh-theme');if(t==='dark'||t==='light')r.dataset.theme=t;}catch(e){}})();
+  </script>
+  <style>
+:root {
+      color-scheme: light;                     /* light-only scaffold; NO dark media query anywhere */
+      /* surfaces: cool off-white, slight blue-grey hue bias (never pure grey/white) */
+      --bg: #f6f8fb; --surface: #ffffff; --surface-2: #f2f5f9; --surface-3: #e9eef4;
+      /* ink: navy-biased grey ramp (never pure black) */
+      --ink: #172033; --ink-2: #3c4657; --muted: #5a6577; --faint: #66707f;  /* --faint is text-safe AA (4.7:1 on --bg) */
+      /* structure */
+      --line: #dbe2ec; --line-strong: #c6cfdc;
+      /* brand accent (#226fb2) + tint */
+      --accent: #226fb2; --accent-2: #1b5e97; --accent-bg: #eef5fb; --accent-line: #b9d5ec;
+      /* severity: fg / tint-bg / tint-line triples (semantic color only) */
+      --crit: #c0342a; --crit-bg: #fbeae8; --crit-line: #f0c4be;
+      --high: #a84522; --high-bg: #fbeee6; --high-line: #f0cdba;  /* fg contrast-locked to tint (5.2:1) */
+      --warn: #845d06; --warn-bg: #f9f1d8; --warn-line: #e8d69a;  /* fg contrast-locked to tint (5.2:1) */
+      --good: #2d7a55; --good-bg: #e9f5ee; --good-line: #b6ddc6;
+      --info: #226fb2; --info-bg: #eef5fb; --info-line: #b9d5ec;
+      --neutral: #5a6577; --neutral-bg: #eef1f5; --neutral-line: #d7dde6;
+      /* legacy aliases: keep every existing selector below valid (safe incremental migration) */
+      --blue: var(--accent); --soft: var(--surface-2);
+      --orange: var(--high); --green: var(--good);
+      --rose-bg: var(--high-bg); --rose-line: var(--high);
+      --emerald-bg: var(--good-bg); --emerald-line: var(--good);
+      /* elevation */
+      --shadow-sm: 0 1px 2px rgba(23,32,51,.05);
+      --shadow: 0 1px 2px rgba(23,32,51,.05), 0 8px 24px rgba(23,32,51,.06);
+      /* radius */
+      --radius: 10px; --radius-sm: 6px; --radius-lg: 14px;
+      /* spacing scale */
+      --s-1:4px; --s-2:6px; --s-3:8px; --s-4:12px; --s-5:14px; --s-6:16px; --s-7:18px; --s-8:20px; --s-9:24px; --s-10:32px; --s-12:48px;
+      /* families: display serif for h1/numbers, sans body (NOT led by Inter), mono kickers */
+      --display: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, ui-serif, serif;
+      --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", "Helvetica Neue", sans-serif;
+      --mono: ui-monospace, "SF Mono", "Cascadia Code", Menlo, Consolas, monospace;
+      /* fluid type scale: only the 3 biggest levels clamp; body & below fixed so copy never wobbles */
+      --fs-h1: clamp(2rem, 1.35rem + 2.6vw, 3.2rem);
+      --fs-h2: clamp(1.3rem, 1.15rem + .7vw, 1.6rem);
+      --fs-h3: 1.05rem; --fs-lede: clamp(1.05rem, 1rem + .35vw, 1.18rem);
+      --fs-body: 1rem; --fs-sm: .875rem; --fs-cap: .72rem;
+      --lh-body: 1.62; --ls-caps: .1em;
+      font-family: var(--sans);
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; color: var(--ink); background: var(--bg); font-family: var(--sans); line-height: var(--lh-body); accent-color: var(--accent); text-rendering: optimizeLegibility; -webkit-font-smoothing: antialiased; font-feature-settings: "kern", "liga"; }
+    main { width: min(1060px, calc(100vw - clamp(2rem, 8vw, 5rem))); margin: 0 auto; padding: clamp(28px,5vw,56px) 0 clamp(64px,10vw,96px); }
+    header { border-bottom: 1px solid var(--line); padding-bottom: var(--s-9); margin-bottom: var(--s-10); }
+    .eyebrow { font-family: var(--mono); color: var(--accent); font-size: var(--fs-cap); font-weight: 600; text-transform: uppercase; letter-spacing: .14em; }
+    h1 { margin: 10px 0 12px; font-family: var(--display); font-size: var(--fs-h1); font-weight: 800; line-height: 1.05; letter-spacing: -.02em; }
+    h2 { margin: 0 0 12px; font-size: var(--fs-h2); font-weight: 700; letter-spacing: -.01em; }
+    h3 { margin: 18px 0 8px; font-size: var(--fs-h3); font-weight: 600; color: var(--ink); }
+    h1, h2, h3 { text-wrap: balance; }
+    p { color: var(--ink-2); line-height: var(--lh-body); max-width: 72ch; text-wrap: pretty; }
+    li { max-width: 72ch; }
+    a { color: var(--accent); }
+    :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+    .lead-summary { background: var(--surface-2); border-left: 4px solid var(--accent); padding: 20px 22px; border-radius: var(--radius); margin: 16px 0 32px; box-shadow: var(--shadow-sm); }
+    .lead-summary h2 { color: var(--accent); margin-bottom: 12px; }
+    .lead-summary ul { margin: 0; padding-left: 20px; }
+    .lead-summary li { margin-bottom: 8px; color: var(--ink-2); line-height: 1.55; }
+    .lead-summary li strong { color: var(--accent); }
+    nav.toc { background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 20px; margin: 16px 0 32px; }
+    nav.toc ol { margin: 8px 0 0; padding-left: 22px; columns: 2; column-gap: 24px; }
+    nav.toc li { margin-bottom: 4px; }
+    nav.toc a { color: var(--accent); text-decoration: none; }
+    nav.toc a:hover { text-decoration: underline; }
+    section.section { margin-top: clamp(32px,5vw,52px); }
+    section[id] { scroll-margin-top: var(--s-9); }
+    section:target > h2 { color: var(--accent-2); }
+    .grid-cols-2, .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s-6); }
+    .grid-3 { display: grid; grid-template-columns: repeat(3,1fr); gap: var(--s-6); }
+    .compare-before { background: var(--high-bg); border-left: 4px solid var(--high); border-radius: var(--radius); padding: 16px; }
+    .compare-after { background: var(--good-bg); border-left: 4px solid var(--good); border-radius: var(--radius); padding: 16px; }
+    .compare-before > strong:first-child, .compare-after > strong:first-child { display: block; margin-bottom: 8px; font-family: var(--mono); font-size: var(--fs-cap); letter-spacing: .08em; text-transform: uppercase; }
+    .compare-before > strong:first-child { color: var(--high); }
+    .compare-after > strong:first-child { color: var(--good); }
+    table { width: 100%; border-collapse: collapse; border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
+    th, td { padding: 12px 14px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; font-variant-numeric: tabular-nums; }
+    th { background: var(--surface-2); color: var(--muted); font-family: var(--mono); font-size: var(--fs-cap); text-transform: uppercase; letter-spacing: .08em; }
+    tr:last-child td { border-bottom: 0; }
+    .table-scroll { overflow-x: auto; border-radius: var(--radius); }
+    .table-scroll table { display: table; }
+    code { background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 2px 5px; font-family: var(--mono); font-size: .88em; }
+    pre { background: #0f172a; color: #e2e8f0; border-radius: var(--radius); padding: 14px; overflow: auto; }
+    pre code { background: transparent; border: 0; color: inherit; }
+    .mermaid svg { max-width: 100%; height: auto; }
+    /* Mermaid node labels clip on the right when the page's kerning / ligatures / letter-spacing widen the
+       final SVG text past mermaid's own measurement. Neutralize those inside the diagram, and let a label
+       spill into the node's padding rather than be cut off. */
+    .mermaid text, .mermaid .nodeLabel, .mermaid .edgeLabel,
+    .mermaid foreignObject div, .mermaid foreignObject span, .mermaid foreignObject p {
+      font-feature-settings: normal; font-variant-ligatures: none; letter-spacing: normal; text-rendering: auto;
+    }
+    .mermaid foreignObject { overflow: visible; }
+    .mermaid:not([data-processed]) { font-family: var(--mono); font-size: var(--fs-sm); white-space: pre; overflow-x: auto; background: var(--surface-2); border: 1px dashed var(--line-strong); border-radius: var(--radius); padding: var(--s-6); color: var(--muted); }
+    .needs-verification { display: inline-block; font-family: var(--mono); padding: 2px 8px; border-radius: var(--radius-sm); font-size: var(--fs-cap); font-weight: 700; background: var(--warn-bg); color: var(--warn); border: 1px solid var(--warn-line); }
+    /* responsive overrides for components live next to the component (in _EXTRA_SCAFFOLD_STYLE) */
+    @media (max-width: 820px) {
+      .grid-cols-2, .grid-2, .grid-3 { grid-template-columns: 1fr; }
+      nav.toc ol { columns: 1; }
+      table { display: block; overflow-x: auto; }
+    }
+.meta-ribbon { display:flex; flex-wrap:wrap; gap:var(--s-4) var(--s-9); padding:var(--s-5) var(--s-7); margin:0 0 var(--s-9); background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); box-shadow:var(--shadow-sm); font-size:var(--fs-sm); color:var(--muted); }
+    .meta-ribbon span { white-space:nowrap; }
+    .meta-ribbon strong { color:var(--faint); font-family:var(--mono); font-size:var(--fs-cap); letter-spacing:.1em; text-transform:uppercase; font-weight:600; margin-right:var(--s-2); }
+    .read-map { background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:var(--s-5) var(--s-7); margin:0 0 var(--s-9); font-size:var(--fs-sm); color:var(--ink); box-shadow:var(--shadow-sm); }
+    .read-map div { margin:var(--s-1) 0; }
+    .read-map strong { color:var(--accent); font-family:var(--mono); font-size:var(--fs-cap); letter-spacing:.08em; text-transform:uppercase; margin-right:var(--s-2); }
+    .read-map a { color:var(--accent); }
+    .provenance { margin-top:var(--s-12); padding-top:var(--s-7); border-top:1px solid var(--line); font-size:var(--fs-sm); color:var(--faint); }
+    .provenance code { background:transparent; border:0; color:var(--ink); font-family:var(--mono); }
+    .provenance a { color:var(--accent); text-decoration:none; }
+    .callout { border:1px solid var(--line); border-left:4px solid var(--muted); background:var(--surface-2); border-radius:var(--radius); padding:var(--s-4) var(--s-6); margin:var(--s-6) 0; }
+    .callout > strong:first-child { display:block; margin-bottom:var(--s-1); font-family:var(--mono); font-size:var(--fs-cap); text-transform:uppercase; letter-spacing:.08em; }
+    .callout-note { border-left-color:var(--accent); background:var(--accent-bg); }
+    .callout-note > strong:first-child { color:var(--accent); }
+    .callout-note > strong:first-child::before { content:"📌 "; content:"📌 " / ""; }
+    .callout-tip { border-left-color:var(--good); background:var(--good-bg); }
+    .callout-tip > strong:first-child { color:var(--good); }
+    .callout-tip > strong:first-child::before { content:"💡 "; content:"💡 " / ""; }
+    .callout-warning { border-left-color:var(--warn); background:var(--warn-bg); }
+    .callout-warning > strong:first-child { color:var(--warn); }
+    .callout-warning > strong:first-child::before { content:"⚠️ "; content:"⚠️ " / ""; }
+    .callout-important { border-left-color:var(--crit); background:var(--crit-bg); }
+    .callout-important > strong:first-child { color:var(--crit); }
+    .callout-important > strong:first-child::before { content:"❗ "; content:"❗ " / ""; }
+    /* ---- collapsible (appendix lane) ---- */
+    details { background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:0 var(--s-6); margin:var(--s-6) 0; }
+    summary { cursor:pointer; padding:var(--s-4) 0; font-weight:600; color:var(--accent); }
+    summary:hover { color:var(--accent-2); }
+    details[open] > summary { border-bottom:1px solid var(--line); margin-bottom:var(--s-4); }
+    #layout-audit { position:fixed; left:0; right:0; bottom:0; z-index:9999; margin:0; padding:var(--s-3) var(--s-5); background:var(--warn-bg); color:var(--warn); border-top:1px solid var(--warn-line); font-size:var(--fs-sm); text-align:center; }
+    #layout-audit[hidden] { display:none; }
+    #layout-audit code { background:var(--surface); }
+    .confidence { display:inline-block; font-family:var(--mono); padding:2px 8px; border-radius:var(--radius-sm); font-size:var(--fs-cap); font-weight:700; border:1px solid transparent; }
+    .confidence-high { background:var(--good-bg); color:var(--good); border-color:var(--good-line); }
+    .confidence-medium { background:var(--accent-bg); color:var(--accent); border-color:var(--accent-line); }
+    .confidence-low { background:var(--warn-bg); color:var(--warn); border-color:var(--warn-line); }
+    /* components own their measure via grid tracks; the 72ch cap applies to open prose only */
+    .keycard p, .card p, .tile p, .metric p, .compare-before p, .compare-after p, .callout p { max-width:none; }
+    /* ---- KPI tiles (shared: incident .metrics/.metric inherit these) ---- */
+    .tiles, .metrics { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:var(--s-5); margin:var(--s-8) 0; }
+    .tile, .metric { position:relative; overflow:hidden; background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:var(--s-7) var(--s-7) var(--s-6); box-shadow:var(--shadow-sm); }
+    .tile::before { content:""; position:absolute; inset:0 auto 0 0; width:4px; background:var(--sv,var(--accent)); }
+    .tile .n, .metric strong { display:block; font-family:var(--display); font-size:clamp(1.8rem,4vw,2.4rem); font-weight:800; line-height:1; color:var(--sv,var(--ink)); font-variant-numeric:tabular-nums; }
+    .tile .k, .metric span { display:block; font-family:var(--mono); font-size:var(--fs-cap); letter-spacing:.12em; text-transform:uppercase; color:var(--muted); font-weight:600; margin-top:var(--s-3); }
+    .tile .d { font-size:.8rem; color:var(--faint); margin-top:var(--s-1); }
+    .tile.crit{--sv:var(--crit);} .tile.high{--sv:var(--high);} .tile.warn{--sv:var(--warn);} .tile.good{--sv:var(--good);} .tile.info{--sv:var(--accent);} .tile.neutral{--sv:var(--neutral);}
+    /* ---- stripe / accent cards ---- */
+    .card { background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:var(--s-7) var(--s-8); box-shadow:var(--shadow-sm); }
+    .card.tint-info { background:var(--info-bg); border-color:var(--info-line); }
+    .card.tint-good { background:var(--good-bg); border-color:var(--good-line); }
+    .card.tint-high { background:var(--high-bg); border-color:var(--high-line); }
+    .card.tint-crit { background:var(--crit-bg); border-color:var(--crit-line); }
+    .stripe { position:relative; padding-left:var(--s-7); }
+    .stripe::before { content:""; position:absolute; left:0; top:.35rem; bottom:.35rem; width:3px; border-radius:3px; background:var(--accent); }
+    .stripe.crit::before{background:var(--crit);} .stripe.high::before{background:var(--high);} .stripe.warn::before{background:var(--warn);} .stripe.good::before{background:var(--good);}
+    /* ---- keycard: big number + prose ---- */
+    .keycard { display:grid; grid-template-columns:auto 1fr; gap:var(--s-8); align-items:center; margin:var(--s-9) 0; padding:var(--s-8) var(--s-9); background:var(--surface); border:1px solid var(--line-strong); border-left:4px solid var(--sv,var(--accent)); border-radius:var(--radius); box-shadow:var(--shadow); }
+    .keycard .big { font-family:var(--display); font-size:clamp(2.4rem,7vw,3.4rem); font-weight:800; line-height:.95; color:var(--sv,var(--accent)); font-variant-numeric:tabular-nums; }
+    .keycard .big small { display:block; margin-top:var(--s-2); font-family:var(--mono); font-size:var(--fs-sm); font-weight:600; letter-spacing:.04em; text-transform:uppercase; color:var(--muted); }
+    .keycard p b { color:var(--ink); }
+    .keycard.crit{--sv:var(--crit);} .keycard.high{--sv:var(--high);} .keycard.good{--sv:var(--good);} .keycard.info{--sv:var(--accent);}
+    /* ---- severity / status chips ---- */
+    .chip { display:inline-block; font-family:var(--mono); font-size:var(--fs-cap); font-weight:700; padding:2px 8px; border-radius:var(--radius-sm); letter-spacing:.04em; font-variant-numeric:tabular-nums; border:1px solid transparent; }
+    .chip.crit{color:var(--crit);background:var(--crit-bg);border-color:var(--crit-line);}
+    .chip.high{color:var(--high);background:var(--high-bg);border-color:var(--high-line);}
+    .chip.warn{color:var(--warn);background:var(--warn-bg);border-color:var(--warn-line);}
+    .chip.good{color:var(--good);background:var(--good-bg);border-color:var(--good-line);}
+    .chip.info{color:var(--accent);background:var(--accent-bg);border-color:var(--accent-line);}
+    .chip.neutral{color:var(--muted);background:var(--neutral-bg);border-color:var(--neutral-line);font-weight:600;}
+    /* ---- cross-links / chain caption / inline mono ---- */
+    .chain { font-family:var(--mono); font-size:.8rem; color:var(--accent); font-weight:600; margin-top:var(--s-4); }
+    .crosslink { font-weight:600; }
+    .crosslink::before { content:"→ "; color:var(--accent); }
+    code.m { font-family:var(--mono); color:var(--muted); background:var(--surface-2); padding:1px 6px; border-radius:var(--radius-sm); }
+    /* ---- opt-in sticky nav rail: author wraps {nav}{body} in <div class="railed"> ---- */
+    .railed { display:grid; grid-template-columns:220px minmax(0,1fr); gap:clamp(24px,4vw,48px); align-items:start; }
+    .railed nav.toc { position:sticky; top:24px; margin:0; }
+    .railed nav.toc ol { columns:1; }
+    @media (max-width:900px) { .railed { grid-template-columns:1fr; } .railed nav.toc { position:static; } }
+    /* component responsive overrides live HERE (after the base rules, in the later-injected _EXTRA) so they win the cascade */
+    @media (max-width:820px) {
+      .keycard { grid-template-columns:1fr; gap:var(--s-5); }
+      .tiles, .metrics { grid-template-columns:1fr 1fr; }
+    }
+    @media (max-width:460px) { .tiles, .metrics { grid-template-columns:1fr; } }
+    /* ---- sparkline: area fill, faint grid, emphasized endpoint ---- */
+    .spark { color:var(--accent); overflow:visible; }
+    .spark .line { stroke:currentColor; stroke-width:2; fill:none; }
+    .spark .fill { fill:currentColor; opacity:.12; }
+    .spark .grid { stroke:var(--line); stroke-width:1; }
+    .spark .dot { fill:currentColor; }
+    .spark.good { color:var(--good); } .spark.warn { color:var(--warn); } .spark.crit { color:var(--crit); }
+    /* ---- bar rows / progress meter ---- */
+    .bars { display:grid; grid-template-columns:max-content 1fr max-content; gap:var(--s-2) var(--s-4); align-items:center; margin:var(--s-6) 0; }
+    .bars dt { font-family:var(--mono); font-size:var(--fs-sm); color:var(--muted); margin:0; }
+    .bars dd { margin:0; }
+    .bars .val { font-variant-numeric:tabular-nums; font-size:var(--fs-sm); }
+    .bars .track, .progress { background:var(--surface-2); border-radius:999px; overflow:hidden; min-width:60px; margin:0; }
+    .bars .fill, .progress .fill { display:block; height:12px; border-radius:inherit; background:var(--sv,var(--accent)); width:var(--w,50%); }
+    .fill.crit { --sv:var(--crit); } .fill.high { --sv:var(--high); } .fill.warn { --sv:var(--warn); } .fill.good { --sv:var(--good); }
+    /* ---- delta: direction glyph is AT-hidden; carry direction in the text (signed value) ---- */
+    .delta { font-family:var(--mono); font-size:var(--fs-sm); font-weight:700; font-variant-numeric:tabular-nums; }
+    .delta.good { color:var(--good); } .delta.bad { color:var(--crit); } .delta.flat { color:var(--muted); }
+    .delta.up::before { content:"▲ "; content:"▲ " / ""; }
+    .delta.down::before { content:"▼ "; content:"▼ " / ""; }
+    .delta.flat::before { content:"→ "; content:"→ " / ""; }
+    /* ---- opt-in button (prototype controls); never restyles bare <button> ---- */
+    .btn { font:inherit; padding:var(--s-2) var(--s-6); border:1px solid var(--accent-line); border-radius:var(--radius-sm); background:var(--accent-bg); color:var(--accent-2); font-weight:600; cursor:pointer; }
+    .btn:hover { background:var(--accent); color:#fff; }
+    /* ================= correspondence marks (this artifact's own component) =================
+       The numbered <sup> link and the numbered note carry the whole relationship. Everything
+       below is presentation: no colour, no hover, and no script is required to follow a pair. */
+    .panel-label { margin:0 0 var(--s-2); font-family:var(--mono); font-size:var(--fs-cap); letter-spacing:.08em; text-transform:uppercase; color:var(--muted); }
+    .panel-label b { color:var(--ink); font-weight:700; }
+    pre.src { font-size:var(--fs-sm); line-height:1.55; tab-size:2; }
+    /* pre is fixed-dark in both themes (scaffold rule above), so the mark tint is pinned to the
+       scaffold's dark-theme --accent instead of the live one: a light-theme --accent-bg fill would
+       be invisible on #0f172a. Declared once here so the three tint states cannot drift apart. */
+    .lk { --mark:#6aa8dd; background:color-mix(in srgb, var(--mark) 20%, transparent); color:inherit; border-bottom:2px solid color-mix(in srgb, var(--mark) 85%, transparent); border-radius:2px; padding:0 1px; scroll-margin-top:var(--s-10); }
+    .lk.lk-on { background:color-mix(in srgb, var(--mark) 42%, transparent); }
+    .lk sup { font-family:var(--mono); font-weight:700; font-size:.72em; line-height:0; vertical-align:super; margin-left:2px; }
+    .lk sup a { color:inherit; text-decoration:none; border-bottom:1px dotted currentColor; }
+    .notes { display:grid; grid-template-columns:1fr 1fr; gap:var(--s-5); margin:var(--s-8) 0 0; }
+    .note { display:grid; grid-template-columns:auto 1fr; gap:var(--s-5); align-items:start; background:var(--surface); border:1px solid var(--line); border-left:3px solid var(--accent); border-radius:var(--radius); padding:var(--s-6) var(--s-7); box-shadow:var(--shadow-sm); scroll-margin-top:var(--s-9); }
+    .note.note-on { border-color:var(--accent-line); box-shadow:0 0 0 2px var(--accent-line); }
+    .note p { margin:0 0 var(--s-4); max-width:60ch; }
+    .note p:last-child { margin-bottom:0; }
+    .note .t { display:block; margin-bottom:var(--s-3); color:var(--ink); font-weight:700; }
+    .note .ref { font-size:var(--fs-sm); color:var(--faint); }
+    .nmark { display:inline-flex; align-items:center; justify-content:center; width:2em; height:2em; border-radius:999px; background:var(--accent-bg); color:var(--accent); border:1px solid var(--accent-line); font-family:var(--mono); font-size:var(--fs-sm); font-weight:700; }
+    figure { margin:var(--s-8) 0; }
+    figure svg { display:block; width:100%; max-width:720px; height:auto; }
+    figcaption { margin-top:var(--s-4); font-size:var(--fs-sm); color:var(--muted); max-width:72ch; }
+    .ledger h3 { margin-top:0; }
+    .ledger ul { margin:0; padding-left:var(--s-8); }
+    .ledger li { margin-bottom:var(--s-3); font-size:var(--fs-sm); }
+    .ledger .implies { margin:var(--s-4) 0 0; font-size:var(--fs-sm); color:var(--muted); max-width:none; }
+    .footnote { font-size:var(--fs-sm); color:var(--muted); border-top:1px solid var(--line); padding-top:var(--s-5); margin-top:var(--s-6); scroll-margin-top:var(--s-9); }
+    @media (max-width:820px) { .notes { grid-template-columns:1fr; } }
+    /* print lives at the END of the later-injected constant so it wins every cascade tie */
+    @media print {
+      nav.toc, .read-map, #layout-audit { display: none; }
+      .railed { display: block; }
+      /* paper cannot scroll, so overflow:auto would silently cut every long line at the panel edge
+         and take the marks' superscript numbers with it; wrap instead so the pairing survives. */
+      pre { background: var(--surface-2); color: var(--ink); border: 1px solid var(--line); white-space: pre-wrap; }
+      .lk { background: none; border-bottom: 2px solid var(--ink); }
+      .notes, .grid-3 { display: block; }
+      .note, figure { margin-bottom: var(--s-6); }
+      section.section, table, figure, pre, .callout, .compare-before, .compare-after, .metric, .tile, .card, .keycard, .chip, .confidence, .timeline .event, details, .note { break-inside: avoid; }
+      a[href^="http"]::after { content: " (" attr(href) ")"; font-size: .85em; color: var(--muted); }
+      .kind, .sev, .callout, .compare-before, .compare-after, .meta-ribbon, .needs-verification, .chip, .tile, .card, .keycard, .stripe, .confidence, .timeline .actor, .lead-summary, .spark, .bars, .progress, .delta { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      details:not([open])::details-content { content-visibility: visible; display: block; }
+    }
+      .theme-toggle { display:none; }
+    .theme-js .theme-toggle { position:fixed; top:16px; right:16px; z-index:100; width:40px; height:40px; padding:0; display:inline-flex; align-items:center; justify-content:center; font:inherit; font-size:18px; line-height:1; cursor:pointer; background:var(--surface-2, var(--soft)); color:var(--muted); border:1px solid var(--line); border-radius:999px; }
+    .theme-js .theme-toggle:hover { color:var(--ink); border-color:var(--line-strong, var(--line)); }
+    .theme-js .theme-toggle:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+    .theme-toggle::before { content:"\263E"; }
+    :root[data-theme="dark"] .theme-toggle::before { content:"\2600"; }
+    @media (prefers-color-scheme:dark){ :root:not([data-theme]) .theme-toggle::before{ content:"\2600"; } }
+    @media print { .theme-toggle { display:none; } }
+    @media screen {
+      :root[data-theme="dark"] {
+        color-scheme: dark;
+        --bg:#0f1522; --surface:#161e2e; --surface-2:#1c2536; --surface-3:#232e42;
+        --ink:#e8edf5; --ink-2:#c3ccdb; --muted:#96a2b5; --faint:#8593a8;
+        --line:#253145; --line-strong:#33415a;
+        --accent:#6aa8dd; --accent-2:#85bce6; --accent-bg:#152740; --accent-line:#2c4a6b;
+        --crit:#f19488; --crit-bg:#351d22; --crit-line:#6b3936;
+        --high:#eda06b; --high-bg:#33251a; --high-line:#6b4a30;
+        --warn:#d8b45c; --warn-bg:#312a16; --warn-line:#665626;
+        --good:#74c99b; --good-bg:#16301f; --good-line:#2e5c42;
+        --info:#6aa8dd; --info-bg:#152740; --info-line:#2c4a6b;
+        --neutral:#9aa6ba; --neutral-bg:#232c3c; --neutral-line:#3a465a;
+        --shadow-sm:0 1px 2px rgba(0,0,0,.35);
+        --shadow:0 4px 14px rgba(0,0,0,.45), 0 1px 3px rgba(0,0,0,.3);
+      }
+    }
+    @media screen and (prefers-color-scheme: dark) {
+      :root:not([data-theme]) {
+        color-scheme: dark;
+        --bg:#0f1522; --surface:#161e2e; --surface-2:#1c2536; --surface-3:#232e42;
+        --ink:#e8edf5; --ink-2:#c3ccdb; --muted:#96a2b5; --faint:#8593a8;
+        --line:#253145; --line-strong:#33415a;
+        --accent:#6aa8dd; --accent-2:#85bce6; --accent-bg:#152740; --accent-line:#2c4a6b;
+        --crit:#f19488; --crit-bg:#351d22; --crit-line:#6b3936;
+        --high:#eda06b; --high-bg:#33251a; --high-line:#6b4a30;
+        --warn:#d8b45c; --warn-bg:#312a16; --warn-line:#665626;
+        --good:#74c99b; --good-bg:#16301f; --good-line:#2e5c42;
+        --info:#6aa8dd; --info-bg:#152740; --info-line:#2c4a6b;
+        --neutral:#9aa6ba; --neutral-bg:#232c3c; --neutral-line:#3a465a;
+        --shadow-sm:0 1px 2px rgba(0,0,0,.35);
+        --shadow:0 4px 14px rgba(0,0,0,.45), 0 1px 3px rgba(0,0,0,.3);
+      }
+    }
+      /* v1.2.1 overflow guards: wide content must scroll or wrap, never push the page */
+    @media (max-width: 820px) { table { display: block; overflow-x: auto; } }
+    .grid-cols-2 > *, .grid-2 > *, .grid-3 > *, .compare-before, .compare-after { min-width: 0; }
+    code { overflow-wrap: anywhere; }
+  </style>
+<script type="module">
+    /* Self-contained by default: fetch Mermaid from the CDN ONLY if this page actually has a
+       diagram. A diagram-free artifact makes ZERO network calls and renders fully offline; add
+       a <div class="mermaid"> later and it still renders (the guard checks the DOM at load). */
+    if (document.querySelector(".mermaid")) {
+      const { default: mermaid } = await import("https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.esm.min.mjs");
+      mermaid.initialize({ startOnLoad: false, securityLevel: "loose", theme: "base",
+        flowchart: { htmlLabels: true, padding: 12, useMaxWidth: true },
+        /* keep themeVariables in sync with the :root tokens above (single file, two spots) */
+        themeVariables: { primaryColor: "#eef5fb", primaryBorderColor: "#b9d5ec", primaryTextColor: "#172033", lineColor: "#5a6577", fontFamily: "inherit", fontSize: "14px" } });
+      await mermaid.run();   /* module scripts defer, so the DOM is parsed; run() renders every .mermaid once */
+    }
+  </script>
+</head>
+<body data-human-html-artifact="true">
+  <button class="theme-toggle" type="button" aria-label="Switch theme" title="Toggle light / dark"></button>
+  <main>
+    <header>
+      <p class="eyebrow">understanding &middot; dynamic mode &middot; 2026-07-26</p>
+      <h1>Token-bucket limiter: Rust source to TypeScript port, region by region</h1>
+    </header>
+
+    <div class="meta-ribbon" data-meta-ribbon="true" aria-label="Artifact metadata">
+      <span><strong>Kind</strong> understanding</span>
+      <span><strong>Mode</strong> dynamic</span>
+      <span><strong>Created</strong> 2026-07-26</span>
+      <span><strong>Owner</strong> Priya Raman</span>
+      <span><strong>Status</strong> Ready for sign-off</span>
+      <span><strong>Read time</strong> ~9 min</span>
+      <span><strong>Source</strong> quota/ts-port @ 4f1c9ab</span>
+    </div>
+
+    <section data-summary="true" class="lead-summary">
+      <h2>In plain terms</h2>
+      <ul>
+        <li><strong>What changed:</strong> the token bucket that admits or throttles every request on the edge gateway now exists twice: <code>crates/quota/src/bucket.rs</code> (shipping) and <code>packages/quota/src/bucket.ts</code> (the port for the Node gateway). Nothing about the limits themselves moved: same capacity of 600 per key, same refill of 5 tokens per second.</li>
+        <li><strong>Where it stands:</strong> eight regions of the file carry a behavioural trap. Four are preserved exactly, four are changed on purpose, and every one of the four changes replaces a compiler guarantee with a convention plus one test.</li>
+        <li><strong>What the sign-off needs:</strong> a yes on the eight numbered notes, then a yes on the ledger and on the edge-case verdicts. The parity harness replayed 41,208 recorded (timestamp, cost) pairs from an hour of production traffic on 2026-07-24 and every admission decision and every <code>Retry-After</code> value matched, which is evidence for the four preserved regions and says nothing about the four changed ones.</li>
+      </ul>
+      <p>The short version: the port is mergeable, and the part worth arguing about is note 4, where an over-capacity bucket stops crashing and starts being quietly repaired.</p>
+    </section>
+
+    <nav class="toc" aria-label="On this page">
+      <strong>On this page</strong>
+      <ol>
+        <li><a href="#refill">What the refill loop does</a></li>
+        <li><a href="#marks">How the numbered marks work</a></li>
+        <li><a href="#correspondence">The two files, region by region</a></li>
+        <li><a href="#ledger">Behaviour ledger</a></li>
+        <li><a href="#edge-cases">Edge cases and the verdict on each</a></li>
+        <li><a href="#gaps">What this does not cover</a></li>
+      </ol>
+    </nav>
+
+    <section class="section" id="refill">
+      <h2>What the refill loop does</h2>
+      <p>The bucket stores no fractional tokens. It stores a whole-token count and one timestamp,
+      and the leftover time between whole tokens survives by <em>not</em> being consumed: when a
+      refill mints nothing, the timestamp stays where it was, so the next call sees the full
+      accumulated gap. That single line is where the rate lives, and it is the line a rewrite is
+      most likely to tidy away.</p>
+
+      <figure>
+        <svg viewBox="0 0 700 190" role="img" aria-labelledby="refill-title refill-desc">
+          <title id="refill-title">Two refill behaviours over 600 milliseconds, polled every 50 milliseconds at 5 tokens per second</title>
+          <desc id="refill-desc">Track A keeps the timestamp when nothing is minted and mints one token at 200, 400 and 600 milliseconds. Track B moves the timestamp on every call and mints nothing at all in the same 600 milliseconds.</desc>
+          <text x="0" y="16" font-size="12" font-weight="700" fill="currentColor">Track A: timestamp kept when nothing is minted (what both files do)</text>
+          <line x1="40" y1="56" x2="676" y2="56" stroke="var(--line-strong)" stroke-width="1"></line>
+          <g stroke="var(--line-strong)" stroke-width="1">
+            <line x1="40" y1="50" x2="40" y2="62"></line>
+            <line x1="92" y1="50" x2="92" y2="62"></line>
+            <line x1="143" y1="50" x2="143" y2="62"></line>
+            <line x1="195" y1="50" x2="195" y2="62"></line>
+            <line x1="247" y1="50" x2="247" y2="62"></line>
+            <line x1="298" y1="50" x2="298" y2="62"></line>
+            <line x1="350" y1="50" x2="350" y2="62"></line>
+            <line x1="402" y1="50" x2="402" y2="62"></line>
+            <line x1="453" y1="50" x2="453" y2="62"></line>
+            <line x1="505" y1="50" x2="505" y2="62"></line>
+            <line x1="557" y1="50" x2="557" y2="62"></line>
+            <line x1="608" y1="50" x2="608" y2="62"></line>
+            <line x1="660" y1="50" x2="660" y2="62"></line>
+          </g>
+          <g fill="var(--accent)">
+            <circle cx="247" cy="56" r="6"></circle>
+            <circle cx="453" cy="56" r="6"></circle>
+            <circle cx="660" cy="56" r="6"></circle>
+          </g>
+          <g font-size="11" font-weight="700" fill="var(--accent)" text-anchor="middle">
+            <text x="247" y="40">+1</text>
+            <text x="453" y="40">+1</text>
+            <text x="655" y="40">+1</text>
+          </g>
+          <text x="40" y="80" font-size="11" fill="var(--muted)">3 tokens minted in 600 ms, which is the configured rate</text>
+
+          <text x="0" y="118" font-size="12" font-weight="700" fill="currentColor">Track B: timestamp moved on every call (the bug this guards against)</text>
+          <line x1="40" y1="152" x2="676" y2="152" stroke="var(--line-strong)" stroke-width="1"></line>
+          <g stroke="var(--line-strong)" stroke-width="1">
+            <line x1="40" y1="146" x2="40" y2="158"></line>
+            <line x1="92" y1="146" x2="92" y2="158"></line>
+            <line x1="143" y1="146" x2="143" y2="158"></line>
+            <line x1="195" y1="146" x2="195" y2="158"></line>
+            <line x1="247" y1="146" x2="247" y2="158"></line>
+            <line x1="298" y1="146" x2="298" y2="158"></line>
+            <line x1="350" y1="146" x2="350" y2="158"></line>
+            <line x1="402" y1="146" x2="402" y2="158"></line>
+            <line x1="453" y1="146" x2="453" y2="158"></line>
+            <line x1="505" y1="146" x2="505" y2="158"></line>
+            <line x1="557" y1="146" x2="557" y2="158"></line>
+            <line x1="608" y1="146" x2="608" y2="158"></line>
+            <line x1="660" y1="146" x2="660" y2="158"></line>
+          </g>
+          <text x="40" y="176" font-size="11" fill="var(--crit)" font-weight="700">0 tokens minted in 600 ms: every call truncates 0.25 to 0 and resets the window</text>
+          <text x="676" y="140" font-size="10" fill="var(--muted)" text-anchor="end">tick = one poll, every 50 ms</text>
+        </svg>
+        <figcaption>In prose: a client polling every 50 ms at 5 tokens per second mints nothing on any
+        single call, because 50 ms of accrual truncates to zero. Track A keeps the timestamp on that
+        zero path, so the fourth call sees 200 ms of gap and mints 1. Track B advances the timestamp
+        anyway, so the gap never reaches 200 ms and the client is throttled for as long as it keeps
+        polling. Both tracks run the same arithmetic; the only difference is one early return.</figcaption>
+      </figure>
+    </section>
+
+    <section class="section" id="marks">
+      <h2>How the numbered marks work</h2>
+      <p>The two panels below hold the same 60-line function in two languages. Corresponding regions
+      are highlighted and carry the same number, and that number is a link to the note that explains
+      what the region does and what breaks if it is written the obvious way instead. Note 4 in the
+      Rust panel and note 4 in the TypeScript panel are the same claim about the same behaviour; each
+      note links back to both marks.</p>
+      <p>Numbers and notes carry the whole relationship. Nothing here depends on colour, on a pointer,
+      or on JavaScript: the pairing survives a print-out, a greyscale copy, and a JavaScript-disabled
+      preview. Each numbered link is a tab stop, and reaching one by keyboard or hovering its region
+      brightens the counterpart in the other panel, because the highlight listens on the region and
+      focus events bubble up from the link inside it. That brightening is decoration on top of the
+      numbers, so losing it costs nothing.</p>
+    </section>
+
+    <section class="section" id="correspondence">
+      <h2>The two files, region by region</h2>
+
+      <div class="grid-2">
+        <div>
+          <p class="panel-label">Source &middot; <b>crates/quota/src/bucket.rs</b> 41-96</p>
+<pre class="src"><code>pub struct Bucket {
+    capacity: u32,
+    refill_per_sec: u32,
+    tokens: u32,
+    last_refill: Instant,
+}
+
+impl Bucket {
+    /// <mark class="lk" data-link="a1" id="r1">Caller holds the shard lock for the whole call.<sup><a href="#note-1">1</a></sup></mark>
+    pub fn try_take(&amp;mut self, now: Instant, <mark class="lk" data-link="a2" id="r2">cost: u32<sup><a href="#note-2">2</a></sup></mark>) -&gt; Outcome {
+        self.refill(now);
+        if <mark class="lk" data-link="a3" id="r3">self.tokens &gt;= cost<sup><a href="#note-3">3</a></sup></mark> {
+            self.tokens -= cost;
+            Outcome::Allowed { remaining: self.tokens }
+        } else {
+            Outcome::Throttled { secs: self.retry_after_secs(cost) }
+        }
+    }
+
+    fn refill(&amp;mut self, now: Instant) {
+        let elapsed = <mark class="lk" data-link="a5" id="r5">now.saturating_duration_since(self.last_refill)<sup><a href="#note-5">5</a></sup></mark>;
+        let minted = (elapsed.as_nanos() as u64)
+            .saturating_mul(self.refill_per_sec as u64)
+            <mark class="lk" data-link="a6" id="r6">/ 1_000_000_000<sup><a href="#note-6">6</a></sup></mark>;
+        <mark class="lk" data-link="a7" id="r7">if minted == 0 {
+            return;
+        }<sup><a href="#note-7">7</a></sup></mark>
+        let headroom = <mark class="lk" data-link="a4" id="r4">(self.capacity - self.tokens) as u64<sup><a href="#note-4">4</a></sup></mark>;
+        self.tokens += minted.min(headroom) as u32;
+        self.last_refill = now;
+    }
+
+    fn retry_after_secs(&amp;self, cost: u32) -&gt; u64 {
+        let deficit = (cost - self.tokens) as u64;
+        <mark class="lk" data-link="a8" id="r8">deficit.div_ceil(self.refill_per_sec as u64).max(1)<sup><a href="#note-8">8</a></sup></mark>
+    }
+}</code></pre>
+        </div>
+        <div>
+          <p class="panel-label">Port &middot; <b>packages/quota/src/bucket.ts</b> 28-88</p>
+<pre class="src"><code>export class Bucket {
+  private tokens: number;
+  private lastRefillMs: number;
+
+  constructor(
+    private readonly capacity: number,
+    private readonly refillPerSec: number,
+    nowMs: number,
+  ) {
+    this.tokens = capacity;
+    this.lastRefillMs = nowMs;
+  }
+
+  /** <mark class="lk" data-link="a1" id="t1">Synchronous on purpose: no await between refill and the subtraction.<sup><a href="#note-1">1</a></sup></mark> */
+  tryTake(nowMs: number, cost: number): Outcome {
+    <mark class="lk" data-link="a2" id="t2">if (!Number.isInteger(cost) || cost &lt; 1) throw new BadCost(cost);<sup><a href="#note-2">2</a></sup></mark>
+    this.refill(nowMs);
+    if (<mark class="lk" data-link="a3" id="t3">this.tokens &gt;= cost<sup><a href="#note-3">3</a></sup></mark>) {
+      this.tokens -= cost;
+      return { kind: "allowed", remaining: this.tokens };
+    }
+    return { kind: "throttled", secs: this.retryAfterSecs(cost) };
+  }
+
+  private refill(nowMs: number): void {
+    const elapsedMs = <mark class="lk" data-link="a5" id="t5">Math.max(0, nowMs - this.lastRefillMs)<sup><a href="#note-5">5</a></sup></mark>;
+    const minted = <mark class="lk" data-link="a6" id="t6">Math.floor((elapsedMs * this.refillPerSec) / 1000)<sup><a href="#note-6">6</a></sup></mark>;
+    <mark class="lk" data-link="a7" id="t7">if (minted === 0) {
+      return;
+    }<sup><a href="#note-7">7</a></sup></mark>
+    const headroom = <mark class="lk" data-link="a4" id="t4">Math.max(0, this.capacity - this.tokens)<sup><a href="#note-4">4</a></sup></mark>;
+    this.tokens += Math.min(minted, headroom);
+    this.lastRefillMs = nowMs;
+  }
+
+  private retryAfterSecs(cost: number): number {
+    const deficit = cost - this.tokens;
+    <mark class="lk" data-link="a8" id="t8">return Math.max(1, Math.ceil(deficit / this.refillPerSec));<sup><a href="#note-8">8</a></sup></mark>
+  }
+}</code></pre>
+        </div>
+      </div>
+      <p>Every line outside a mark is a mechanical transcription: same order, same names, same
+      structure, nothing to check. The one thing on the right with no counterpart on the left is the
+      constructor, because <code>Bucket::new</code> sits above line 41 and sets the same two fields
+      the same way. The eight marks are the whole review surface.</p>
+
+      <h3>The eight notes</h3>
+      <div class="notes">
+        <div class="note" data-link="a1" id="note-1">
+          <span class="nmark">1</span>
+          <div>
+            <span class="t">Refill and take have to stay one uninterrupted step.</span>
+            <p>Rust takes the shard lock in the caller and holds it across the whole of
+            <code>try_take</code>, so no other request can observe the bucket between the refill and
+            the subtraction. The port has no lock and needs none while <code>tryTake</code> stays
+            synchronous, because the event loop cannot interleave another request inside a function
+            with no <code>await</code> in it.</p>
+            <p>The failure is one <code>await</code> away. Put <code>await store.load(key)</code>
+            between <code>this.refill(nowMs)</code> and the subtraction and two requests arriving in
+            the same tick both read <code>tokens === 1</code>, both come back allowed, and a key
+            capped at 600 admits 601 with nothing in the metrics to show it.
+            <code>bucket.parity.test.ts</code> asserts that <code>tryTake(...)</code> is not a
+            promise, which catches that edit and would not catch a later split of the method in two.</p>
+            <p class="ref">Marked at <a href="#r1">bucket.rs</a> and <a href="#t1">bucket.ts</a>.</p>
+          </div>
+        </div>
+
+        <div class="note" data-link="a2" id="note-2">
+          <span class="nmark">2</span>
+          <div>
+            <span class="t"><code>u32</code> rejected a fractional or negative cost before the function ran; <code>number</code> does not.</span>
+            <p>In Rust the two call sites pass a compile-time 1 or 5 and the type refuses everything
+            else. In the port the cost arrives from a request body. A body of <code>{"cost": 0.5}</code>
+            would pass <code>this.tokens &gt;= cost</code>, subtract 0.5, and leave the bucket on a
+            fractional count it can never return from, so <code>X-RateLimit-Remaining</code> reports
+            599 while the admission arithmetic runs on 599.5. A body of <code>{"cost": -3}</code>
+            would add three tokens.</p>
+            <p>The guard is the port's replacement for the type, and it rejects with 400 rather than
+            rounding, because a caller sending 0.5 has a bug worth surfacing.</p>
+            <p class="ref">Marked at <a href="#r2">bucket.rs</a> and <a href="#t2">bucket.ts</a>.</p>
+          </div>
+        </div>
+
+        <div class="note" data-link="a3" id="note-3">
+          <span class="nmark">3</span>
+          <div>
+            <span class="t">The comparison is inclusive, and the last token is spendable.</span>
+            <p>Writing <code>&gt;</code> instead refuses the request that spends the last token: a
+            client sending a burst of exactly 600 against a capacity of 600 gets 599 through and one
+            429 that the shipping build never sends. A soak test averages that away; a nightly batch
+            job that sizes its burst to the documented limit hits it every run.</p>
+            <p class="ref">Marked at <a href="#r3">bucket.rs</a> and <a href="#t3">bucket.ts</a>.</p>
+          </div>
+        </div>
+
+        <div class="note" data-link="a4" id="note-4">
+          <span class="nmark">4</span>
+          <div>
+            <span class="t">An over-capacity bucket stops growing instead of crashing, and is not repaired.</span>
+            <p>In Rust, <code>(self.capacity - self.tokens)</code> is <code>u32</code> subtraction. If
+            tokens ever exceeded capacity a debug build panics on that line and a release build wraps
+            to a headroom near 2^32, which is the broken invariant made loud. The port clamps the
+            headroom at zero with <code>Math.max(0, ...)</code>, so refill adds nothing while the
+            bucket is over capacity.</p>
+            <p>Clamping the headroom is not the same as clamping the bucket, and it is worth being
+            exact about which one this is. On a downgrade from 600 to 100 with 600 tokens held,
+            <code>headroom</code> is 0 and <code>this.tokens += Math.min(minted, 0)</code> leaves 600
+            in place. The bucket does not come back under 100 on its own; it only falls as callers
+            spend, so the downgraded tier keeps serving up to 600 of the old allowance before the new
+            cap starts to bite. Nothing in this file notices.</p>
+            <p>The only way tokens can exceed capacity is a capacity that shrank under a live bucket,
+            for example a tier downgrade applied by config reload. The shipping build puts that in a
+            crash log within one refill; the port absorbs it in silence and keeps serving. That is the
+            one change here worth arguing about, and the compensation is not in this file:
+            <code>packages/quota/src/store.ts</code> logs at warn level when a reload lowers a
+            capacity under a bucket that is above it. A log line is weaker than a panic, and it does
+            not bound the over-serving.</p>
+            <p class="ref">Marked at <a href="#r4">bucket.rs</a> and <a href="#t4">bucket.ts</a>.</p>
+          </div>
+        </div>
+
+        <div class="note" data-link="a5" id="note-5">
+          <span class="nmark">5</span>
+          <div>
+            <span class="t"><code>Instant</code> cannot go backwards; the port's clock can, and the clamp is what makes that safe.</span>
+            <p>Rust reads a monotonic <code>Instant</code>, so
+            <code>saturating_duration_since</code> is effectively dead code there. The port takes
+            <code>nowMs</code> from <code>performance.now()</code>, passed in by the caller, and
+            clamps with <code>Math.max(0, ...)</code> because the clamp stops being dead code the
+            moment somebody swaps that caller to <code>Date.now()</code>: an NTP correction that
+            steps the wall clock back 1.2 s makes <code>elapsedMs</code> negative,
+            <code>minted</code> negative, and the bucket loses 6 tokens that no request spent.</p>
+            <p>Milliseconds instead of nanoseconds is the other half of this change. At the ceiling
+            tier of 5,000 tokens per second, <code>elapsedMs * this.refillPerSec</code> stays under
+            2^53 for any process uptime below roughly 57 years, so the wider integer buys nothing
+            here.</p>
+            <p class="ref">Marked at <a href="#r5">bucket.rs</a> and <a href="#t5">bucket.ts</a>.</p>
+          </div>
+        </div>
+
+        <div class="note" data-link="a6" id="note-6">
+          <span class="nmark">6</span>
+          <div>
+            <span class="t">Integer division truncates in Rust, so the port needs <code>Math.floor</code> to match.</span>
+            <p>Drop the floor and a 50 ms gap at 5 tokens per second mints 0.25 instead of 0. That
+            looks harmless and is not: the zero check in note 7 never fires again, the timestamp
+            advances on every call, and the refill rate starts depending on how often the bucket is
+            polled. This is the single most attractive simplification in the file.</p>
+            <p class="ref">Marked at <a href="#r6">bucket.rs</a> and <a href="#t6">bucket.ts</a>.</p>
+          </div>
+        </div>
+
+        <div class="note" data-link="a7" id="note-7">
+          <span class="nmark">7</span>
+          <div>
+            <span class="t">When nothing is minted the timestamp must not move: this is where the remainder is kept.</span>
+            <p>There is no fractional token field, so the leftover time lives in
+            <code>last_refill</code> by not being consumed. A client polling every 50 ms at 5 tokens
+            per second mints nothing on any single call and mints 1 on every fourth, which is exactly
+            the configured rate.</p>
+            <p>Advance the timestamp on the zero path and that client never accrues a token at all:
+            each call truncates 0.25 to 0 and resets the window, so after its opening burst it stays
+            throttled for as long as it keeps polling at 20 requests per second. The two tracks in
+            <a href="#refill">What the refill loop does</a> are this note.</p>
+            <p class="ref">Marked at <a href="#r7">bucket.rs</a> and <a href="#t7">bucket.ts</a>.</p>
+          </div>
+        </div>
+
+        <div class="note" data-link="a8" id="note-8">
+          <span class="nmark">8</span>
+          <div>
+            <span class="t">Round the wait up, and never put a zero on the wire.</span>
+            <p><code>Retry-After</code> is whole seconds, so rounding down under-reports the wait.
+            Use <code>Math.round</code> here and a deficit of 1 token at 5 per second gives
+            <code>round(0.2)</code>, which is 0, and a client backoff library reads
+            <code>Retry-After: 0</code> as retry immediately: one throttled request becomes a hot
+            loop of roughly 300 requests per second against the same bucket, every one of them
+            throttled.</p>
+            <p>The <code>max(1)</code> is belt and braces carried over from the Rust side. With an
+            integer cost the deficit is at least 1, so the ceiling already guarantees at least 1
+            second; the floor only starts earning its place if a fractional cost is ever allowed
+            through note 2.</p>
+            <p class="ref">Marked at <a href="#r8">bucket.rs</a> and <a href="#t8">bucket.ts</a>.</p>
+          </div>
+        </div>
+      </div>
+      <p>Four of the eight notes (3, 6, 7, 8) say the port copied the shipping behaviour and the
+      arithmetic backs that up; the other four (1, 2, 4, 5) each swap a language guarantee for a
+      convention, which is what the ledger below is for. Note 4 is the one region that lands on both
+      sides of that split, so it is cited twice in the ledger: the headroom clamp is copied, and only
+      the behaviour on an over-capacity bucket changed.</p>
+    </section>
+
+    <section class="section" id="ledger">
+      <h2>Behaviour ledger</h2>
+      <p>Three columns: what came across untouched, what changed on purpose, and what was dropped
+      because the hazard it guarded against does not exist in the port.</p>
+
+      <div class="grid-3 ledger">
+        <div class="card">
+          <h3>Preserved exactly</h3>
+          <ul>
+            <li>Truncating refill, paired with the zero-mint early return that keeps the remainder in the timestamp (notes 6, 7).</li>
+            <li>The headroom clamp, so 6 hours idle mints 600 tokens and not 108,000 (the copied half of note 4).</li>
+            <li><code>tokens &gt;= cost</code>, inclusive, so the last token is spendable (note 3).</li>
+            <li><code>Retry-After</code> in whole seconds, rounded up, never below 1 (note 8).</li>
+          </ul>
+          <p class="implies">These four are the rate, and each one can be undone by an edit that looks like tidying up.</p>
+        </div>
+        <div class="card">
+          <h3>Deliberately changed</h3>
+          <ul>
+            <li><code>Instant</code> nanoseconds becomes <code>performance.now()</code> milliseconds, with the backwards-clock clamp kept and now load-bearing (note 5).</li>
+            <li><code>Mutex&lt;HashMap&lt;Key, Bucket&gt;&gt;</code> becomes plain fields; atomicity comes from a synchronous-only rule plus one test (note 1).</li>
+            <li>A runtime cost guard stands in for what <code>u32</code> used to refuse (note 2).</li>
+            <li>An over-capacity bucket stops refilling rather than panicking, and keeps serving its old allowance down (note 4).</li>
+          </ul>
+          <p class="implies">Each of the four trades a compiler or runtime guarantee for a convention, and each convention has exactly one test holding it up.</p>
+        </div>
+        <div class="card">
+          <h3>Dropped, not needed</h3>
+          <ul>
+            <li><code>saturating_mul</code> on the mint: in milliseconds the product cannot overflow a JavaScript number for any uptime that matters (note 5).</li>
+            <li><code>Send</code> and <code>Sync</code> impls and the <code>Arc</code> wrapper: one event loop, nothing to share across threads.</li>
+            <li>The <code>Duration</code> wrapper on the retry value: both call sites want whole seconds, so the port returns a number.</li>
+          </ul>
+          <p class="implies">None of the three can change an admission decision; each guarded a hazard that the port does not have.</p>
+        </div>
+      </div>
+      <p>Read the middle column as the sign-off surface: the left column is checked by the replay
+      harness and the right column has nothing left to check.</p>
+    </section>
+
+    <section class="section" id="edge-cases">
+      <h2>Edge cases and the verdict on each</h2>
+      <div class="table-scroll" role="region" aria-label="Edge cases and the verdict on each" tabindex="0">
+        <table>
+          <thead>
+            <tr><th scope="col">Case</th><th scope="col">Shipping build (Rust)</th><th scope="col">Port (TypeScript)</th><th scope="col">Verdict</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>First call after construction, <code>now</code> equal to the stored timestamp</td>
+              <td>Elapsed 0, minted 0, early return; allowed, remaining 599</td>
+              <td>Same path, same numbers</td>
+              <td><span class="chip good">identical</span></td>
+            </tr>
+            <tr>
+              <td>Idle 6 hours, capacity 600, refill 5 per second</td>
+              <td>Mints 108,000, clamped to a headroom of 600; tokens 600</td>
+              <td>Mints 108,000, clamped the same way; tokens 600</td>
+              <td><span class="chip good">identical</span></td>
+            </tr>
+            <tr>
+              <td>Repeated 50 ms gaps at 5 per second</td>
+              <td>Mints 1 on every fourth call, timestamp held in between</td>
+              <td><code>Math.floor</code> plus the same early return, same schedule</td>
+              <td><span class="chip good">identical</span></td>
+            </tr>
+            <tr>
+              <td>Burst of exactly 600 against a capacity of 600</td>
+              <td>Last request allowed, remaining 0</td>
+              <td>Last request allowed, remaining 0</td>
+              <td><span class="chip good">identical</span></td>
+            </tr>
+            <tr>
+              <td>A cost of 0</td>
+              <td>Not expressible: both call sites pass a constant 1 or 5. A literal 0 would be allowed and would subtract nothing</td>
+              <td>Rejected with 400 before the bucket is touched</td>
+              <td><span class="chip info">equivalent<sup><a href="#fn-equivalent">a</a></sup></span></td>
+            </tr>
+            <tr>
+              <td>A cost of 0.5, or of -3</td>
+              <td>Not expressible in <code>u32</code>; the build fails</td>
+              <td>Rejected with 400 at the guard</td>
+              <td><span class="chip info">equivalent<sup><a href="#fn-equivalent">a</a></sup></span></td>
+            </tr>
+            <tr>
+              <td>Two requests in the same tick with 1 token left</td>
+              <td>Shard lock serialises them: one allowed, one throttled</td>
+              <td>No lock; the synchronous method cannot be interleaved, so one allowed, one throttled</td>
+              <td><span class="chip info">equivalent<sup><a href="#fn-equivalent">a</a></sup></span></td>
+            </tr>
+            <tr>
+              <td>Wall clock steps back 1.2 s</td>
+              <td>Monotonic <code>Instant</code>: cannot happen</td>
+              <td><code>Math.max(0, ...)</code> returns 0 elapsed, so nothing is minted and nothing is lost</td>
+              <td><span class="chip info">equivalent<sup><a href="#fn-equivalent">a</a></sup></span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p>Four rows are the same computation and four reach the same answer by different means, which
+      means half the table has to be rechecked whenever a call site changes and half does not.</p>
+
+      <p class="footnote" id="fn-equivalent"><strong>a. What "equivalent" claims, and what
+      "identical" claims that it does not.</strong> <span class="chip good">identical</span> means the
+      two builds run the same steps on the same inputs and produce the same value: swapping one for
+      the other changes nothing a caller or a test can observe.
+      <span class="chip info">equivalent</span> is the weaker claim, and every use of it above is
+      bounded: the same decision reached by different means, for every input this gateway can
+      actually produce. The cost-of-0 row is equivalent only because the two Rust call sites pass a
+      compile-time constant; a third call site passing a variable would turn that row into a real
+      difference. An equivalent verdict is a statement about the current call sites, so it expires
+      when they change, and an identical one does not.</p>
+    </section>
+
+    <section class="section" id="gaps">
+      <h2>What this does not cover</h2>
+      <ul>
+        <li>The replay harness ran single-threaded against recorded timestamps, so nothing in the
+        41,208 pairs exercises two requests racing for the last token. Note 1 rests on one test that
+        fails if <code>tryTake</code> returns a promise, and that test would not notice the method
+        being split in two with an <code>await</code> between the halves.</li>
+        <li>The cross-instance limit path is untouched: <code>crates/quota/src/shared.rs</code> has no
+        port yet, and every number here is per-process. A key that hits two gateway instances still
+        gets two buckets, in both builds.</li>
+        <li>The <code>performance.now()</code> origin resets when a worker restarts, and buckets live
+        in process memory, so a restart hands every key a full bucket. The shipping build does the
+        same on redeploy, so this is parity rather than a fix, and note 5 stops holding at all if
+        buckets are ever moved to a store that outlives the process.</li>
+        <li>Not measured: what the <code>Number.isInteger</code> guard costs on the hot path. It runs
+        once per request and is very likely free, and no number in this artifact says so.</li>
+      </ul>
+      <p>Three of those four are scope, and the first is the one that could hide a real defect.</p>
+      <p>On balance the port is worth merging on the strength of the replay plus the eight notes, with
+      note 4 flagged for a second opinion, and <code>shared.rs</code> is the file that still needs the
+      same treatment before the Node gateway can take production traffic.</p>
+    </section>
+
+    <footer class="provenance" data-provenance="true">
+      <p>Generated by <code>claude-opus-5</code> on 2026-07-26 &middot; reviewed by <code>Priya Raman</code> &middot; source: port-review of <code>quota/ts-port</code> at <code>4f1c9ab</code> against <code>main</code> at <code>9c2ad10</code>; replay evidence from <code>packages/quota/test/bucket.parity.test.ts</code>. Fictional worked example for the human-html skill.</p>
+      <script type="application/ld+json" id="provenance">
+        {
+          "@context": "https://schema.org/",
+          "@type": "CreativeWork",
+          "@id": "urn:human-html:2026-07-26:understanding:dynamic-port-correspondence",
+          "additionalType": "ai-generated-artifact",
+          "artifactKind": "understanding",
+          "artifactMode": "dynamic",
+          "dateCreated": "2026-07-26",
+          "creator": { "@type": "SoftwareApplication", "name": "claude-opus-5" },
+          "promptHash": "<sha256 of prompt; canonical example, no real prompt>",
+          "reviewer": "Priya Raman",
+          "source": "port-review: quota/ts-port @ 4f1c9ab vs main @ 9c2ad10"
+        }
+      </script>
+    </footer>
+  </main>
+<div id="layout-audit" hidden role="status">⚠ This artifact overflows horizontally at this width - wrap wide tables / diagrams / <code>pre</code> blocks so they scroll, or they will clip on a phone.</div>
+  <script>
+    (function () {
+      var el = document.getElementById('layout-audit');
+      if (!el) return;
+      function check() { el.hidden = !(document.documentElement.scrollWidth > window.innerWidth + 2); }
+      window.addEventListener('DOMContentLoaded', check);
+      window.addEventListener('resize', check);
+    })();
+  </script>
+  <script>
+    /* Enhancement only: the numbered marks and notes already carry the correspondence with no
+       script, no pointer and no colour. This just brightens both halves of a pair together, and
+       binds focusin/focusout alongside the pointer events so keyboard and touch behave like a
+       hover. focusin is deliberate: it bubbles, so focusing the numbered link inside a region
+       reaches this listener on the region itself, which means the region needs no tabindex of
+       its own and the page does not grow a second, inert tab stop per pair. It toggles a class
+       and never inserts DOM. */
+    (function () {
+      var marks = document.querySelectorAll('.lk[data-link]');
+      if (!marks.length) return;
+      function paint(token, on) {
+        var nodes = document.querySelectorAll('[data-link="' + token + '"]');
+        for (var i = 0; i < nodes.length; i++) {
+          nodes[i].classList.toggle(nodes[i].classList.contains('note') ? 'note-on' : 'lk-on', on);
+        }
+      }
+      function on(ev) { paint(ev.currentTarget.getAttribute('data-link'), true); }
+      function off(ev) { paint(ev.currentTarget.getAttribute('data-link'), false); }
+      for (var i = 0; i < marks.length; i++) {
+        marks[i].addEventListener('mouseenter', on);
+        marks[i].addEventListener('mouseleave', off);
+        marks[i].addEventListener('focusin', on);
+        marks[i].addEventListener('focusout', off);
+      }
+    })();
+  </script>
+  <script>
+    (function(){
+      var btn=document.querySelector('.theme-toggle'); if(!btn) return;
+      function cur(){ return document.documentElement.dataset.theme || (window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light'); }
+      function label(){ btn.setAttribute('aria-label', cur()==='dark'?'Switch to light theme':'Switch to dark theme'); }
+      label();
+      btn.addEventListener('click', function(){
+        var next=cur()==='dark'?'light':'dark';
+        document.documentElement.dataset.theme=next;
+        try{ localStorage.setItem('hh-theme', next); }catch(e){}
+        label();
+      });
+    })();
+  </script>
+</body>
+</html>

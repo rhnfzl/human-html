@@ -19,7 +19,7 @@ If the document is a single HTML page with a plain-language summary at the top, 
 
 This skill enforces that switch as a workspace contract. When an agent (you, Claude, Codex, or anyone else) produces a *human review surface* (a plan, a code review, an architecture explainer, an understanding doc, a research synthesis, a decision aid, a prototype, a status report, or an incident postmortem) the artifact lands as HTML under `docs/human-html/` of the active workspace. Not as Markdown. Markdown is still the right format for scratch notes, ticket drafts, durable references, and meeting transcripts; it is the agent's memory layer. HTML is the human's review layer. The split is the point.
 
-The skill enforces two layers of contract: a **file contract** (naming, metadata, allowlist; unchanged since the original file-contract release) and a **content contract** (PM-summary block, diagram-in-comparison, nav-when-many-sections, required sections per kind, glossary linking, read-map, Q&A overlay schema, metadata ribbon, provenance footer, mobile responsiveness, and no-JS robustness; effective for artifacts created on or after `2026-05-25`). Earlier artifacts are grandfathered. The content rules are validated mechanically by `human_html_artifacts.py check`; four rules always block (pm-summary, comparison-visual, nav-anchors, viewport-meta), required sections block for `incident` and warn for other kinds, and read-map / Q&A / glossary / ribbon / provenance / table-responsive / js-content-fallback warn when applicable. Each violation prints a `[rule=<id>]` suffix; per-artifact suppression is available via `<!-- human-html-disable: ... -->`.
+The skill enforces two layers of contract: a **file contract** (naming, metadata, allowlist; unchanged since the original file-contract release) and a **content contract** (answer-first summary, diagram-in-comparison, nav-when-many-sections, required sections per kind, glossary linking, read-map, Q&A overlay schema, metadata ribbon, provenance footer, mobile responsiveness, and no-JS robustness; effective for artifacts created on or after `2026-05-25`). Earlier artifacts are grandfathered. The content rules are validated mechanically by `human_html_artifacts.py check`; three rules always block (summary-first, comparison-visual, viewport-meta), nav-anchors blocks in standard mode and warns in dynamic mode, required sections block for `incident` and warn for other kinds, and read-map / Q&A / glossary / ribbon / provenance / table-responsive / js-content-fallback warn when applicable. Each violation prints a `[rule=<id>]` suffix; per-artifact suppression is available via `<!-- human-html-disable: ... -->`.
 
 Adoption costs ten seconds per workspace. After that, two hooks keep the contract self-enforcing: one nudges an agent that is about to write a human-review Markdown file in the wrong place; the other regenerates the gallery `index.html` automatically whenever an artifact lands.
 
@@ -27,7 +27,7 @@ Adoption costs ten seconds per workspace. After that, two hooks keep the contrac
 
 - A `docs/human-html/` artifact lane containing top-level artifacts named `YYYY-MM-DD-kind-slug.html`, optional nested portable collections, plus an auto-generated `index.html` gallery: responsive cards in reverse-chronological order, each with a one-line summary and keyword chips, plus a no-dependency client-side filter (text box + kind chips, progressive-enhancement so cards still render with JS off). A single malformed file never blocks the build - the gallery skips it, warns, and shows a notice (skip-and-warn).
 - Nine named *kinds* that cover the human-review surfaces a software team actually produces: `plan`, `review`, `architecture`, `understanding`, `research`, `decision`, `prototype`, `status`, `incident`. Each kind ships with its own scaffold and a canonical example showing what good looks like.
-- A small Python script that scaffolds new artifacts with the correct filename, metadata, and per-kind section skeleton (PM-summary block, nav, kind-appropriate sections, diagram placeholders in comparison sections); recursively validates artifacts and nested collections against both the file contract and the content contract; and rebuilds the gallery.
+- A small Python script that scaffolds new artifacts with the correct filename, metadata, and per-kind section skeleton (answer-first summary block, nav, kind-appropriate sections, diagram placeholders in comparison sections); recursively validates artifacts and nested collections against both the file contract and the content contract; and rebuilds the gallery.
 - Two shell hooks that nudge toward the harness when an agent is about to drift, and that keep the gallery current without the agent remembering to refresh it.
 - A per-workspace customization knob (`.human-html-allowlist`) for the small set of cases where a workspace has Markdown lanes the baseline does not anticipate.
 - A per-workspace `GLOSSARY.md` (seeded on `init`) for shared jargon definitions, plus a validator WARN rule that nudges artifacts to wrap or link known terms.
@@ -49,24 +49,26 @@ Do not use it for:
 
 Every artifact whose `artifact-created` is on or after `2026-05-25` (the `RULES_EFFECTIVE_DATE` baked into `human_html_artifacts.py`) must satisfy the numbered content rules below. The validator also WARNs on missing metadata ribbon and provenance footer/schema (see those subsections under "Adoptable patterns"). Earlier artifacts are grandfathered and only need to pass the older identity rules (filename pattern, metadata, body marker, link validity). The cutoff lives in the script so all workspaces share the same policy.
 
-### Rule 1 - PM-language summary block (BLOCKS)
+### Rule 1 - Answer-first summary block (BLOCKS)
 
-Every artifact opens with a top-level `<section data-audience="pm">` containing a three-bullet plain-language block (product context before technical detail):
+Every artifact opens with a top-level `<section data-summary="true">` containing a three-bullet plain-language block (product context before technical detail):
 
 ```html
-<section data-audience="pm" class="pm-summary">
+<section id="lead-summary" data-summary="true" class="lead-summary">
   <h2>In plain terms</h2>
   <ul>
-    <li><strong>What this does for the user:</strong> One sentence a PM can grasp without engineering context.</li>
+    <li><strong>What this does for the user:</strong> One sentence that lands without engineering context.</li>
     <li><strong>Why it matters:</strong> One sentence on the constraint, deadline, or stakeholder ask driving this.</li>
     <li><strong>What's being asked:</strong> The decision, approval, or review action you want the reader to take.</li>
   </ul>
 </section>
 ```
 
-The `data-audience="pm"` attribute is what the validator checks. Class names and bullet wording can vary; only the attribute is load-bearing.
+The `data-summary="true"` attribute is what the validator checks. Class names and bullet wording can vary; only the attribute is load-bearing.
 
-Per-section PM-language leads (a 1-sentence opener inside each `<h2>` section) are strongly recommended but not validated - that's a writer's judgment call the validator can't reliably enforce.
+Three bullets is the default, not the only compliant form. For a reader on a 30-second budget (an incident emailed to a director, a yes/no decision) the **BLUF** opener is an equally compliant alternative: the same `data-summary="true"` marker holding one sentence that states the decision or the ask, then one sentence of rationale. See "BLUF compact opener mode" in `references/patterns.md`. Both satisfy the contract in full; pick the one that fits the reader's time budget.
+
+Per-section plain-language leads (a 1-sentence opener inside each `<h2>` section) are strongly recommended but not validated - that's a writer's judgment call the validator can't reliably enforce.
 
 ### Rule 2 - Visual in every comparison section (BLOCKS)
 
@@ -199,12 +201,12 @@ Each violation prints its `[rule=<id>]` suffix; use that ID. The literal `all` s
 
 | Rule ID | Severity | Triggers when |
 |---|---|---|
-| `pm-summary` | BLOCK | No `<section data-audience="pm">` |
+| `summary-first` | BLOCK | No `<section data-summary="true">` |
 | `comparison-visual` | BLOCK | Comparison heading without a visual |
-| `nav-anchors` | BLOCK | More than 3 `<h2>` sections without valid `<nav>` anchors |
-| `required-section` | BLOCK/WARN | Kind-specific section missing |
+| `nav-anchors` | BLOCK (WARN in dynamic mode) | More than 3 `<h2>` sections without valid `<nav>` anchors |
+| `required-section` | BLOCK/WARN (off in dynamic mode) | Kind-specific section missing |
 | `glossary-link` | WARN | Glossary term unwrapped |
-| `read-map` | WARN | One of those kinds, 4+ `<h2>` sections, no reading guide |
+| `read-map` | WARN (off in dynamic mode) | One of those kinds, 4+ `<h2>` sections, no reading guide |
 | `qa-overlay` | WARN | `data-meeting-qa="true"` with malformed JSON-LD |
 | `meta-ribbon` | WARN | No `data-meta-ribbon="true"` |
 | `provenance-footer` | WARN | No provenance marker |
@@ -214,6 +216,55 @@ Each violation prints its `[rule=<id>]` suffix; use that ID. The literal `all` s
 | `js-content-fallback` | WARN | DOM inserted from JS (`innerHTML`/`appendChild`/`insertAdjacentHTML`/`replaceChildren`/`document.write`) but no `<noscript>` fallback |
 | `slop-signal` | WARN | Violet AI-default hex, emoji-in-heading, `lorem ipsum`, or "Generated by AI" present |
 | `em-dash` | WARN | An em/en dash in prose (dashes inside `pre`/`code`/`script`/`style` are exempt) |
+| `artifact-mode` | WARN | `artifact-mode` is set to something other than `standard` or `dynamic` (treated as standard, so the shape rules still apply) |
+
+## Dynamic mode: when the shape should fit the subject
+
+The nine kinds pre-decide a section skeleton before anyone knows what the artifact needs to say. That is the right trade most of the time and the wrong one sometimes. A finding taxonomy, a four-way design exploration, a line-by-line correspondence map for a port: each of those has a natural shape, and the shape *is* part of the argument. Forcing it into `plan` sections makes the document worse.
+
+`artifact-mode="dynamic"` is the opt-out. Add it beside the kind:
+
+```html
+<meta name="artifact-kind" content="plan">
+<meta name="artifact-mode" content="dynamic">
+```
+
+Or scaffold one directly, which gives you the chrome and the floor with no section skeleton:
+
+```bash
+python3 human_html_artifacts.py new plan "Rate limiter port semantics" --mode dynamic
+```
+
+Mode is orthogonal to kind on purpose. The kind still says what the document is *for*, which is what the gallery groups by and the filename records. The mode says only whether the shape is prescribed, so a `plan` can go dynamic when the skeleton stops fitting, which is exactly when you would want it to.
+
+### Which mode to use
+
+One question decides it: **does the reader benefit from this looking like the last one?**
+
+- **Yes, so use a kind.** Recurring documents where comparability across instances is the value. This week's status should look like last week's, so the difference is what stands out. Postmortems, status reports, standard reviews.
+- **No, so go dynamic.** One-offs nobody will ever hold beside a sibling. The structure exists to serve this subject and no other.
+
+When it is genuinely unclear, use the kind. A kind that fits slightly badly costs a reader less than an invented structure that fits nothing.
+
+### What dynamic mode changes, and what it does not
+
+Exactly three rules stand down, and all three are rules about *which sections exist*:
+
+| Rule | Standard | Dynamic | Why |
+|---|---|---|---|
+| `required-section` | BLOCK/WARN | off | It encodes "a plan looks like this", which is the thing being opted out of |
+| `read-map` | WARN | off | Entry points become part of the invented shape, not a fixed block above section one |
+| `nav-anchors` | BLOCK | WARN | A long doc still needs a way in, but a single top-to-bottom argument may not want a TOC. Nudge, not veto |
+
+**Nothing else is relaxed.** Every other rule aims at the reader rather than the structure, and none of it depends on which sections exist: a dynamic artifact is still required to render on a phone, to exist with JavaScript off, to answer first, to put a real visual in every comparison, to gloss its terms, to record where it came from, and to carry no em dashes and no AI-default violet. Those are requirements, not guarantees the validator can issue. Most of these rules check for a marker, so passing means the artifact did not obviously skip the requirement; `references/artifact-spine.md` sets out exactly what each check does and does not establish.
+
+The reason the split is this clean is that the rules were always two populations wearing one coat. `required-section` says *a plan looks like this*. `viewport-meta` says *a human on a phone can read this*. Only the first kind is about shape, so only the first kind can be relaxed when the shape is yours.
+
+### The part that is not lintable
+
+A mode defined only by what it removes will drift toward a model's defaults: the violet gradient hero, the three-column card grid, the bolded law per section. Structural freedom without a positive standard produces exactly the output the anti-slop checklist exists to prevent.
+
+So dynamic mode is **free in structure and locked in style**. Inherit the scaffold's CSS variables and type scale; do not invent a palette. And read **`references/artifact-spine.md`** before writing one. That file is the standard the validator cannot check: what an artifact must never do regardless of its shape.
 
 ## Pick the kind
 
@@ -235,7 +286,7 @@ Before scaffolding, identify the **job (verb)** and the **reader's goal**, then 
 
 ## Per-kind scaffolds
 
-Nine kinds, each with its own section shape. Running `human_html_artifacts.py new <kind> "<title>"` produces a scaffold that passes the content contract out of the box (PM-summary present, nav present, comparison sections shipped with placeholder diagrams).
+Nine kinds, each with its own section shape. Running `human_html_artifacts.py new <kind> "<title>"` produces a scaffold that passes the content contract out of the box (summary block present, nav present, comparison sections shipped with placeholder diagrams).
 
 | Kind | Section shape | Default comparison visual |
 |---|---|---|
@@ -249,7 +300,7 @@ Nine kinds, each with its own section shape. Running `human_html_artifacts.py ne
 | `status` | Where we are / Recent changes / Blockers / Next | Tiles summary + chip-status table |
 | `incident` | Public summary / Timeline / Impact / Root cause / Corrective actions / Lessons learned | Timeline as vertical timestamped list; impact as metric tiles. Mark long quiet spans explicitly (`<div class="gap">2h 14m - no activity</div>`) |
 
-**Opening treatment:** verdict-bearing kinds - `review`, `decision`, `incident`, `status` - open answer-first: a `.keycard` (verdict or number + one sentence) directly after the PM-summary, because the reader's first question is "what's the call?". Explanatory kinds - `understanding`, `architecture`, `research`, `plan`, `prototype` - keep the quiet header; a keycard there is decoration unless a single number genuinely is the story. Never fabricate a hero number to fill the slot.
+**Opening treatment:** verdict-bearing kinds - `review`, `decision`, `incident`, `status` - open answer-first: a `.keycard` (verdict or number + one sentence) directly after the summary block, because the reader's first question is "what's the call?". Explanatory kinds - `understanding`, `architecture`, `research`, `plan`, `prototype` - keep the quiet header; a keycard there is decoration unless a single number genuinely is the story. Never fabricate a hero number to fill the slot.
 
 ### Canonical examples
 
@@ -356,6 +407,8 @@ The biggest lever on whether an artifact is *understood* (not just skimmed) is t
 
 This is **taught, not linted**: readability is judgment. Automated scores (Flesch-Kincaid) tank on legitimate dense technical prose and miss the real problem, so prose quality lives in the ship checklist below, never as a validator gate - the same judgment-lane split as Rule 10.
 
+The fuller version of this lane is **`references/artifact-spine.md`**, which adds the rules that make an artifact read as though someone with a point of view wrote it rather than a template filled itself in. The four that catch the most: after any list, one sentence saying what it implies (artifacts are mostly lists, so this is the biggest single lever); name the failure and not the category ("a 500 from the vendor retries forever and the queue backs up within four minutes", not "unbounded retry"); small precise numbers over adjectives; and vary the block rhythm, because identical-sized blocks are what a template produces and a reader can feel it.
+
 ## Before you ship
 
 **Render-and-verify is required whenever the artifact has diagrams or non-trivial layout - do NOT hand a file to a human on the strength of the HTML source alone.** Live CDN mermaid is fragile: mermaid's batch `run()` can leave later diagrams unsized (missing viewBox -> they render *blank*), it clips node labels, and Quick Look / email / offline run no JS at all, so the diagrams are simply absent. The loop, embedded in the harness:
@@ -380,9 +433,10 @@ Fast self-checks before declaring an artifact done:
 
 Deep-dive material lives in on-demand `references/` files so this skill stays lean (loaded only when relevant):
 
-- **`references/patterns.md`** - adoptable patterns: collapsible deep-dives, tabbed code, design-system swatches, arrow-key deck nav, hosting/sharing (keep it local, GitHub Pages, optional bring-your-own-bucket S3 via `scripts/publish-s3.sh`, or any static host), the single-file posture, the comprehension patterns **worked-example + self-explanation** and a **learner-paced stepper**, plus **review order vs execution order** (sort a plan by likelihood-of-tweaking), **non-goals** ("what we deliberately did not do"), and **linked source-to-target correspondence** for ports and migrations.
+- **`references/patterns.md`** - adoptable patterns: collapsible deep-dives, tabbed code, design-system swatches, arrow-key deck nav, hosting/sharing (keep it local, GitHub Pages, optional bring-your-own-bucket S3 via `scripts/publish-s3.sh`, or any static host), the single-file posture, the comprehension patterns **worked-example + self-explanation** and a **learner-paced stepper**, plus **review order vs execution order** (sort a plan by likelihood-of-tweaking), **non-goals** ("what we deliberately did not do"), and **linked source-to-target correspondence** for ports and migrations, plus the **pre-merge self-check** (a handful of questions about the change, native `<details>`, never scored or gated).
 - **`references/workflow-integrations.md`** - the decisions-captured coding-agent handoff block (with confidence tiers), the meeting Q&A overlay schema, the re-entry-context convention, the **implementation deviation ledger** (the four-field during-the-build log, `status` kind), and the **reader-response compiler** (choices that assemble a pasteable reply, with the required no-JS shape).
 - **`references/diagram-types.md`** - concept→diagram decision tree, Mermaid traps, inline-SVG craftsmanship, micro-chart recipes, and the progressive-enhancement **interactive charts** + **reactive inline values** recipes.
+- **`references/artifact-spine.md`** - the floor that holds whatever shape an artifact takes: the mechanical rules, the two floor requirements that cannot be linted (colour never alone, hover is also focusable), the **spine** an artifact never trades away (no coined framework names, never segment a reader, no engineered keystone, hedges stay, every claim earned, avoid the first person), and the prose discipline that makes it read as written rather than generated. **Required reading for dynamic mode**, and in force for standard artifacts too.
 
 ## Developer reference
 
@@ -406,19 +460,19 @@ Required metadata in every artifact:
 <meta name="artifact-audience" content="human">
 <meta name="artifact-created" content="YYYY-MM-DD">
 <meta name="artifact-source" content="<optional free text; the validator defaults it to 'local' when absent>">
-<meta name="artifact-summary" content="<optional: one-line gallery card text; auto-derived from the PM-summary if absent>">
+<meta name="artifact-summary" content="<optional: one-line gallery card text; auto-derived from the summary block if absent>">
 <meta name="artifact-keywords" content="<optional: comma-separated; derived from kind + slug if absent>">
 <body data-human-html-artifact="true">
 ```
 
 The `<head>` also carries a per-kind emoji SVG favicon (`<link rel="icon">`, a self-contained `data:` URI). It is chosen by kind and **stable across revisions** - do not change it on rework, since readers find the tab by its icon.
 
-Before publishing, fill `<meta name="artifact-summary">` (or make the PM-summary's first bullet carry the one-line story): when both are empty the gallery card's subtitle falls back to the bare title, and a card whose subtitle repeats its title tells the reader nothing. Say what the artifact *concludes*, not what it *is*.
+Before publishing, fill `<meta name="artifact-summary">` (or make the summary block's first bullet carry the one-line story): when both are empty the gallery card's subtitle falls back to the bare title, and a card whose subtitle repeats its title tells the reader nothing. Say what the artifact *concludes*, not what it *is*.
 
 Required content (for artifacts created on or after `2026-05-25`):
 
 ```html
-<section data-audience="pm" class="pm-summary"> ... </section>
+<section id="lead-summary" data-summary="true" class="lead-summary"> ... </section>
 <nav class="toc"> ... </nav>   <!-- required when >3 h2 sections; anchors must resolve -->
 <!-- visuals required inside any h2/h3 whose heading matches the comparison regex -->
 ```
@@ -554,7 +608,7 @@ Install the skill with `npx skills add rhnfzl/human-html`, or clone the repo and
 
 `human_html_artifacts.py deps` reports which of these are present and how to get the rest. `deps --fix` does the one safe automation available: it symlinks an already-on-disk `excalidraw-mcp` into any client skill dir (`~/.claude/skills`, `~/.codex/skills`, `~/.cursor/skills`) that exists but lacks it - never clobbering an existing entry, never creating a client dir that isn't set up, and never touching the Excalidraw MCP server config (that lives in client config and is out of a script's reach). Without `--fix` it only reports.
 
-After init: every `new <kind> "<title>"` writes a scaffold (PM-summary block + nav + per-kind section skeleton, all passing the content contract) and refreshes `index.html`; the autoindex hook catches later direct artifact edits, and the advisory hook nudges if an HIL-shaped MD slips through.
+After init: every `new <kind> "<title>"` writes a scaffold that passes the content contract and refreshes `index.html`. In the default standard mode that scaffold is summary block + nav + the per-kind section skeleton; with `--mode dynamic` it is the same chrome and the same mechanical floor with no section skeleton, because inventing the structure is the point of that mode. The autoindex hook catches later direct artifact edits, and the advisory hook nudges if an HIL-shaped MD slips through.
 
 ### Rollback
 

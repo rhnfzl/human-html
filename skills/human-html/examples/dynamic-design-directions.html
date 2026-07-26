@@ -1,0 +1,720 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="artifact-kind" content="decision">
+  <meta name="artifact-mode" content="dynamic">
+  <meta name="artifact-audience" content="human">
+  <meta name="artifact-created" content="2026-07-26">
+  <meta name="artifact-source" content="dynamic-mode-example">
+  <meta name="artifact-read-time" content="7 min">
+  <meta name="artifact-summary" content="Four batching shapes for relay digests, all replayed against one recorded Monday: the assigned per-recipient slot wins on peak send rate and on outage blast radius.">
+  <meta name="artifact-keywords" content="relay, notification digest, batching, flush trigger, rate limit, mailgrid, relay_pending">
+  <title>Which trigger fires a relay digest</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ctext y='13' font-size='13'%3E⚖️%3C/text%3E%3C/svg%3E">
+    <script>
+    (function(){try{var r=document.documentElement;r.classList.add('theme-js');var t=localStorage.getItem('hh-theme');if(t==='dark'||t==='light')r.dataset.theme=t;}catch(e){}})();
+  </script>
+  <style>
+:root {
+      color-scheme: light;                     /* light-only scaffold; NO dark media query anywhere */
+      /* surfaces: cool off-white, slight blue-grey hue bias (never pure grey/white) */
+      --bg: #f6f8fb; --surface: #ffffff; --surface-2: #f2f5f9; --surface-3: #e9eef4;
+      /* ink: navy-biased grey ramp (never pure black) */
+      --ink: #172033; --ink-2: #3c4657; --muted: #5a6577; --faint: #66707f;  /* --faint is text-safe AA (4.7:1 on --bg) */
+      /* structure */
+      --line: #dbe2ec; --line-strong: #c6cfdc;
+      /* brand accent (#226fb2) + tint */
+      --accent: #226fb2; --accent-2: #1b5e97; --accent-bg: #eef5fb; --accent-line: #b9d5ec;
+      /* severity: fg / tint-bg / tint-line triples (semantic color only) */
+      --crit: #c0342a; --crit-bg: #fbeae8; --crit-line: #f0c4be;
+      --high: #a84522; --high-bg: #fbeee6; --high-line: #f0cdba;  /* fg contrast-locked to tint (5.2:1) */
+      --warn: #845d06; --warn-bg: #f9f1d8; --warn-line: #e8d69a;  /* fg contrast-locked to tint (5.2:1) */
+      --good: #2d7a55; --good-bg: #e9f5ee; --good-line: #b6ddc6;
+      --info: #226fb2; --info-bg: #eef5fb; --info-line: #b9d5ec;
+      --neutral: #5a6577; --neutral-bg: #eef1f5; --neutral-line: #d7dde6;
+      /* legacy aliases: keep every existing selector below valid (safe incremental migration) */
+      --blue: var(--accent); --soft: var(--surface-2);
+      --orange: var(--high); --green: var(--good);
+      --rose-bg: var(--high-bg); --rose-line: var(--high);
+      --emerald-bg: var(--good-bg); --emerald-line: var(--good);
+      /* elevation */
+      --shadow-sm: 0 1px 2px rgba(23,32,51,.05);
+      --shadow: 0 1px 2px rgba(23,32,51,.05), 0 8px 24px rgba(23,32,51,.06);
+      /* radius */
+      --radius: 10px; --radius-sm: 6px; --radius-lg: 14px;
+      /* spacing scale */
+      --s-1:4px; --s-2:6px; --s-3:8px; --s-4:12px; --s-5:14px; --s-6:16px; --s-7:18px; --s-8:20px; --s-9:24px; --s-10:32px; --s-12:48px;
+      /* families: display serif for h1/numbers, sans body (NOT led by Inter), mono kickers */
+      --display: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, ui-serif, serif;
+      --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", "Helvetica Neue", sans-serif;
+      --mono: ui-monospace, "SF Mono", "Cascadia Code", Menlo, Consolas, monospace;
+      /* fluid type scale: only the 3 biggest levels clamp; body & below fixed so copy never wobbles */
+      --fs-h1: clamp(2rem, 1.35rem + 2.6vw, 3.2rem);
+      --fs-h2: clamp(1.3rem, 1.15rem + .7vw, 1.6rem);
+      --fs-h3: 1.05rem; --fs-lede: clamp(1.05rem, 1rem + .35vw, 1.18rem);
+      --fs-body: 1rem; --fs-sm: .875rem; --fs-cap: .72rem;
+      --lh-body: 1.62; --ls-caps: .1em;
+      font-family: var(--sans);
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; color: var(--ink); background: var(--bg); font-family: var(--sans); line-height: var(--lh-body); accent-color: var(--accent); text-rendering: optimizeLegibility; -webkit-font-smoothing: antialiased; font-feature-settings: "kern", "liga"; }
+    main { width: min(1060px, calc(100vw - clamp(2rem, 8vw, 5rem))); margin: 0 auto; padding: clamp(28px,5vw,56px) 0 clamp(64px,10vw,96px); }
+    header { border-bottom: 1px solid var(--line); padding-bottom: var(--s-9); margin-bottom: var(--s-10); }
+    .eyebrow { font-family: var(--mono); color: var(--accent); font-size: var(--fs-cap); font-weight: 600; text-transform: uppercase; letter-spacing: .14em; }
+    h1 { margin: 10px 0 12px; font-family: var(--display); font-size: var(--fs-h1); font-weight: 800; line-height: 1.05; letter-spacing: -.02em; }
+    h2 { margin: 0 0 12px; font-size: var(--fs-h2); font-weight: 700; letter-spacing: -.01em; }
+    h3 { margin: 18px 0 8px; font-size: var(--fs-h3); font-weight: 600; color: var(--ink); }
+    h1, h2, h3 { text-wrap: balance; }
+    p { color: var(--ink-2); line-height: var(--lh-body); max-width: 72ch; text-wrap: pretty; }
+    li { max-width: 72ch; }
+    a { color: var(--accent); }
+    :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+    .lead-summary { background: var(--surface-2); border-left: 4px solid var(--accent); padding: 20px 22px; border-radius: var(--radius); margin: 16px 0 32px; box-shadow: var(--shadow-sm); }
+    .lead-summary h2 { color: var(--accent); margin-bottom: 12px; }
+    .lead-summary ul { margin: 0; padding-left: 20px; }
+    .lead-summary li { margin-bottom: 8px; color: var(--ink-2); line-height: 1.55; }
+    .lead-summary li strong { color: var(--accent); }
+    nav.toc { background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 20px; margin: 16px 0 32px; }
+    nav.toc ol { margin: 8px 0 0; padding-left: 22px; columns: 2; column-gap: 24px; }
+    nav.toc li { margin-bottom: 4px; }
+    nav.toc a { color: var(--accent); text-decoration: none; }
+    nav.toc a:hover { text-decoration: underline; }
+    section.section { margin-top: clamp(32px,5vw,52px); }
+    section[id] { scroll-margin-top: var(--s-9); }
+    section:target > h2 { color: var(--accent-2); }
+    .grid-cols-2, .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s-6); }
+    .grid-3 { display: grid; grid-template-columns: repeat(3,1fr); gap: var(--s-6); }
+    .compare-before { background: var(--high-bg); border-left: 4px solid var(--high); border-radius: var(--radius); padding: 16px; }
+    .compare-after { background: var(--good-bg); border-left: 4px solid var(--good); border-radius: var(--radius); padding: 16px; }
+    .compare-before > strong:first-child, .compare-after > strong:first-child { display: block; margin-bottom: 8px; font-family: var(--mono); font-size: var(--fs-cap); letter-spacing: .08em; text-transform: uppercase; }
+    .compare-before > strong:first-child { color: var(--high); }
+    .compare-after > strong:first-child { color: var(--good); }
+    table { width: 100%; border-collapse: collapse; border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
+    th, td { padding: 12px 14px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; font-variant-numeric: tabular-nums; }
+    th { background: var(--surface-2); color: var(--muted); font-family: var(--mono); font-size: var(--fs-cap); text-transform: uppercase; letter-spacing: .08em; }
+    tr:last-child td { border-bottom: 0; }
+    .table-scroll { overflow-x: auto; border-radius: var(--radius); }
+    .table-scroll table { display: table; }
+    code { background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 2px 5px; font-family: var(--mono); font-size: .88em; }
+    pre { background: #0f172a; color: #e2e8f0; border-radius: var(--radius); padding: 14px; overflow: auto; }
+    pre code { background: transparent; border: 0; color: inherit; }
+    .mermaid svg { max-width: 100%; height: auto; }
+    /* Mermaid node labels clip on the right when the page's kerning / ligatures / letter-spacing widen the
+       final SVG text past mermaid's own measurement. Neutralize those inside the diagram, and let a label
+       spill into the node's padding rather than be cut off. */
+    .mermaid text, .mermaid .nodeLabel, .mermaid .edgeLabel,
+    .mermaid foreignObject div, .mermaid foreignObject span, .mermaid foreignObject p {
+      font-feature-settings: normal; font-variant-ligatures: none; letter-spacing: normal; text-rendering: auto;
+    }
+    .mermaid foreignObject { overflow: visible; }
+    .mermaid:not([data-processed]) { font-family: var(--mono); font-size: var(--fs-sm); white-space: pre; overflow-x: auto; background: var(--surface-2); border: 1px dashed var(--line-strong); border-radius: var(--radius); padding: var(--s-6); color: var(--muted); }
+    .needs-verification { display: inline-block; font-family: var(--mono); padding: 2px 8px; border-radius: var(--radius-sm); font-size: var(--fs-cap); font-weight: 700; background: var(--warn-bg); color: var(--warn); border: 1px solid var(--warn-line); }
+    /* responsive overrides for components live next to the component (in _EXTRA_SCAFFOLD_STYLE) */
+    @media (max-width: 820px) {
+      .grid-cols-2, .grid-2, .grid-3 { grid-template-columns: 1fr; }
+      nav.toc ol { columns: 1; }
+      table { display: block; overflow-x: auto; }
+    }
+.meta-ribbon { display:flex; flex-wrap:wrap; gap:var(--s-4) var(--s-9); padding:var(--s-5) var(--s-7); margin:0 0 var(--s-9); background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); box-shadow:var(--shadow-sm); font-size:var(--fs-sm); color:var(--muted); }
+    .meta-ribbon span { white-space:nowrap; }
+    .meta-ribbon strong { color:var(--faint); font-family:var(--mono); font-size:var(--fs-cap); letter-spacing:.1em; text-transform:uppercase; font-weight:600; margin-right:var(--s-2); }
+    .read-map { background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:var(--s-5) var(--s-7); margin:0 0 var(--s-9); font-size:var(--fs-sm); color:var(--ink); box-shadow:var(--shadow-sm); }
+    .read-map div { margin:var(--s-1) 0; }
+    .read-map strong { color:var(--accent); font-family:var(--mono); font-size:var(--fs-cap); letter-spacing:.08em; text-transform:uppercase; margin-right:var(--s-2); }
+    .read-map a { color:var(--accent); }
+    .provenance { margin-top:var(--s-12); padding-top:var(--s-7); border-top:1px solid var(--line); font-size:var(--fs-sm); color:var(--faint); }
+    .provenance code { background:transparent; border:0; color:var(--ink); font-family:var(--mono); }
+    .provenance a { color:var(--accent); text-decoration:none; }
+    .callout { border:1px solid var(--line); border-left:4px solid var(--muted); background:var(--surface-2); border-radius:var(--radius); padding:var(--s-4) var(--s-6); margin:var(--s-6) 0; }
+    .callout > strong:first-child { display:block; margin-bottom:var(--s-1); font-family:var(--mono); font-size:var(--fs-cap); text-transform:uppercase; letter-spacing:.08em; }
+    .callout-note { border-left-color:var(--accent); background:var(--accent-bg); }
+    .callout-note > strong:first-child { color:var(--accent); }
+    .callout-note > strong:first-child::before { content:"📌 "; content:"📌 " / ""; }
+    .callout-tip { border-left-color:var(--good); background:var(--good-bg); }
+    .callout-tip > strong:first-child { color:var(--good); }
+    .callout-tip > strong:first-child::before { content:"💡 "; content:"💡 " / ""; }
+    .callout-warning { border-left-color:var(--warn); background:var(--warn-bg); }
+    .callout-warning > strong:first-child { color:var(--warn); }
+    .callout-warning > strong:first-child::before { content:"⚠️ "; content:"⚠️ " / ""; }
+    .callout-important { border-left-color:var(--crit); background:var(--crit-bg); }
+    .callout-important > strong:first-child { color:var(--crit); }
+    .callout-important > strong:first-child::before { content:"❗ "; content:"❗ " / ""; }
+    /* ---- collapsible (appendix lane) ---- */
+    details { background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:0 var(--s-6); margin:var(--s-6) 0; }
+    summary { cursor:pointer; padding:var(--s-4) 0; font-weight:600; color:var(--accent); }
+    summary:hover { color:var(--accent-2); }
+    details[open] > summary { border-bottom:1px solid var(--line); margin-bottom:var(--s-4); }
+    #layout-audit { position:fixed; left:0; right:0; bottom:0; z-index:9999; margin:0; padding:var(--s-3) var(--s-5); background:var(--warn-bg); color:var(--warn); border-top:1px solid var(--warn-line); font-size:var(--fs-sm); text-align:center; }
+    #layout-audit[hidden] { display:none; }
+    #layout-audit code { background:var(--surface); }
+    .confidence { display:inline-block; font-family:var(--mono); padding:2px 8px; border-radius:var(--radius-sm); font-size:var(--fs-cap); font-weight:700; border:1px solid transparent; }
+    .confidence-high { background:var(--good-bg); color:var(--good); border-color:var(--good-line); }
+    .confidence-medium { background:var(--accent-bg); color:var(--accent); border-color:var(--accent-line); }
+    .confidence-low { background:var(--warn-bg); color:var(--warn); border-color:var(--warn-line); }
+    /* components own their measure via grid tracks; the 72ch cap applies to open prose only */
+    .keycard p, .card p, .tile p, .metric p, .compare-before p, .compare-after p, .callout p { max-width:none; }
+    /* ---- KPI tiles (shared: incident .metrics/.metric inherit these) ---- */
+    .tiles, .metrics { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:var(--s-5); margin:var(--s-8) 0; }
+    .tile, .metric { position:relative; overflow:hidden; background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:var(--s-7) var(--s-7) var(--s-6); box-shadow:var(--shadow-sm); }
+    .tile::before { content:""; position:absolute; inset:0 auto 0 0; width:4px; background:var(--sv,var(--accent)); }
+    .tile .n, .metric strong { display:block; font-family:var(--display); font-size:clamp(1.8rem,4vw,2.4rem); font-weight:800; line-height:1; color:var(--sv,var(--ink)); font-variant-numeric:tabular-nums; }
+    .tile .k, .metric span { display:block; font-family:var(--mono); font-size:var(--fs-cap); letter-spacing:.12em; text-transform:uppercase; color:var(--muted); font-weight:600; margin-top:var(--s-3); }
+    .tile .d { font-size:.8rem; color:var(--faint); margin-top:var(--s-1); }
+    .tile.crit{--sv:var(--crit);} .tile.high{--sv:var(--high);} .tile.warn{--sv:var(--warn);} .tile.good{--sv:var(--good);} .tile.info{--sv:var(--accent);} .tile.neutral{--sv:var(--neutral);}
+    /* ---- stripe / accent cards ---- */
+    .card { background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:var(--s-7) var(--s-8); box-shadow:var(--shadow-sm); }
+    .card.tint-info { background:var(--info-bg); border-color:var(--info-line); }
+    .card.tint-good { background:var(--good-bg); border-color:var(--good-line); }
+    .card.tint-high { background:var(--high-bg); border-color:var(--high-line); }
+    .card.tint-crit { background:var(--crit-bg); border-color:var(--crit-line); }
+    .stripe { position:relative; padding-left:var(--s-7); }
+    .stripe::before { content:""; position:absolute; left:0; top:.35rem; bottom:.35rem; width:3px; border-radius:3px; background:var(--accent); }
+    .stripe.crit::before{background:var(--crit);} .stripe.high::before{background:var(--high);} .stripe.warn::before{background:var(--warn);} .stripe.good::before{background:var(--good);}
+    /* ---- keycard: big number + prose ---- */
+    .keycard { display:grid; grid-template-columns:auto 1fr; gap:var(--s-8); align-items:center; margin:var(--s-9) 0; padding:var(--s-8) var(--s-9); background:var(--surface); border:1px solid var(--line-strong); border-left:4px solid var(--sv,var(--accent)); border-radius:var(--radius); box-shadow:var(--shadow); }
+    .keycard .big { font-family:var(--display); font-size:clamp(2.4rem,7vw,3.4rem); font-weight:800; line-height:.95; color:var(--sv,var(--accent)); font-variant-numeric:tabular-nums; }
+    .keycard .big small { display:block; margin-top:var(--s-2); font-family:var(--mono); font-size:var(--fs-sm); font-weight:600; letter-spacing:.04em; text-transform:uppercase; color:var(--muted); }
+    .keycard p b { color:var(--ink); }
+    .keycard.crit{--sv:var(--crit);} .keycard.high{--sv:var(--high);} .keycard.good{--sv:var(--good);} .keycard.info{--sv:var(--accent);}
+    /* ---- severity / status chips ---- */
+    .chip { display:inline-block; font-family:var(--mono); font-size:var(--fs-cap); font-weight:700; padding:2px 8px; border-radius:var(--radius-sm); letter-spacing:.04em; font-variant-numeric:tabular-nums; border:1px solid transparent; }
+    .chip.crit{color:var(--crit);background:var(--crit-bg);border-color:var(--crit-line);}
+    .chip.high{color:var(--high);background:var(--high-bg);border-color:var(--high-line);}
+    .chip.warn{color:var(--warn);background:var(--warn-bg);border-color:var(--warn-line);}
+    .chip.good{color:var(--good);background:var(--good-bg);border-color:var(--good-line);}
+    .chip.info{color:var(--accent);background:var(--accent-bg);border-color:var(--accent-line);}
+    .chip.neutral{color:var(--muted);background:var(--neutral-bg);border-color:var(--neutral-line);font-weight:600;}
+    /* ---- cross-links / chain caption / inline mono ---- */
+    .chain { font-family:var(--mono); font-size:.8rem; color:var(--accent); font-weight:600; margin-top:var(--s-4); }
+    .crosslink { font-weight:600; }
+    .crosslink::before { content:"→ "; color:var(--accent); }
+    code.m { font-family:var(--mono); color:var(--muted); background:var(--surface-2); padding:1px 6px; border-radius:var(--radius-sm); }
+    /* ---- opt-in sticky nav rail: author wraps {nav}{body} in <div class="railed"> ---- */
+    .railed { display:grid; grid-template-columns:220px minmax(0,1fr); gap:clamp(24px,4vw,48px); align-items:start; }
+    .railed nav.toc { position:sticky; top:24px; margin:0; }
+    .railed nav.toc ol { columns:1; }
+    @media (max-width:900px) { .railed { grid-template-columns:1fr; } .railed nav.toc { position:static; } }
+    /* component responsive overrides live HERE (after the base rules, in the later-injected _EXTRA) so they win the cascade */
+    @media (max-width:820px) {
+      .keycard { grid-template-columns:1fr; gap:var(--s-5); }
+      .tiles, .metrics { grid-template-columns:1fr 1fr; }
+    }
+    @media (max-width:460px) { .tiles, .metrics { grid-template-columns:1fr; } }
+    /* ---- sparkline: area fill, faint grid, emphasized endpoint ---- */
+    .spark { color:var(--accent); overflow:visible; }
+    .spark .line { stroke:currentColor; stroke-width:2; fill:none; }
+    .spark .fill { fill:currentColor; opacity:.12; }
+    .spark .grid { stroke:var(--line); stroke-width:1; }
+    .spark .dot { fill:currentColor; }
+    .spark.good { color:var(--good); } .spark.warn { color:var(--warn); } .spark.crit { color:var(--crit); }
+    /* ---- bar rows / progress meter ---- */
+    .bars { display:grid; grid-template-columns:max-content 1fr max-content; gap:var(--s-2) var(--s-4); align-items:center; margin:var(--s-6) 0; }
+    .bars dt { font-family:var(--mono); font-size:var(--fs-sm); color:var(--muted); margin:0; }
+    .bars dd { margin:0; }
+    .bars .val { font-variant-numeric:tabular-nums; font-size:var(--fs-sm); }
+    .bars .track, .progress { background:var(--surface-2); border-radius:999px; overflow:hidden; min-width:60px; margin:0; }
+    .bars .fill, .progress .fill { display:block; height:12px; border-radius:inherit; background:var(--sv,var(--accent)); width:var(--w,50%); }
+    .fill.crit { --sv:var(--crit); } .fill.high { --sv:var(--high); } .fill.warn { --sv:var(--warn); } .fill.good { --sv:var(--good); }
+    /* ---- delta: direction glyph is AT-hidden; carry direction in the text (signed value) ---- */
+    .delta { font-family:var(--mono); font-size:var(--fs-sm); font-weight:700; font-variant-numeric:tabular-nums; }
+    .delta.good { color:var(--good); } .delta.bad { color:var(--crit); } .delta.flat { color:var(--muted); }
+    .delta.up::before { content:"▲ "; content:"▲ " / ""; }
+    .delta.down::before { content:"▼ "; content:"▼ " / ""; }
+    .delta.flat::before { content:"→ "; content:"→ " / ""; }
+    /* ---- opt-in button (prototype controls); never restyles bare <button> ---- */
+    .btn { font:inherit; padding:var(--s-2) var(--s-6); border:1px solid var(--accent-line); border-radius:var(--radius-sm); background:var(--accent-bg); color:var(--accent-2); font-weight:600; cursor:pointer; }
+    .btn:hover { background:var(--accent); color:#fff; }
+    /* print lives at the END of the later-injected constant so it wins every cascade tie */
+    @media print {
+      nav.toc, .read-map, #layout-audit { display: none; }
+      .railed { display: block; }
+      pre { background: var(--surface-2); color: var(--ink); border: 1px solid var(--line); }
+      section.section, table, figure, pre, .callout, .compare-before, .compare-after, .metric, .tile, .card, .keycard, .chip, .confidence, .timeline .event, details { break-inside: avoid; }
+      a[href^="http"]::after { content: " (" attr(href) ")"; font-size: .85em; color: var(--muted); }
+      .kind, .sev, .callout, .compare-before, .compare-after, .meta-ribbon, .needs-verification, .chip, .tile, .card, .keycard, .stripe, .confidence, .timeline .actor, .lead-summary, .spark, .bars, .progress, .delta { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      details:not([open])::details-content { content-visibility: visible; display: block; }
+    }
+      .theme-toggle { display:none; }
+    .theme-js .theme-toggle { position:fixed; top:16px; right:16px; z-index:100; width:40px; height:40px; padding:0; display:inline-flex; align-items:center; justify-content:center; font:inherit; font-size:18px; line-height:1; cursor:pointer; background:var(--surface-2, var(--soft)); color:var(--muted); border:1px solid var(--line); border-radius:999px; }
+    .theme-js .theme-toggle:hover { color:var(--ink); border-color:var(--line-strong, var(--line)); }
+    .theme-js .theme-toggle:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+    .theme-toggle::before { content:"\263E"; }
+    :root[data-theme="dark"] .theme-toggle::before { content:"\2600"; }
+    @media (prefers-color-scheme:dark){ :root:not([data-theme]) .theme-toggle::before{ content:"\2600"; } }
+    @media print { .theme-toggle { display:none; } }
+    @media screen {
+      :root[data-theme="dark"] {
+        color-scheme: dark;
+        --bg:#0f1522; --surface:#161e2e; --surface-2:#1c2536; --surface-3:#232e42;
+        --ink:#e8edf5; --ink-2:#c3ccdb; --muted:#96a2b5; --faint:#8593a8;
+        --line:#253145; --line-strong:#33415a;
+        --accent:#6aa8dd; --accent-2:#85bce6; --accent-bg:#152740; --accent-line:#2c4a6b;
+        --crit:#f19488; --crit-bg:#351d22; --crit-line:#6b3936;
+        --high:#eda06b; --high-bg:#33251a; --high-line:#6b4a30;
+        --warn:#d8b45c; --warn-bg:#312a16; --warn-line:#665626;
+        --good:#74c99b; --good-bg:#16301f; --good-line:#2e5c42;
+        --info:#6aa8dd; --info-bg:#152740; --info-line:#2c4a6b;
+        --neutral:#9aa6ba; --neutral-bg:#232c3c; --neutral-line:#3a465a;
+        --shadow-sm:0 1px 2px rgba(0,0,0,.35);
+        --shadow:0 4px 14px rgba(0,0,0,.45), 0 1px 3px rgba(0,0,0,.3);
+      }
+    }
+    @media screen and (prefers-color-scheme: dark) {
+      :root:not([data-theme]) {
+        color-scheme: dark;
+        --bg:#0f1522; --surface:#161e2e; --surface-2:#1c2536; --surface-3:#232e42;
+        --ink:#e8edf5; --ink-2:#c3ccdb; --muted:#96a2b5; --faint:#8593a8;
+        --line:#253145; --line-strong:#33415a;
+        --accent:#6aa8dd; --accent-2:#85bce6; --accent-bg:#152740; --accent-line:#2c4a6b;
+        --crit:#f19488; --crit-bg:#351d22; --crit-line:#6b3936;
+        --high:#eda06b; --high-bg:#33251a; --high-line:#6b4a30;
+        --warn:#d8b45c; --warn-bg:#312a16; --warn-line:#665626;
+        --good:#74c99b; --good-bg:#16301f; --good-line:#2e5c42;
+        --info:#6aa8dd; --info-bg:#152740; --info-line:#2c4a6b;
+        --neutral:#9aa6ba; --neutral-bg:#232c3c; --neutral-line:#3a465a;
+        --shadow-sm:0 1px 2px rgba(0,0,0,.35);
+        --shadow:0 4px 14px rgba(0,0,0,.45), 0 1px 3px rgba(0,0,0,.3);
+      }
+    }
+    /* ---- dynamic-mode additions ----
+       Two new things live here: the fixed-input control block at the top, and the four
+       direction panels. Every per-direction rule is scoped under its own .dir--* modifier
+       so the four treatments cannot leak into each other, and every colour is an
+       inherited token from :root above. No new palette. */
+    .control { background:var(--surface); border:1px solid var(--line-strong); border-radius:var(--radius); padding:var(--s-8) var(--s-9); box-shadow:var(--shadow-sm); }
+    .control .fixed { font-family:var(--mono); font-size:var(--fs-cap); letter-spacing:var(--ls-caps); text-transform:uppercase; color:var(--muted); margin:0 0 var(--s-3); }
+    .control ul { padding-left:20px; }
+    .control li { margin-bottom:var(--s-3); color:var(--ink-2); }
+
+    .dir { position:relative; background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:var(--s-8) var(--s-9); margin:var(--s-9) 0; box-shadow:var(--shadow-sm); }
+    .dir h2 { margin-bottom:var(--s-3); }
+    .dir .kicker { font-family:var(--mono); font-size:var(--fs-cap); letter-spacing:.08em; text-transform:uppercase; color:var(--muted); margin:0 0 var(--s-2); }
+    .dir figure { margin:var(--s-8) 0 var(--s-4); }
+    .dir figcaption { font-size:var(--fs-sm); color:var(--faint); margin-top:var(--s-3); max-width:72ch; }
+    .dir .fig { display:block; width:100%; height:auto; overflow:visible; }
+    .dir .fig .axis { stroke:var(--line-strong); stroke-width:1; fill:none; }
+    .dir .fig .lbl { font-family:var(--mono); font-size:10px; fill:var(--muted); }
+    .dir .fig .val { font-family:var(--mono); font-size:10px; fill:var(--ink-2); }
+    .dir .fig .out { fill:var(--crit-bg); stroke:var(--crit-line); stroke-width:1; }
+    .dir .verdict { display:grid; grid-template-columns:max-content minmax(0,1fr); gap:var(--s-4) var(--s-6); margin:var(--s-7) 0 0; padding-top:var(--s-6); border-top:1px dashed var(--line-strong); }
+    .dir .verdict dt, .dir .verdict dd { margin:0; }
+    .dir .verdict dd { color:var(--ink-2); max-width:72ch; }
+    @media (max-width:600px) {
+      .dir { padding:var(--s-7) var(--s-6); }
+      .dir .verdict { grid-template-columns:1fr; gap:var(--s-1) 0; }
+      .dir .verdict dd { margin-bottom:var(--s-5); }
+    }
+
+    /* direction 1: fixed window sweep. Solid accent rule, square bucket boundaries. */
+    .dir--window { border-left:4px solid var(--accent); }
+    .dir--window .fig .ev { stroke:var(--accent); stroke-width:1.2; }
+    .dir--window .fig .bar { fill:var(--accent); }
+    .dir--window .fig .bound { stroke:var(--line-strong); stroke-width:1; stroke-dasharray:3 3; }
+
+    /* direction 2: rolling quiet gap. Dashed rule, recessed panel, sawtooth timer. */
+    .dir--gap { border-left:4px dashed var(--high); background:var(--surface-2); }
+    .dir--gap .fig .ev { stroke:var(--high); stroke-width:1.2; }
+    .dir--gap .fig .saw { stroke:var(--high); stroke-width:1.2; fill:none; }
+    .dir--gap .fig .thresh { stroke:var(--ink-2); stroke-width:1; stroke-dasharray:4 3; }
+    .dir--gap .fig .flush { fill:var(--good); }
+
+    /* direction 3: assigned per-recipient slot. Load band read against the vendor cap. */
+    .dir--slot { border-left:4px solid var(--good); }
+    .dir--slot .fig .load { stroke:var(--good); stroke-width:2; fill:none; }
+    .dir--slot .fig .loadfill { fill:var(--good); opacity:.16; stroke:none; }
+    .dir--slot .fig .peak { fill:var(--good); }
+    .dir--slot .fig .cap { stroke:var(--crit); stroke-width:1.5; stroke-dasharray:6 4; }
+    .dir--slot .fig .win { fill:var(--warn-bg); stroke:var(--warn-line); stroke-width:1; }
+
+    /* direction 4: count ceiling with an age cap. Top rule, split bar, retry ticks. */
+    .dir--ceiling { border-top:3px solid var(--warn); }
+    .dir--ceiling .fig .seg-age { fill:var(--accent); }
+    .dir--ceiling .fig .seg-count { fill:var(--high); }
+    .dir--ceiling .fig .hatch { stroke:var(--surface); stroke-width:1.4; }
+    .dir--ceiling .fig .retry { stroke:var(--crit); stroke-width:2; }
+
+    .noscript-floor { border:1px solid var(--warn-line); background:var(--warn-bg); color:var(--warn); border-radius:var(--radius); padding:var(--s-4) var(--s-6); margin:var(--s-6) 0; font-size:var(--fs-sm); }
+    @media print { .dir, .control, .dir figure, .verdict { break-inside:avoid; } }
+  </style>
+<script type="module">
+    /* Self-contained by default: fetch Mermaid from the CDN ONLY if this page actually has a
+       diagram. A diagram-free artifact makes ZERO network calls and renders fully offline; add
+       a <div class="mermaid"> later and it still renders (the guard checks the DOM at load). */
+    if (document.querySelector(".mermaid")) {
+      const { default: mermaid } = await import("https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.esm.min.mjs");
+      mermaid.initialize({ startOnLoad: false, securityLevel: "loose", theme: "base",
+        flowchart: { htmlLabels: true, padding: 12, useMaxWidth: true },
+        /* keep themeVariables in sync with the :root tokens above (single file, two spots) */
+        themeVariables: { primaryColor: "#eef5fb", primaryBorderColor: "#b9d5ec", primaryTextColor: "#172033", lineColor: "#5a6577", fontFamily: "inherit", fontSize: "14px" } });
+      await mermaid.run();   /* module scripts defer, so the DOM is parsed; run() renders every .mermaid once */
+    }
+  </script>
+</head>
+<body data-human-html-artifact="true">
+  <button class="theme-toggle" type="button" aria-label="Switch theme" title="Toggle light / dark"></button>
+  <main>
+    <header>
+      <p class="eyebrow">decision &middot; dynamic mode &middot; 2026-07-26</p>
+      <h1>Which trigger fires a relay digest</h1>
+      <p><code>relay</code>, the internal notifications service, still sends one message per platform event. Four candidate batching shapes were built far enough to replay, and all four were replayed against the same recorded day of traffic. The shape of this artifact follows from that: the input is pinned first, then each direction is judged against it, then the pick.</p>
+    </header>
+
+    <div class="meta-ribbon" data-meta-ribbon="true" aria-label="Artifact metadata">
+      <span><strong>Kind</strong> decision</span>
+      <span><strong>Mode</strong> dynamic</span>
+      <span><strong>Created</strong> 2026-07-26</span>
+      <span><strong>Owner</strong> Priya Nandakumar</span>
+      <span><strong>Status</strong> Ready for sign-off</span>
+      <span><strong>Read time</strong> ~7 min</span>
+      <span><strong>Source</strong> dynamic-mode-example</span>
+    </div>
+
+    <div class="keycard good" aria-label="The pick">
+      <div class="big">3<small>direction picked</small></div>
+      <p><b>Give each recipient a fixed slot inside every 15 minute period, and keep direction 4's 20 minute age cap underneath it as a guard.</b> On the replayed day it is the only direction whose peak second stays at 11 sends without touching the vendor cap of 120, and the only one whose outage cost holds up wherever the outage falls: a 3m 20s run of vendor 502s costs it 470 digests against direction 1's 4,180. Direction 4 loses fewer, 190, but only because this particular outage missed its burst by two minutes. It does not ship until <code>relay_pending</code> gets a composite index, which is blocked on the current migration freeze.</p>
+    </div>
+
+    <section data-summary="true" class="lead-summary">
+      <h2>In plain terms</h2>
+      <ul>
+        <li><strong>What changes for someone receiving notifications:</strong> instead of a message per event, one digest arrives holding everything from the last few minutes, and nothing in it has been waiting more than 30 minutes.</li>
+        <li><strong>Why this needs a decision and not a preference:</strong> the four shapes sit within 26% of each other on digests sent per day, and they span 190 to 4,180 on how many digests are lost when the mail vendor has a bad three minutes. The second number is the one that generates support tickets.</li>
+        <li><strong>What is being asked:</strong> approve the per-recipient slot trigger plus the 20 minute age cap, and grant one exception to the <code>relay_pending</code> migration freeze so the index can land.</li>
+      </ul>
+      <p>Everything below is measured against a single recorded day, described in the next section, so no direction is being scored on a quieter example than the others.</p>
+    </section>
+
+    <nav class="toc" aria-label="On this page">
+      <strong>On this page</strong>
+      <ol>
+        <li><a href="#same-data">The data all four are judged on</a></li>
+        <li><a href="#shape">Current vs proposed delivery shape</a></li>
+        <li><a href="#d1">1. Sweep a fixed 15 minute window</a></li>
+        <li><a href="#d2">2. Wait for a quiet gap</a></li>
+        <li><a href="#d3">3. Give each recipient a slot</a></li>
+        <li><a href="#d4">4. Count ceiling with an age cap</a></li>
+        <li><a href="#pick">The pick, and what it costs</a></li>
+        <li><a href="#change">What would change the pick</a></li>
+      </ol>
+    </nav>
+
+    <section id="same-data" class="section control">
+      <p class="fixed">Control: one input, replayed four times</p>
+      <h2>The data all four are judged on</h2>
+      <p>One file: <code>relay/traces/2026-07-14-mon.jsonl</code>, replayed through <code>relay/bench/replay.py --direction N</code> with the mail vendor stubbed by the recorded response log. Monday is the heaviest weekday, so this is a pessimistic input, and it is pessimistic for all four in the same way. Every number in the four panels below comes from this file. None of them comes from a hand-picked hour.</p>
+
+      <div class="tiles">
+        <div class="tile info"><span class="n">41,280</span><span class="k">events in 24h</span><span class="d">one per changed record</span></div>
+        <div class="tile info"><span class="n">9,412</span><span class="k">recipients</span><span class="d">busiest one sees 1,144 events</span></div>
+        <div class="tile high"><span class="n">6,830</span><span class="k">events 09:00 to 09:12</span><span class="d">overnight import lands at 08:58</span></div>
+        <div class="tile warn"><span class="n">3m 20s</span><span class="k">vendor 502 window</span><span class="d">09:14:40 to 09:18:00</span></div>
+      </div>
+
+      <p>Four properties of that file matter more than its size, and they are the four that pull the directions apart:</p>
+      <ul>
+        <li><strong>Latency is a constraint, not a target.</strong> A digest must reach the recipient within 30 minutes of the oldest event it contains. That sentence is already printed on the notification settings page, so a direction that misses it is not a slower option, it is a wrong one.</li>
+        <li><strong>The vendor caps sends at 120 per second per account.</strong> Above that the <code>mailgrid</code> send API returns 429 and the client queues locally, which turns a burst into latency rather than into errors.</li>
+        <li><strong>Failures arrive in a clump, not spread out.</strong> Every call between 09:14:40 and 09:18:00 returned HTTP 502; scattered singles elsewhere bring the day's total to 0.4% of calls. Where that clump falls relative to a direction's flush pattern decides what it costs, which is why the window's placement is stated here rather than inside a panel.</li>
+        <li><strong>The recipient distribution has no middle.</strong> 6,701 recipients (71%) receive between 1 and 3 events across the whole day. 38 receive more than 200. The import at 08:58 touches 4,180 of them, at an average of 1.6 events each.</li>
+      </ul>
+      <p>That last property is why no single tuned constant settles this: a threshold that batches sensibly for the 71% either starves or floods the 38, and both groups are visible in the same replay.</p>
+
+      <div class="callout callout-warning">
+        <strong>One place this trace flatters a direction</strong>
+        <p>The 502 window starts at 09:14:40, under three minutes after the import stops writing. Direction 4 flushes on a 20 minute age cap, so the import's own digests land from 09:20 onwards, after the window has closed, and all the window catches is the thin pre-import tail still flushing through it. It scores well on outage cost by accident of where the recording falls. That is called out in its own panel rather than quietly banked.</p>
+      </div>
+    </section>
+
+    <section id="shape" class="section">
+      <h2>Current vs proposed delivery shape</h2>
+      <p>All four directions make the same two structural changes: an event becomes a row in <code>relay_pending</code> instead of a send, and a separate flusher turns pending rows into one rendered digest. Nothing else about the pipeline moves. The four differ in one box, and drawing that box is most of what keeps the comparison honest.</p>
+      <figure>
+        <div class="mermaid">flowchart LR
+  E["platform event"]
+  E -->|"today"| T1["render one message"] --> T2["mailgrid send"]
+  E -->|"all four proposals"| P1["row in relay_pending"] --> P2{"flush trigger"} --> P3["render one digest"] --> P4["mailgrid send"]
+</div>
+        <figcaption>One event, two routes. The upper route is today: render, send, done. The lower route is every proposal: the event becomes a pending row and a flush trigger decides when the rows for one recipient become a single digest. That trigger is the only contested box.</figcaption>
+      </figure>
+      <noscript>
+        <div class="noscript-floor">Scripts are off, so the diagram above is showing its source text instead of rendering. It says: one platform event, two routes. Today it is rendered as one message and sent. Under all four proposals it becomes a row in <code>relay_pending</code>, and a flush trigger decides when those rows become one digest. The four directions differ only in that trigger.</div>
+      </noscript>
+      <p>Because the shared part is identical, the shared costs are identical too: one new table, one flusher process, one render path that takes a list of events rather than one. Those are not weighed again per direction.</p>
+    </section>
+
+    <section id="d1" class="section dir dir--window">
+      <p class="kicker">Direction 1</p>
+      <h2>Sweep a fixed 15 minute window</h2>
+      <p>A cron runs at :00, :15, :30 and :45. Each run selects every unsent row, groups by recipient, renders, sends. 96 runs a day, no per-recipient state, nothing to hold in your head between runs.</p>
+      <figure>
+        <svg class="fig" viewBox="0 0 640 184" role="img" aria-labelledby="w-t w-d">
+          <title id="w-t">Arrivals and sends across the 09:00 hour under a fixed 15 minute sweep</title>
+          <desc id="w-d">Events arrive almost entirely between 09:00 and 09:12. Nothing goes out until the 09:15 boundary, which then issues 4,180 sends in 35 seconds. The recorded 502 window, 09:14:40 to 09:18:00, covers that whole burst. The three later sweeps issue 118, 104 and 131 sends.</desc>
+          <defs>
+            <pattern id="w-dense" width="4" height="26" patternUnits="userSpaceOnUse"><line class="ev" x1="1" y1="0" x2="1" y2="26"/></pattern>
+            <pattern id="w-thin" width="20" height="26" patternUnits="userSpaceOnUse"><line class="ev" x1="1" y1="0" x2="1" y2="26"/></pattern>
+          </defs>
+          <rect class="out" x="181" y="18" width="32" height="132"/>
+          <text class="lbl" x="197" y="14" text-anchor="middle">502 window</text>
+          <text class="lbl" x="4" y="40">in</text>
+          <rect x="40" y="24" width="115" height="26" fill="url(#w-dense)"/>
+          <rect x="155" y="24" width="461" height="26" fill="url(#w-thin)"/>
+          <text class="lbl" x="4" y="147">out</text>
+          <line class="bound" x1="184" y1="18" x2="184" y2="152"/>
+          <line class="bound" x1="328" y1="18" x2="328" y2="152"/>
+          <line class="bound" x1="472" y1="18" x2="472" y2="152"/>
+          <line class="bound" x1="616" y1="18" x2="616" y2="152"/>
+          <rect class="bar" x="184" y="66" width="10" height="84"/>
+          <text class="val" x="189" y="62" text-anchor="middle">4,180</text>
+          <rect class="bar" x="328" y="147" width="10" height="3"/>
+          <text class="val" x="333" y="142" text-anchor="middle">118</text>
+          <rect class="bar" x="472" y="147" width="10" height="3"/>
+          <text class="val" x="477" y="142" text-anchor="middle">104</text>
+          <rect class="bar" x="616" y="146" width="8" height="4"/>
+          <text class="val" x="622" y="142" text-anchor="end">131</text>
+          <line class="axis" x1="40" y1="150" x2="624" y2="150"/>
+          <text class="lbl" x="40" y="166" text-anchor="middle">09:00</text>
+          <text class="lbl" x="184" y="166" text-anchor="middle">09:15</text>
+          <text class="lbl" x="328" y="166" text-anchor="middle">09:30</text>
+          <text class="lbl" x="472" y="166" text-anchor="middle">09:45</text>
+          <text class="lbl" x="612" y="166" text-anchor="middle">10:00</text>
+          <text class="lbl" x="40" y="181">top lane: events arriving. bottom lane: digests sent per sweep.</text>
+        </svg>
+        <figcaption>The import writes over 14 minutes, so arrivals are already spread out. The sweep un-spreads them: 4,180 digests all leave at 09:15:00, and the client sits at the 120 per second cap for 35 seconds getting them out.</figcaption>
+      </figure>
+      <p>That is the finding worth carrying forward. The input never contained a one-second burst; the fixed boundary manufactures one.</p>
+      <p>Everything else about direction 1 is comfortable. Worst-case latency is 15m 35s, inside the 30 minute commitment with 14 minutes spare. The busiest recipient gets 41 digests across the day, one per period in which they were active. Cost is a single number, 96 runs, and it does not move with volume.</p>
+      <p>The failure interaction is where the comfort stops. The 09:15 sweep runs from 09:15:00 to 09:15:35, entirely inside the recorded 502 window, so all 4,180 sends fail together. The sweep keeps no attempt record, so those rows stay unsent until the 09:30 sweep picks them up alongside everything new. All 4,180 recipients then get one digest at 09:30 carrying 30 minutes of events instead of 15, and neither the digest nor the flusher log says a first attempt was ever made.</p>
+      <dl class="verdict">
+        <dt><span class="chip good">Take</span></dt>
+        <dd>The flat cost model. 96 runs a day is one number to bill, one thing to alert on, and one place to look when digests stop arriving.</dd>
+        <dt><span class="chip high">Leave</span></dt>
+        <dd>The sweep-wide select. A per-recipient claim row with its own attempt counter is what turns 4,180 all-or-nothing sends into 4,180 independently retryable ones, and it is needed under every direction here.</dd>
+      </dl>
+      <p>Both halves of that verdict survive into the pick: the cost model as a reason the fixed period stays, the claim row as work that happens whichever trigger wins.</p>
+    </section>
+
+    <section id="d2" class="section dir dir--gap">
+      <p class="kicker">Direction 2</p>
+      <h2>Wait for a quiet gap</h2>
+      <p>Each event sets a 5 minute timer for its recipient. A new event resets the timer. The digest goes out after 5 quiet minutes, so a burst of related activity arrives as one message once the activity stops.</p>
+      <figure>
+        <svg class="fig" viewBox="0 0 640 196" role="img" aria-labelledby="g-t g-d">
+          <title id="g-t">A resetting quiet-gap timer, for the busiest recipient and for a typical one</title>
+          <desc id="g-d">For the busiest recipient an event arrives every 32 seconds on average from 09:00 to 12:42, so the 5 minute timer resets before it ever expires and the first digest lands at 12:47 holding 431 events. A typical recipient gets 2 events just after 09:04 and their digest goes out at 09:11.</desc>
+          <defs>
+            <pattern id="g-dense" width="8" height="24" patternUnits="userSpaceOnUse"><line class="ev" x1="1" y1="0" x2="1" y2="24"/></pattern>
+            <pattern id="g-saw" x="40" y="72" width="8" height="28" patternUnits="userSpaceOnUse"><path class="saw" d="M0 28 L6 4 L6 28"/></pattern>
+          </defs>
+          <text class="lbl" x="4" y="18">busiest recipient, 1,144 events</text>
+          <rect x="40" y="24" width="528" height="24" fill="url(#g-dense)"/>
+          <text class="lbl" x="40" y="64">5 quiet minutes needed to flush</text>
+          <text class="val" x="616" y="64" text-anchor="end">12:47: first digest, 431 events</text>
+          <line class="thresh" x1="40" y1="70" x2="616" y2="70"/>
+          <rect x="40" y="72" width="528" height="28" fill="url(#g-saw)"/>
+          <path class="saw" d="M568 100 L585 70"/>
+          <circle class="flush" cx="585" cy="70" r="4"/>
+          <text class="lbl" x="4" y="126">typical recipient, 2 events</text>
+          <line class="ev" x1="50" y1="132" x2="50" y2="152"/>
+          <line class="ev" x1="55" y1="132" x2="55" y2="152"/>
+          <path class="saw" d="M55 152 L67 136"/>
+          <circle class="flush" cx="67" cy="136" r="4"/>
+          <text class="val" x="78" y="140">09:11: one digest, 2 events</text>
+          <line class="axis" x1="40" y1="168" x2="620" y2="168"/>
+          <text class="lbl" x="40" y="184" text-anchor="middle">09:00</text>
+          <text class="lbl" x="184" y="184" text-anchor="middle">10:00</text>
+          <text class="lbl" x="328" y="184" text-anchor="middle">11:00</text>
+          <text class="lbl" x="472" y="184" text-anchor="middle">12:00</text>
+          <text class="lbl" x="612" y="184" text-anchor="middle">13:00</text>
+        </svg>
+        <figcaption>The sawtooth is the timer: it climbs while things are quiet and drops to zero on every arriving event. For the busiest recipient it never reaches the dashed threshold until activity stops at 12:42. For a typical recipient it reaches it on the first try.</figcaption>
+      </figure>
+      <p>For the 71% who get 1 to 3 events a day this reads better than anything else on offer. Two events at 09:04 and 09:06 become one digest at 09:11, and the digest holds exactly the things that belong together.</p>
+      <p>For the top 38 it fails the constraint outright. The busiest recipient receives an event more often than every 5 minutes from 09:00 until 12:42, so the timer never expires. The first digest lands at 12:47 holding 431 events: the newest is 5 minutes old, the oldest is 3h 47m old, and the 30 minute commitment is missed by more than three hours. A hard ceiling on top fixes that, and a quiet gap plus a hard ceiling is direction 4 with an extra timer.</p>
+      <p>A second problem hides inside a single-process replay. The flusher runs three replicas in production and the timers live in each process, so a recipient whose rows are visible to two replicas gets two digests. Moving the timers into Redis is possible; it also means 9,412 live keys with a reset on every event, which is a busier write path than either of the period-based directions needs.</p>
+      <dl class="verdict">
+        <dt><span class="chip good">Take</span></dt>
+        <dd>The quiet-gap reading for chat delivery specifically, where 5 idle minutes is a real conversational pause and a digest genuinely wants to match it. That is a follow-up for the chat transport, not a reason to run the mail path this way.</dd>
+        <dt><span class="chip high">Leave</span></dt>
+        <dd>The quiet gap as the only trigger. Starvation here is not a rare shape, it is the 38 heaviest recipients on every weekday morning.</dd>
+      </dl>
+      <p>Direction 2 is out on the constraint, not on cost. That is the cleanest kind of elimination available, so its other numbers are not argued over further.</p>
+    </section>
+
+    <section id="d3" class="section dir dir--slot">
+      <p class="kicker">Direction 3</p>
+      <h2>Give each recipient a slot</h2>
+      <p>Each recipient gets a fixed offset from a stable hash of their id, <code>crc32(recipient_id) % 900</code>, and their digest goes out at that second of every 15 minute period. The flusher wakes once a second and asks for the rows whose slot is now.</p>
+      <figure>
+        <svg class="fig" viewBox="0 0 640 180" role="img" aria-labelledby="s-t s-d">
+          <title id="s-t">Sends per second across one 900 second period under assigned slots</title>
+          <desc id="s-d">Across the 900 slots of the 09:00 period the send rate moves between 2 and 11 per second, averaging 4.7, against a vendor cap of 120 per second, so nothing queues. The recorded 502 window opens 20 slots before the end of this period and runs on through slot 179 of the next one, 200 slots in all.</desc>
+          <line class="cap" x1="40" y1="37" x2="620" y2="37"/>
+          <text class="val" x="620" y="32" text-anchor="end">mailgrid cap, 120 per second</text>
+          <rect class="win" x="603" y="46" width="13" height="94"/>
+          <text class="lbl" x="598" y="60" text-anchor="end">502 window opens here,</text>
+          <text class="lbl" x="598" y="72" text-anchor="end">20 slots before the boundary</text>
+          <path class="loadfill" d="M40 140 L40 136.6 L70 134.9 L100 137.4 L130 130.6 L160 135.7 L190 138.3 L220 134.0 L250 136.6 L280 135.7 L310 137.4 L340 135.7 L370 134.0 L400 136.6 L430 138.3 L460 134.9 L490 136.6 L520 137.4 L550 134.9 L580 137.4 L616 136.6 L616 140 Z"/>
+          <polyline class="load" points="40,136.6 70,134.9 100,137.4 130,130.6 160,135.7 190,138.3 220,134.0 250,136.6 280,135.7 310,137.4 340,135.7 370,134.0 400,136.6 430,138.3 460,134.9 490,136.6 520,137.4 550,134.9 580,137.4 616,136.6"/>
+          <circle class="peak" cx="130" cy="130.6" r="3"/>
+          <text class="val" x="140" y="126">peak 11 per second</text>
+          <line class="axis" x1="40" y1="140" x2="620" y2="140"/>
+          <text class="lbl" x="4" y="41">120</text>
+          <text class="lbl" x="4" y="144">0</text>
+          <text class="lbl" x="40" y="156" text-anchor="middle">slot 0</text>
+          <text class="lbl" x="328" y="156" text-anchor="middle">slot 450</text>
+          <text class="lbl" x="612" y="156" text-anchor="middle">slot 899</text>
+          <text class="lbl" x="40" y="174">sends per second, 09:00 period: 4,180 digests over 900 slots, mean 4.7</text>
+        </svg>
+        <figcaption>The band hugging the axis is the send rate, one point every 30 slots. The dashed line near the top is the vendor cap. Across the whole 09:00 period, import included, the busiest single second never gets within 109 sends of that line.</figcaption>
+      </figure>
+      <p>The property being bought is that the send rate does not depend on the arrival shape at all. Directions 2 and 4 also stayed under the cap on this replay, but only because the import writes over 14 minutes and they inherit that spread. Direction 3 would stay at 11 sends per second if the import wrote all 6,830 events in one statement, because slot assignment never looks at when an event arrived.</p>
+      <p>That matters now rather than in principle. <code>relay/ingest/bulk.py</code> lands this quarter and replaces the per-record import loop with a single insert. Replayed against that path, the peak second for directions 1, 2 and 4 becomes 120, 120 and 120. For direction 3 it stays at 11.</p>
+      <p>The failure interaction is the mildest of the four. The 502 window covers 180 of the 900 slots in the 09:15 period plus 20 slots at the tail of the 09:00 period, so 470 digests fail instead of 4,180, and each retries in its own next slot 15 minutes later without colliding with anyone else's retry. Worst-case latency is 14m 59s, for a recipient whose event lands one second after their slot has passed.</p>
+      <p>The cost is the wake-up rate. One tick a second is 86,400 queries a day where direction 1 does 96. The queries are trivial, but only with a composite index on <code>(flush_slot, sent_at)</code>: without it the replay showed a 340ms sequential scan per tick against a one-second budget, which is a slow saturation rather than a clean failure. Bucketing slots into 5 second groups cuts the tick rate to 17,280 a day and costs 4 seconds of latency, and no measurement here argues against doing that.</p>
+      <p>One caveat, stated plainly because it is easy to forget later: recipient ids are dense sequential integers today, and <code>crc32 % 900</code> spreads them close to uniformly, with the 38 heaviest recipients landing in 31 distinct slots so no slot carries two heavy digests. That is a property of the current id space, not of the hash.</p>
+      <dl class="verdict">
+        <dt><span class="chip good">Take</span></dt>
+        <dd>The stable per-recipient offset, bucketed to 5 seconds, and the per-slot retry that falls out of it for nothing.</dd>
+        <dt><span class="chip high">Leave</span></dt>
+        <dd>The one-second tick as written, and the assumption that the hash keeps spreading well after the move to opaque recipient ids. Both are re-measurable rather than structural.</dd>
+      </dl>
+      <p>Neither half of that verdict names a defect in the shape itself. The other three each have one.</p>
+    </section>
+
+    <section id="d4" class="section dir dir--ceiling">
+      <p class="kicker">Direction 4</p>
+      <h2>Count ceiling with an age cap</h2>
+      <p>Flush when a recipient has 20 pending events, or when their oldest pending event turns 20 minutes old, whichever comes first. Two triggers, both checked on the same tick.</p>
+      <figure>
+        <svg class="fig" viewBox="0 0 640 196" role="img" aria-labelledby="c-t c-d">
+          <title id="c-t">Which trigger fired across the day, and one digest's retry burst inside the outage</title>
+          <desc id="c-d">Of 12,410 digests in the day, 9,240 fired on the 20 minute age cap and 3,170 on the 20 event count ceiling. Below that, the nine sends one failed digest made between 09:16:59 and 09:18:00, every one of them inside the outage window and every one answered with a 502.</desc>
+          <defs>
+            <pattern id="c-hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line class="hatch" x1="0" y1="0" x2="0" y2="6"/></pattern>
+          </defs>
+          <text class="lbl" x="40" y="26">12,410 digests a day, by the trigger that fired</text>
+          <rect class="seg-age" x="40" y="34" width="417" height="28"/>
+          <rect class="seg-count" x="457" y="34" width="143" height="28"/>
+          <rect x="457" y="34" width="143" height="28" fill="url(#c-hatch)"/>
+          <text class="val" x="40" y="80">age cap, 20 min: 9,240 (74%)</text>
+          <text class="val" x="600" y="80" text-anchor="end">count ceiling, 20 events: 3,170 (26%)</text>
+          <text class="lbl" x="40" y="116">one digest that failed at 09:16:59, its next 61 seconds</text>
+          <line class="retry" x1="40" y1="126" x2="40" y2="150"/>
+          <line class="retry" x1="97" y1="126" x2="97" y2="150"/>
+          <line class="retry" x1="164" y1="126" x2="164" y2="150"/>
+          <line class="retry" x1="221" y1="126" x2="221" y2="150"/>
+          <line class="retry" x1="287" y1="126" x2="287" y2="150"/>
+          <line class="retry" x1="354" y1="126" x2="354" y2="150"/>
+          <line class="retry" x1="420" y1="126" x2="420" y2="150"/>
+          <line class="retry" x1="487" y1="126" x2="487" y2="150"/>
+          <line class="retry" x1="553" y1="126" x2="553" y2="150"/>
+          <line class="axis" x1="40" y1="150" x2="620" y2="150"/>
+          <text class="val" x="40" y="170">9 sends, 9 responses of HTTP 502</text>
+          <text class="lbl" x="40" y="188">09:16:59</text>
+          <text class="lbl" x="620" y="188" text-anchor="end">09:18:00</text>
+        </svg>
+        <figcaption>The upper bar splits the day's digests by which of the two triggers fired; the hatched right-hand segment is the count ceiling. The lower ticks are one digest's repeated sends after its first attempt failed.</figcaption>
+      </figure>
+      <p>The age cap is the useful half. It gives the tightest worst-case latency of the four, 20m 02s, and it does so without knowing anything about volume. 74% of the day's digests fire on it, so for most recipients the count ceiling is decoration.</p>
+      <p>The count ceiling is the problem half, and it is a tuning trap rather than a bug. At 20 events the busiest recipient receives 58 digests across the day, which is not a digest cadence, it is the current per-event behaviour at a 20&times; discount. Raise the ceiling to 60 and it fires 412 times a day across all recipients instead of 3,170, at which point the age cap does all the work and the ceiling is a second code path with no measurable job. No setting is right for both the 71% and the 38.</p>
+      <p>The concrete failure is the retry. When a send fails the pending rows stay pending, and their oldest event is by then older than 20 minutes, so the age cap is satisfied again on the very next tick. The replay recorded 9 sends for one digest in the 61 seconds from 09:16:59, all nine answered with a 502, and what stopped the loop was the vendor recovering at 09:18:00 rather than anything in the flusher. Fixing it needs an attempt counter and a backoff column, which is the same claim-row work direction 1 needs, so it is not an argument against direction 4 specifically. The scoring below assumes that fix is in place for all four.</p>
+      <p>On outage cost direction 4 loses 190 digests, the best of the four, and that number should not be trusted. Its flush distribution is a 20 minute delayed copy of the arrival distribution, so its exposure depends entirely on where an outage falls. The window happens to cover 09:14:40 to 09:18:00, which for direction 4 is the sparse tail of pre-import traffic; the import's own 4,180 digests flush from 09:20, two minutes after the vendor came back. An outage twenty minutes later would have hit it as hard as the 09:15 sweep hits direction 1.</p>
+      <dl class="verdict">
+        <dt><span class="chip good">Take</span></dt>
+        <dd>The 20 minute age cap, as a floor under whatever else fires. It is the cheapest way to make the 30 minute commitment structural rather than emergent.</dd>
+        <dt><span class="chip high">Leave</span></dt>
+        <dd>The count ceiling as a trigger. Tuned high it never fires; tuned low it reproduces per-event delivery for the people who most need batching.</dd>
+      </dl>
+      <p>Direction 4 contributes a guard, not a shape. It appears in the pick on exactly those terms.</p>
+    </section>
+
+    <section id="pick" class="section">
+      <h2>The pick, and what it costs</h2>
+      <div class="table-scroll" role="region" aria-label="Four directions scored on the same replayed day" tabindex="0">
+      <table>
+        <thead>
+          <tr><th>Measured on the replay</th><th>1 fixed sweep</th><th>2 quiet gap</th><th>3 assigned slot</th><th>4 ceiling plus age cap</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Peak sends in one second</td><td>120, at the cap for 35s</td><td>6</td><td>11</td><td>7</td></tr>
+          <tr><td>Worst latency, oldest event to delivery</td><td>15m 35s</td><td>3h 47m</td><td>14m 59s</td><td>20m 02s</td></tr>
+          <tr><td>Holds the 30 minute commitment</td><td><span class="chip good">yes</span></td><td><span class="chip crit">no</span></td><td><span class="chip good">yes</span></td><td><span class="chip good">yes</span></td></tr>
+          <tr><td>Digests a day</td><td>9,930</td><td>11,240</td><td>9,880</td><td>12,410</td></tr>
+          <tr><td>Digests a day, busiest recipient</td><td>41</td><td>3</td><td>41</td><td>58</td></tr>
+          <tr><td>Digests lost to the recorded 502 window</td><td>4,180</td><td>1,260</td><td>470</td><td>190, by luck of timing</td></tr>
+          <tr><td>Peak second once the bulk import lands</td><td>120</td><td>120</td><td>11</td><td>120</td></tr>
+        </tbody>
+      </table>
+      </div>
+      <p>Read the last row against the first: directions 2 and 4 stay under the vendor cap only while arrivals are spread across 14 minutes, so their good peak number belongs to the input rather than to the design. Direction 3 stays under it either way, and the input changes this quarter.</p>
+
+      <div class="card tint-info">
+        <p><strong>The call.</strong> Adopt direction 3's assigned per-recipient slot as the flush trigger, bucketed into 5 second groups, with direction 4's 20 minute age cap as a guard for any recipient whose slot has been skipped. This is not a fifth direction: it is direction 3 plus one guard clause, and the guard exists so a missed tick or a paused flusher cannot quietly push a digest past the published 30 minute commitment.</p>
+      </div>
+
+      <p>What it costs, in order of who has to act. A composite index on <code>relay_pending (flush_slot, sent_at)</code>: that one needs an exception to the migration freeze, and without it the tick degrades into a sequential scan rather than failing loudly, the worse of the two ways to be wrong. A per-recipient claim row with an attempt counter and a backoff column: directions 1 and 4 need it too, and nobody has scheduled it. A slot column backfilled for 9,412 recipients, cheap and reversible. And a re-measurement of the hash spread whenever recipient ids stop being dense integers.</p>
+      <p>None of that is large. The index exception is the only item with a dependency outside <code>relay</code>, and it is the only reason this cannot be implemented the week it is approved.</p>
+    </section>
+
+    <section id="change" class="section">
+      <h2>What would change the pick</h2>
+      <p>Four things would reopen this. Each is listed with what it would move to, rather than as a risk in the abstract:</p>
+      <ol>
+        <li><strong>The bulk import path gets dropped or deferred past this quarter.</strong> The strongest argument for direction 3 is that its send rate ignores arrival shape, and that only pays once arrivals can spike. If <code>relay/ingest/bulk.py</code> is shelved, direction 1 becomes the cheaper answer: 96 cron runs beat a per-second tick and an index exception.</li>
+        <li><strong>The vendor cap rises above the peak.</strong> The higher <code>mailgrid</code> tier quotes 1,000 sends per second. At that ceiling the 09:15 sweep drains in 4.2 seconds and most of the flat-load argument evaporates, again leaving direction 1 in front.</li>
+        <li><strong>The latency commitment tightens from 30 minutes to 10.</strong> That has been floated for chat delivery. A 10 minute commitment forces the period down to about 5 minutes and the slot space down to 300 seconds, and at 300 slots the heaviest recipients start sharing slots, which is the load-spreading property this pick was chosen for. That is a re-comparison, not a constant to retune.</li>
+        <li><strong>The migration freeze holds through the quarter.</strong> Then direction 3 is not shippable, and the fallback is direction 1 with the 20 minute age cap bolted on, accepting the 4,180 digest exposure during a vendor outage until the index lands.</li>
+      </ol>
+      <p>Three of those four point back at direction 1. The fixed sweep is the runner-up and the fallback, not a discarded option.</p>
+      <p>The honest limit on all of this is that it is one Monday. The trace is the heaviest weekday, and a quieter day would flatter every direction in roughly the same proportion, so the ordering is unlikely to move. But nothing here has been replayed against a month, the 502 window is a single recorded outage rather than a distribution, and the chat transport was not modelled at all.</p>
+    </section>
+
+    <footer class="provenance" data-provenance="true">
+      <p>Generated by <code>claude-opus-5</code> on 2026-07-26 &middot; reviewed by <code>Priya Nandakumar</code> &middot; source: dynamic-mode-example &middot; evidence: <code>relay/traces/2026-07-14-mon.jsonl</code> replayed via <code>relay/bench/replay.py</code>.</p>
+      <p>Example artifact for the <code>human-html</code> skill, showing <code>artifact-mode="dynamic"</code>: the structure (a pinned-input control block, one panel per direction with its own scoped visual treatment and a take/leave verdict, then the pick and what would change it) was invented for this subject rather than taken from the decision skeleton. The mechanical floor, the spine, and the prose rules all still apply.</p>
+      <script type="application/ld+json" id="provenance">
+        {
+          "@context": "https://schema.org/",
+          "@type": "CreativeWork",
+          "@id": "urn:human-html:2026-07-26:decision:dynamic-design-directions",
+          "additionalType": "ai-generated-artifact",
+          "artifactKind": "decision",
+          "artifactMode": "dynamic",
+          "dateCreated": "2026-07-26",
+          "creator": { "@type": "SoftwareApplication", "name": "claude-opus-5" },
+          "promptHash": "<sha256 of prompt; example artifact, no real prompt>",
+          "reviewer": "Priya Nandakumar",
+          "source": "dynamic-mode-example"
+        }
+      </script>
+    </footer>
+  </main>
+<div id="layout-audit" hidden role="status">⚠ This artifact overflows horizontally at this width - wrap wide tables / diagrams / <code>pre</code> blocks so they scroll, or they will clip on a phone.</div>
+  <script>
+    (function () {
+      var el = document.getElementById('layout-audit');
+      if (!el) return;
+      function check() { el.hidden = !(document.documentElement.scrollWidth > window.innerWidth + 2); }
+      window.addEventListener('DOMContentLoaded', check);
+      window.addEventListener('resize', check);
+    })();
+  </script>
+  <script>
+    (function(){
+      var btn=document.querySelector('.theme-toggle'); if(!btn) return;
+      function cur(){ return document.documentElement.dataset.theme || (window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light'); }
+      function label(){ btn.setAttribute('aria-label', cur()==='dark'?'Switch to light theme':'Switch to dark theme'); }
+      label();
+      btn.addEventListener('click', function(){
+        var next=cur()==='dark'?'light':'dark';
+        document.documentElement.dataset.theme=next;
+        try{ localStorage.setItem('hh-theme', next); }catch(e){}
+        label();
+      });
+    })();
+  </script>
+</body>
+</html>
