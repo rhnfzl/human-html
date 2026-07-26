@@ -7,7 +7,9 @@ examples/prototype-canonical.html -- so "passes js-content-fallback" was not
 evidence of a real no-JS static floor.
 """
 
+import fnmatch
 import importlib.util
+import json
 import re
 import sys
 import unittest
@@ -370,6 +372,275 @@ class SimulateNoJsTest(unittest.TestCase):
         self.assertTrue(
             inline_display,
             "if no .js-only control carries an inline display any more, !important can go",
+        )
+
+
+class SourceFilesProvenanceTest(unittest.TestCase):
+    """The optional `sourceFiles` block, and why only the revision is enforced.
+
+    A files-read list without the revision it was read at cannot answer the question it
+    exists for: is this artifact still true about those files? With the revision a reader
+    runs `git diff <rev> -- <paths>`. Without it the list is decoration.
+    """
+
+    def test_absent_block_is_silent(self):
+        """Opting out must cost nothing. This is a pattern, not a requirement."""
+        self.assertEqual(hha._source_files_warnings(Path("a.html"), {}), [])
+
+    def test_complete_block_is_silent(self):
+        obj = {"sourceFiles": {"paths": ["a.ts"], "readAtRevision": "9c2ad10"}}
+        self.assertEqual(hha._source_files_warnings(Path("a.html"), obj), [])
+
+    def test_paths_without_a_revision_warn(self):
+        obj = {"sourceFiles": {"paths": ["a.ts"]}}
+        warnings = hha._source_files_warnings(Path("a.html"), obj)
+        self.assertTrue(any("readAtRevision" in w for w in warnings), warnings)
+
+    def test_revision_without_paths_warns(self):
+        obj = {"sourceFiles": {"paths": [], "readAtRevision": "9c2ad10"}}
+        warnings = hha._source_files_warnings(Path("a.html"), obj)
+        self.assertTrue(any("non-empty array" in w for w in warnings), warnings)
+
+    def test_wrong_shape_warns_instead_of_crashing(self):
+        for bad in (["a.ts"], "a.ts", 3, None):
+            with self.subTest(value=bad):
+                warnings = hha._source_files_warnings(Path("a.html"), {"sourceFiles": bad})
+                self.assertTrue(warnings, f"{bad!r} should warn")
+
+    def test_an_explicit_null_is_not_the_same_as_omission(self):
+        """`"sourceFiles": null` means the author started the block and left it empty."""
+        self.assertEqual(hha._source_files_warnings(Path("a.html"), {}), [])
+        self.assertTrue(hha._source_files_warnings(Path("a.html"), {"sourceFiles": None}))
+
+    def test_element_types_are_checked_not_just_truthiness(self):
+        """The block's only job is to make a `git diff` runnable.
+
+        A numeric revision or a path array of integers passes a truthiness check and
+        produces an unusable command, which is the failure this guards.
+        """
+        bad_paths = [
+            ([1, 2, 3], "integers"),
+            (["a.ts", ""], "an empty string among real paths"),
+            (["   "], "whitespace only"),
+            ("a.ts", "a bare string instead of an array"),
+        ]
+        for paths, why in bad_paths:
+            with self.subTest(paths=why):
+                warnings = hha._source_files_warnings(
+                    Path("a.html"), {"sourceFiles": {"paths": paths, "readAtRevision": "9c2ad10"}}
+                )
+                self.assertTrue(any("path strings" in w for w in warnings), f"{why}: {warnings}")
+
+        for revision, why in ((12345, "a number"), ("", "empty"), ("  ", "whitespace")):
+            with self.subTest(revision=why):
+                warnings = hha._source_files_warnings(
+                    Path("a.html"), {"sourceFiles": {"paths": ["a.ts"], "readAtRevision": revision}}
+                )
+                self.assertTrue(
+                    any("readAtRevision" in w for w in warnings), f"{why}: {warnings}"
+                )
+
+    def _files_read_parts(self, text: str) -> dict | None:
+        """Pull a files-read block apart, or None when the artifact carries no block.
+
+        Shared by the two guards below so they cannot end up disagreeing about what
+        counts as a listed path, which is how the `<li>` blind spot below survived.
+        """
+        blocks = re.findall(r'<details class="files-read">(.*?)</details>', text, re.DOTALL)
+        if not blocks:
+            return None
+        html = blocks[0]
+        summary = re.search(r"<summary\b[^>]*>(.*?)</summary>", html, re.DOTALL)
+        return {
+            "html": html,
+            # Only the first block is parsed, so a second would go unchecked. The guards
+            # assert this is 1 rather than quietly inspecting one block out of several.
+            "blocks": len(blocks),
+            "summary": summary.group(1) if summary else None,
+            # Attributes on the <li> are tolerated: markup this pattern fails to match is
+            # a visible path the guards cannot see, not a path that is absent.
+            "shown": re.findall(r"<li\b[^>]*>\s*<code>([^<]+)</code>", html),
+            "items": len(re.findall(r"<li\b", html)),
+            # The command is line-wrapped in the source; collapse before matching.
+            "command": re.search(r"<code>(git diff [^<]*)</code>", " ".join(html.split())),
+        }
+
+    def _revision_tokens(self, parts: dict) -> tuple[str | None, str | None]:
+        """The revision as the summary shows it, and as the command passes it.
+
+        Returned as exact tokens rather than checked by substring, because
+        `readAtRevision` is any non-empty string and so may legitimately be a branch or
+        tag name rather than a hex SHA. A declared `main` is a substring of a summary
+        reading `domain`, and of a command touching `domain/file.ts`, so membership
+        would call two different revisions equal.
+        """
+        summary_revision = None
+        if parts["summary"] is not None:
+            code = re.search(r"<code>([^<]+)</code>", parts["summary"])
+            summary_revision = code.group(1).strip() if code else None
+
+        command_revision = None
+        if parts["command"] is not None:
+            head, _, _ = parts["command"].group(1).partition(" -- ")
+            tokens = head.split()
+            # The revision is the last token before the separator. Requiring more than
+            # the `git diff` prefix is what stops `git diff -- a.ts` reporting "diff",
+            # and taking the last token rather than the only non-flag token is what keeps
+            # a two-token flag such as `git diff -l 5 <rev>` from leaving a stray operand
+            # behind and reading as no revision at all.
+            if len(tokens) > 2 and not tokens[-1].startswith("-"):
+                command_revision = tokens[-1]
+        return summary_revision, command_revision
+
+    def test_every_files_read_block_agrees_with_its_own_json_ld(self):
+        """The visible list and the JSON-LD are one fact written twice.
+
+        The failure mode is editing one and forgetting the other, which leaves a reader
+        running a `git diff` over a path set the artifact no longer claims to have read.
+        Runs over every example carrying the block, so a new one is covered on arrival.
+
+        The revision is checked in the summary and in the command separately, not just
+        somewhere in the block: searching the whole block lets the summary drift to a
+        different revision while the command still carries the declared one, and the
+        summary is the revision the reader actually reads.
+        """
+        examples = sorted((REPO / "skills/human-html/examples").glob("*.html"))
+        carriers = []
+        for path in examples:
+            parts = self._files_read_parts(path.read_text(encoding="utf-8"))
+            if parts is None:
+                continue
+            carriers.append(path.name)
+            with self.subTest(example=path.name):
+                self.assertEqual(
+                    parts["blocks"], 1,
+                    "only the first files-read block is parsed, so a second one would "
+                    "go unchecked; keep one block per artifact",
+                )
+                shown = parts["shown"]
+                self.assertTrue(shown, "the block lists no files")
+                self.assertEqual(
+                    len(shown), parts["items"],
+                    "an <li> in the block was not read as a path, so the visible list "
+                    "could gain or lose a file without this guard noticing",
+                )
+
+                text = path.read_text(encoding="utf-8")
+                script = re.search(
+                    r'<script type="application/ld\+json" id="provenance">(.*?)</script>',
+                    text, re.DOTALL,
+                )
+                assert script is not None, f"{path.name} has no provenance JSON-LD"
+                declared = json.loads(script.group(1)).get("sourceFiles")
+                self.assertIsNotNone(
+                    declared, "a visible files-read block needs a sourceFiles object too"
+                )
+                self.assertEqual(shown, declared["paths"], "visible list and JSON-LD disagree")
+                self.assertIn(
+                    f"Files read ({len(shown)})", parts["html"], "summary count is stale"
+                )
+
+                revision = declared["readAtRevision"]
+                assert parts["command"] is not None, f"{path.name} states no staleness command"
+                summary_revision, command_revision = self._revision_tokens(parts)
+                self.assertEqual(
+                    summary_revision, revision,
+                    "the revision the summary shows is not the one the JSON-LD declares",
+                )
+                self.assertEqual(
+                    command_revision, revision,
+                    "the revision the command passes is not the one the JSON-LD declares",
+                )
+        self.assertGreaterEqual(
+            len(carriers), 2,
+            "at least two shipped examples should demonstrate the pattern; found: " + str(carriers),
+        )
+
+    def test_every_staleness_command_covers_every_file_it_lists(self):
+        """The `git diff` pathspec may exceed the listed files; it must never trim them.
+
+        The block's promise is that empty output means nothing the artifact read has
+        moved. A pathspec narrower than the list breaks that promise without ever
+        looking broken: the command still prints nothing while a file a claim rests on
+        has changed underneath it. Widening is legitimate and sometimes stronger, so
+        this asserts containment rather than equality.
+        """
+        examples = sorted((REPO / "skills/human-html/examples").glob("*.html"))
+        for path in examples:
+            parts = self._files_read_parts(path.read_text(encoding="utf-8"))
+            if parts is None:
+                continue
+            with self.subTest(example=path.name):
+                command = parts["command"]
+                assert command is not None, f"{path.name} states no staleness command"
+                _, separator, pathspec = command.group(1).partition(" -- ")
+                self.assertTrue(separator, "the staleness command has no `--` pathspec")
+                # A glob pathspec is quoted in the command so the shell leaves it to git.
+                scopes = [scope.strip("'\"") for scope in pathspec.split()]
+                self.assertTrue(scopes, "the staleness command has an empty pathspec")
+                for listed in parts["shown"]:
+                    self.assertTrue(
+                        any(
+                            listed == scope
+                            or listed.startswith(scope.rstrip("/") + "/")
+                            # git's pathspec `*` crosses directory boundaries, and so does
+                            # fnmatch's, so a glob scope covers what git says it covers.
+                            or fnmatch.fnmatch(listed, scope)
+                            for scope in scopes
+                        ),
+                        f"{listed} is listed as read but falls outside the pathspec "
+                        f"{scopes}, so empty output would not prove it is untouched",
+                    )
+
+    def test_the_documented_snippet_obeys_the_rules_it_is_printed_beside(self):
+        """The snippet in `patterns.md` is held *tighter* than a shipped artifact.
+
+        It is the copy source, so it outranks the prose next to it: whatever it does is
+        what the next artifact does. So its pathspec must match its declared paths
+        exactly, rather than merely containing them. An artifact is allowed to widen,
+        and `dynamic-port-correspondence.html` is where that exception is demonstrated
+        with the clause explaining it; a bare widening in the snippet teaches the
+        exception as the default and costs every copier a false alarm on an undeclared
+        file. Nothing checked the snippet until now, which is how it came to list
+        `routes/*.ts` while diffing the wider `routes/`.
+        """
+        doc = (REPO / "skills/human-html/references/patterns.md").read_text(encoding="utf-8")
+        parts = self._files_read_parts(doc)
+        self.assertIsNotNone(parts, "patterns.md no longer ships a files-read snippet")
+        assert parts is not None
+        self.assertEqual(
+            parts["blocks"], 1,
+            "only the first snippet is parsed, so a second one would go unchecked",
+        )
+
+        # The JSON-LD half is a fragment in its own fence, so brace it back into an object.
+        fragment = re.search(r'("sourceFiles":\s*\{.*?\n\})', doc, re.DOTALL)
+        assert fragment is not None, "patterns.md ships no sourceFiles snippet"
+        declared = json.loads("{" + fragment.group(1) + "}")["sourceFiles"]
+
+        self.assertEqual(
+            parts["shown"], declared["paths"],
+            "the snippet's visible list and its JSON-LD disagree",
+        )
+        self.assertEqual(
+            len(parts["shown"]), parts["items"], "an <li> in the snippet was not read as a path"
+        )
+        revision = declared["readAtRevision"]
+        self.assertIsNotNone(parts["summary"], "the snippet has no <summary>")
+        self.assertIn(revision, parts["summary"], "the snippet's summary revision disagrees")
+        command = parts["command"]
+        assert command is not None, "the snippet states no staleness command"
+        self.assertIn(revision, command.group(1), "the snippet's command revision disagrees")
+
+        _, separator, pathspec = command.group(1).partition(" -- ")
+        self.assertTrue(separator, "the snippet's command has no `--` pathspec")
+        scopes = [scope.strip("'\"") for scope in pathspec.split()]
+        self.assertEqual(
+            sorted(scopes), sorted(parts["shown"]),
+            "the snippet's pathspec must be exactly the paths it declares; widening is "
+            "an artifact's call to make and to explain, and teaching it as the default "
+            "costs every copier a false alarm on an undeclared file. Order is not "
+            "checked: the same paths in a different order cover the same scope",
         )
 
 

@@ -311,6 +311,55 @@ Every artifact is AI-generated to some degree. A provenance footer captures the 
 
 Required fields per the AI-BOM / model-card synthesis: `@id` or `id`, `creator` (model + version), `promptHash` or `prompt`, `dateCreated`, `reviewer`. Prompts containing PII should be hashed and archived externally rather than embedded.
 
+### House rule: the prompt lives here, never in a card at the top
+
+**Do not open an artifact with a visible "the prompt that made this" block.** The pattern shows up in the wild as a bordered card above the content holding the verbatim prompt with a copy button, and it is tempting because it looks like transparency. It is not the house style here, for one reason: `promptHash` in the footer already makes the artifact auditable, so a card spends the most valuable space on the page on something the reader did not come for. A reader opens a plan to find out whether the plan is sound. The prompt is provenance, and provenance belongs in the footer with the rest of it.
+
+The rule is about placement and prominence, not about hiding anything. Put the full prompt in the footer instead of a hash whenever it is non-sensitive; that is more transparent than a card and costs the reader nothing.
+
+### Files read (optional, best in `understanding` / `research` / `review`)
+
+An artifact that explains code makes claims about a codebase that keeps moving. Six weeks later a reader has no way to tell whether it is still true, and the honest answer is usually "mostly, except for the bit that changed". A list of the files the artifact consulted, **plus the revision they were read at**, turns that guess into a command.
+
+```html
+<details class="files-read">
+  <summary>Files read (4) at <code>9c2ad10</code></summary>
+  <ul>
+    <li><code>middleware/ratelimit.ts</code></li>
+    <li><code>lib/tokenBucket.ts</code></li>
+    <li><code>config/limits.yaml</code></li>
+    <li><code>routes/*.ts</code></li>
+  </ul>
+  <p>Still accurate? <code>git diff --stat 9c2ad10 -- middleware/ratelimit.ts
+  lib/tokenBucket.ts config/limits.yaml 'routes/*.ts'</code>. Empty output means every file
+  still matches what this artifact read, your uncommitted edits included.</p>
+</details>
+```
+
+And in the provenance JSON-LD, so it is machine-checkable rather than only readable:
+
+```json
+"sourceFiles": {
+  "readAtRevision": "9c2ad10",
+  "paths": ["middleware/ratelimit.ts", "lib/tokenBucket.ts", "config/limits.yaml", "routes/*.ts"]
+}
+```
+
+**One block per artifact.** `sourceFiles` carries a single `readAtRevision`, so an artifact spanning two repositories read at two different revisions is not expressible today. Where the sources really do span a boundary, look for a revision that covers both, the way `dynamic-port-correspondence.html` uses a branch tip carrying the shipping implementation and the port together. If no such revision exists, say the second revision in prose rather than adding a second block, which would have no JSON-LD counterpart and so nothing to keep it honest.
+
+**The revision is the whole pattern.** A bare path list looks informative and answers nothing: the reader already assumed you read the rate limiter. What they cannot know is whether it has changed since. `readAtRevision` is what converts the block from a credential into a staleness check somebody can actually run, which is why the validator warns when `sourceFiles` is present without it. Nothing warns if you leave the block out entirely; this is an adoptable pattern, not a requirement.
+
+Four things keep it honest:
+
+- **Write the command against the revision alone, not `<rev>..HEAD`.** The two-dot form compares two *commits*, so a reader sitting on uncommitted edits to one of the listed files gets empty output and concludes the artifact is current. `git diff --stat <rev> -- <paths>` compares the revision against the working tree, which is the question the reader is actually asking. Checked rather than assumed: with an uncommitted edit in place, the two-dot form prints nothing and the one-argument form prints the change. Neither form sees a brand-new **untracked** file, so an artifact whose accuracy can be broken by a file *arriving* (a port, a migration) should point at `git status` for that half. Say "still matches what was read" rather than "nothing changed": the command compares content at the two ends, so a file that was changed and later reverted also reads as clean. That is the right answer for staleness and the wrong claim about history, so make the claim the one the command actually supports.
+- **List what was read, not what exists.** The temptation is to paste the module's whole file tree, which inflates the apparent thoroughness and makes the `git diff` useless by dragging in files no claim depends on. If a file did not inform a claim, leave it out.
+- **A glob is fine when it is what you actually did.** `routes/*.ts` is honest if you read the directory; it is dishonest as shorthand for "some routes". Carry the glob through into the command and quote it, so the shell hands it to git rather than expanding it first, and so the command checks what the list declares. The looser `routes/` costs the reader a false alarm every time an undeclared `routes/README.md` changes. Git's pathspec `*` crosses directory boundaries, so `'routes/*.ts'` also covers `routes/nested/b.ts`, which is what "I read the routes directory" implies anyway.
+- **The command's scope must contain the list, and may exceed it.** The paths are what you read; the `git diff` is what would falsify the artifact, and those are not the same set. A correspondence or migration artifact is also wrong when a file *appears* in the target that nobody mapped, and a check scoped to the files already read cannot see one arrive, so widening to the directory is the stronger choice there (`dynamic-port-correspondence.html` does this). Widening is safe in one direction only: empty output still has to prove every listed file is untouched, so the scope may grow past the list and must never trim it. If you do widen it, say why in a clause, because a command that does not visibly match the list above it otherwise reads as a mistake.
+
+Keep it in `<details>`, collapsed. It is reference material for a reader who has already decided to trust or check the artifact, so it should cost nothing on the way past. Native `<details>` also means it works with JavaScript off, and the scaffold already styles `details` and `summary`, so `.files-read` needs no CSS of its own.
+
+Keep the visible list and the JSON-LD identical. They are the same fact written twice, one for a person and one for a script, and the failure mode is editing one and forgetting the other. `understanding-canonical.html` is the worked example, and a test asserts the two agree there.
+
 ## BLUF compact opener mode (alternative to the 3-bullet answer-first opener)
 
 The 3-bullet answer-first opener (Rule 1) is the default. For time-critical artifacts where 3 bullets is too much (an incident artifact emailed to a CTO; a yes/no decision needing a 30-second read), BLUF (Bottom Line Up Front) is the alternative. Same `data-summary="true"` marker, different body shape: one short sentence stating the decision or ask, then a one-sentence rationale.

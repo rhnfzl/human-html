@@ -965,6 +965,51 @@ def _provenance_field_warnings(rel: Path, parser: ArtifactHTMLParser) -> list[st
                 warnings.append(
                     f"{rel}: provenance JSON-LD missing fields: {', '.join(missing)}"
                 )
+            warnings.extend(_source_files_warnings(rel, obj))
+    return warnings
+
+
+def _source_files_warnings(rel: Path, obj: dict) -> list[str]:
+    """Check an OPTIONAL `sourceFiles` block, and only once the author opts in.
+
+    A "files read" list without the revision it was read at cannot answer the one question
+    it exists for: is this artifact still true about those files? With the revision a reader
+    runs `git diff <rev> -- <paths>` and an empty result means nothing it consulted has
+    changed. Without it the list is decoration, so the revision is the part worth checking.
+    (Deliberately not `<rev>..HEAD`: that compares two commits and calls an uncommitted edit
+    clean. See "Files read" in references/patterns.md.)
+
+    Nothing here fires unless `sourceFiles` is present. This is an adoptable pattern, not a
+    requirement, and a rule that nags every artifact into carrying one would be wrong.
+    """
+    # Membership, not `.get()`: an explicit `"sourceFiles": null` means the author started the
+    # block and left it empty, which is worth flagging. Only true omission is silent.
+    if "sourceFiles" not in obj:
+        return []
+    source_files = obj["sourceFiles"]
+    if not isinstance(source_files, dict):
+        return [f"{rel}: provenance sourceFiles must be an object with paths + readAtRevision"]
+
+    # Types are checked down to the element, because the block's only job is to make
+    # `git diff <readAtRevision> -- <paths>` runnable. A numeric revision or a path
+    # array of integers would satisfy a truthiness check and produce an unusable command.
+    warnings: list[str] = []
+    paths = source_files.get("paths")
+    if not (
+        isinstance(paths, list)
+        and paths
+        and all(isinstance(item, str) and item.strip() for item in paths)
+    ):
+        warnings.append(
+            f"{rel}: provenance sourceFiles.paths must be a non-empty array of non-empty "
+            "path strings"
+        )
+    revision = source_files.get("readAtRevision")
+    if not (isinstance(revision, str) and revision.strip()):
+        warnings.append(
+            f"{rel}: provenance sourceFiles needs a readAtRevision string, so a reader can tell "
+            "whether the files have changed since; use the commit the artifact was written against"
+        )
     return warnings
 
 
