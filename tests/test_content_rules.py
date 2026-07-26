@@ -446,6 +446,13 @@ class SourceFilesProvenanceTest(unittest.TestCase):
         Shared by the two guards below so they cannot end up disagreeing about what
         counts as a listed path, which is how the `<li>` blind spot below survived.
         """
+        # A sample of the pattern shown inside a <textarea> or a raw-text <script> is not
+        # a block the browser renders; it is text. Strip those before counting, or an
+        # artifact that demonstrates the pattern gets rejected for having two.
+        text = re.sub(
+            r"<(textarea|script)\b[^>]*>.*?</\1\s*>", "", text,
+            flags=re.DOTALL | re.IGNORECASE,
+        )
         blocks = re.findall(r'<details class="files-read">(.*?)</details>', text, re.DOTALL)
         if not blocks:
             return None
@@ -465,32 +472,32 @@ class SourceFilesProvenanceTest(unittest.TestCase):
             "command": re.search(r"<code>(git diff [^<]*)</code>", " ".join(html.split())),
         }
 
-    def _revision_tokens(self, parts: dict) -> tuple[str | None, str | None]:
-        """The revision as the summary shows it, and as the command passes it.
+    def _summary_revision(self, parts: dict) -> str | None:
+        """The revision as the summary shows it, as an exact token.
 
-        Returned as exact tokens rather than checked by substring, because
-        `readAtRevision` is any non-empty string and so may legitimately be a branch or
-        tag name rather than a hex SHA. A declared `main` is a substring of a summary
-        reading `domain`, and of a command touching `domain/file.ts`, so membership
-        would call two different revisions equal.
+        Compared by equality rather than substring because `readAtRevision` is any
+        non-empty string and so may be a branch or tag rather than a hex SHA. A declared
+        `main` is a substring of a summary reading `domain`, so membership would call two
+        different revisions equal.
         """
-        summary_revision = None
-        if parts["summary"] is not None:
-            code = re.search(r"<code>([^<]+)</code>", parts["summary"])
-            summary_revision = code.group(1).strip() if code else None
+        if parts["summary"] is None:
+            return None
+        code = re.search(r"<code>([^<]+)</code>", parts["summary"])
+        return code.group(1).strip() if code else None
 
-        command_revision = None
-        if parts["command"] is not None:
-            head, _, _ = parts["command"].group(1).partition(" -- ")
-            tokens = head.split()
-            # The revision is the last token before the separator. Requiring more than
-            # the `git diff` prefix is what stops `git diff -- a.ts` reporting "diff",
-            # and taking the last token rather than the only non-flag token is what keeps
-            # a two-token flag such as `git diff -l 5 <rev>` from leaving a stray operand
-            # behind and reading as no revision at all.
-            if len(tokens) > 2 and not tokens[-1].startswith("-"):
-                command_revision = tokens[-1]
-        return summary_revision, command_revision
+    def _command_operands(self, parts: dict) -> list[str]:
+        """The tokens the command passes before the `--`, without interpreting them.
+
+        Deliberately does not try to work out *which* one is the revision. Every attempt
+        at that needs to know which flags take a separate value, and git has several
+        (`-S needle`, `-l 5`), so a flag's value gets reported as the revision whenever
+        the command has no revision at all. The caller asks the answerable question
+        instead: is the declared revision one of these tokens?
+        """
+        if parts["command"] is None:
+            return []
+        head, _, _ = parts["command"].group(1).partition(" -- ")
+        return head.split()
 
     def test_every_files_read_block_agrees_with_its_own_json_ld(self):
         """The visible list and the JSON-LD are one fact written twice.
@@ -542,14 +549,13 @@ class SourceFilesProvenanceTest(unittest.TestCase):
 
                 revision = declared["readAtRevision"]
                 assert parts["command"] is not None, f"{path.name} states no staleness command"
-                summary_revision, command_revision = self._revision_tokens(parts)
                 self.assertEqual(
-                    summary_revision, revision,
+                    self._summary_revision(parts), revision,
                     "the revision the summary shows is not the one the JSON-LD declares",
                 )
-                self.assertEqual(
-                    command_revision, revision,
-                    "the revision the command passes is not the one the JSON-LD declares",
+                self.assertIn(
+                    revision, self._command_operands(parts),
+                    "the command does not pass the revision the JSON-LD declares",
                 )
         self.assertGreaterEqual(
             len(carriers), 2,
