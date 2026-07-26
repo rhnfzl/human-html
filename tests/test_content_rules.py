@@ -483,14 +483,13 @@ class SourceFilesProvenanceTest(unittest.TestCase):
         if parts["command"] is not None:
             head, _, _ = parts["command"].group(1).partition(" -- ")
             tokens = head.split()
-            if tokens[:2] == ["git", "diff"]:
-                tokens = tokens[2:]
-            # `git diff <rev> -- <paths>` has exactly one operand once the flags are gone.
-            # Taking the last token instead would read `git diff -- a.ts` as revision
-            # "diff" and then fail with a message about the wrong thing.
-            operands = [token for token in tokens if not token.startswith("-")]
-            if len(operands) == 1:
-                command_revision = operands[0]
+            # The revision is the last token before the separator. Requiring more than
+            # the `git diff` prefix is what stops `git diff -- a.ts` reporting "diff",
+            # and taking the last token rather than the only non-flag token is what keeps
+            # a two-token flag such as `git diff -l 5 <rev>` from leaving a stray operand
+            # behind and reading as no revision at all.
+            if len(tokens) > 2 and not tokens[-1].startswith("-"):
+                command_revision = tokens[-1]
         return summary_revision, command_revision
 
     def test_every_files_read_block_agrees_with_its_own_json_ld(self):
