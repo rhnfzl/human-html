@@ -1,9 +1,9 @@
 ---
 name: human-html
 description: Use when creating a human review surface, such as a plan, review, architecture explainer, understanding doc, research synthesis, decision aid, prototype, status report, or incident postmortem. Put the artifact under docs/human-html/ as HTML instead of Markdown. Markdown stays for scratch notes, durable references, ticket notes, drafts, and meetings. Provides scaffolds, validation, index refresh, glossary support, and hooks for Claude Code and Codex.
-version: 1.2.4
+version: 1.3.0
 owner: rhnfzl
-last_reviewed: 2026-07-10
+last_reviewed: 2026-07-26
 license: MIT
 ---
 

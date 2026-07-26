@@ -44,7 +44,7 @@ The command merges with existing settings and is safe to rerun. Replace `<skill-
 ## Why this exists
 
 1. **Humans skim.** A long Markdown plan gets a rubber stamp, not a review. These artifacts are built for a reader with ten minutes: summary first, visuals in every comparison, verdicts answer-first, risks in color.
-2. **Document quality decays.** Style intentions vanish the moment an agent regenerates a file. Here the shape is a validated contract (`check`): four rules block, the rest warn, every rule suppressible per artifact.
+2. **Document quality decays.** Style intentions vanish the moment an agent regenerates a file. Here the shape is a validated contract (`check`): three rules always block, `nav-anchors` blocks unless the artifact is in dynamic mode, the rest warn, and every rule is suppressible per artifact. The checks are markers, not proofs, and [`references/artifact-spine.md`](skills/human-html/references/artifact-spine.md) says exactly what each one does and does not establish.
 3. **Sharing tools assume upload.** Default is local; nothing leaves your machine. Sharing is a menu: GitHub Pages (artifacts are already static HTML), an optional bring-your-own-bucket S3 script with zero defaults, or any static host. Note: Mermaid blocks load a CDN at view time; render to inline SVG for fully-offline artifacts.
 
 The contract itself is stolen craft, in the [Steal Like an Artist](https://austinkleon.com/steal/) sense: the inverted pyramid, postmortem timelines, C4 diagrams, first-use glossing. The nine canonical examples exist to be stolen from too, and so does the repo: fork it, re-theme it, suppress what you disagree with.
@@ -65,17 +65,43 @@ Each kind has its own scaffold and a canonical example showing what good looks l
 | [status](https://rhnfzl.github.io/human-html/skills/human-html/examples/status-canonical.html) | catch up: where we are, blockers, next |
 | [incident](https://rhnfzl.github.io/human-html/skills/human-html/examples/incident-canonical.html) | learn from failure: timeline, root cause, actions |
 
+## When the shape is the argument: dynamic mode
+
+The nine kinds pre-decide a section skeleton before anyone knows what the artifact needs to say. That is the right trade most of the time and the wrong one sometimes. A findings taxonomy, a four-way design exploration, a line-by-line map of a port: each of those has a natural shape, and the shape carries part of the argument. Forcing it into `plan` sections makes the document worse.
+
+```bash
+python3 <skill-dir>/human_html_artifacts.py new review "Blindspot pass on RFC 214" --mode dynamic
+```
+
+One question decides which to use: **does the reader benefit from this looking like the last one?** Yes means use a kind, because comparability across instances is the value; this week's status report should look like last week's so the difference stands out. No means go dynamic. Unclear means use the kind, since a kind that fits slightly badly costs a reader less than an invented structure that fits nothing.
+
+Dynamic mode stands down exactly three rules, all of them about *which sections exist*: `required-section`, `read-map`, and `nav-anchors` (from block to warn). Nothing that aims at the reader is relaxed. The artifact still has to render on a phone, exist with JavaScript off, answer first, put a real visual in every comparison, and gloss its terms. The split is clean because the rules were always two populations wearing one coat: `required-section` says *a plan looks like this*, `viewport-meta` says *a human on a phone can read this*.
+
+Structure is yours; style is not. Dynamic artifacts inherit the scaffold's tokens and type scale rather than inventing a palette, and [`references/artifact-spine.md`](skills/human-html/references/artifact-spine.md) is the standard the validator cannot check: what an artifact must never do whatever shape it takes. Three examples ship ([blindspot pass](https://rhnfzl.github.io/human-html/skills/human-html/examples/dynamic-blindspot-pass.html), [design directions](https://rhnfzl.github.io/human-html/skills/human-html/examples/dynamic-design-directions.html), [port correspondence](https://rhnfzl.github.io/human-html/skills/human-html/examples/dynamic-port-correspondence.html)) and they deliberately share no structure, so none of them reads as the template.
+
+## Seeing the artifact, with and without JavaScript
+
+`render` screenshots an artifact through headless Chrome so an agent can look at its own output and fix a clipped diagram before a human ever opens it:
+
+```bash
+python3 <skill-dir>/human_html_artifacts.py render <file>          # what a reader sees
+python3 <skill-dir>/human_html_artifacts.py render <file> --no-js   # what a JS-disabled preview sees
+```
+
+`--no-js` matters more than it sounds. Artifacts get opened in iOS Quick Look, Android file previews, and email, all of which render HTML and CSS but run no JavaScript. The validator can only grep for a `<noscript>`; it cannot tell whether the fallback is real. On its first use `--no-js` found that this repo's own `prototype-canonical.html` had a broken static floor, hidden for weeks behind a rule that reported clean.
+
 ## What's in the box
 
 | Piece | What it does |
 |---|---|
-| `skills/human-html/SKILL.md` | The contract: rules, per-kind scaffolds, illustration menu, hook wiring |
-| `skills/human-html/human_html_artifacts.py` | `init` / `new` / `check` / `index` / `deps` |
+| `skills/human-html/SKILL.md` | The contract: rules, per-kind scaffolds, dynamic mode, illustration menu, hook wiring |
+| `skills/human-html/human_html_artifacts.py` | `init` / `new` / `check` / `index` / `deps` / `embed-svg` / `render` |
 | `skills/human-html/activate_hooks.py` | Idempotently enables the optional hooks for supported agents |
 | `skills/human-html/hooks/` | Optional advisory nudge + gallery autoindex; advisory-only, always exit 0 |
-| `skills/human-html/examples/` | Nine canonical artifacts, one per kind, warning-free |
-| `skills/human-html/references/` | Adoptable patterns, diagram decision tree, workflow integrations |
+| `skills/human-html/examples/` | Nine canonical artifacts, one per kind, plus three dynamic-mode examples that share no structure; all warning-free |
+| `skills/human-html/references/` | The artifact spine, adoptable patterns, diagram decision tree, workflow integrations |
 | `skills/human-html/scripts/publish-s3.sh` | Optional S3 sharing; requires `HUMAN_HTML_S3_BUCKET`, no defaults |
+| `tests/` | 32 stdlib `unittest` tests over the validator and the shipped examples: `python3 -m unittest discover -s tests` |
 
 ## Requirements
 
