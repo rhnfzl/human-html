@@ -345,6 +345,8 @@ And in the provenance JSON-LD, so it is machine-checkable rather than only reada
 }
 ```
 
+**One block per artifact.** `sourceFiles` carries a single `readAtRevision`, so an artifact spanning two repositories read at two different revisions is not expressible today. Where the sources really do span a boundary, look for a revision that covers both, the way `dynamic-port-correspondence.html` uses a branch tip carrying the shipping implementation and the port together. If no such revision exists, say the second revision in prose rather than adding a second block, which would have no JSON-LD counterpart and so nothing to keep it honest.
+
 **The revision is the whole pattern.** A bare path list looks informative and answers nothing: the reader already assumed you read the rate limiter. What they cannot know is whether it has changed since. `readAtRevision` is what converts the block from a credential into a staleness check somebody can actually run, which is why the validator warns when `sourceFiles` is present without it. Nothing warns if you leave the block out entirely; this is an adoptable pattern, not a requirement.
 
 Four things keep it honest:
