@@ -36,6 +36,14 @@ KINDS = (
     "incident",
 )
 
+# `artifact-mode` is orthogonal to `artifact-kind`: the kind says what the document
+# is FOR (and drives the gallery, the filename, the read-map), the mode says whether
+# its shape is prescribed. "dynamic" means the author invented a structure to fit this
+# one artifact, so the three shape rules stand down (see `_DYNAMIC_MODE` uses in
+# content_shape_violations). Every reader-protection rule still applies in both modes.
+MODES = ("standard", "dynamic")
+_DYNAMIC_MODE = "dynamic"
+
 NAME_RE = re.compile(
     r"^(?P<date>\d{4}-\d{2}-\d{2})-"
     r"(?P<kind>plan|review|architecture|understanding|research|decision|prototype|status|incident)-"
@@ -61,7 +69,7 @@ REQUIRED_SECTIONS: dict[str, list[tuple[str, str]]] = {
 TITLE_RE = re.compile(r"<title>(?P<title>.*?)</title>", re.IGNORECASE | re.DOTALL)
 
 # Artifacts whose artifact-created is on or after this date are held to the content-shape
-# rules below (PM-summary block, diagram-in-comparison, nav-when-many-sections). Earlier
+# rules below (answer-first summary, diagram-in-comparison, nav-when-many-sections). Earlier
 # artifacts are grandfathered so historical content stays readable without forced migration.
 RULES_EFFECTIVE_DATE = "2026-05-25"
 
@@ -224,7 +232,7 @@ class ArtifactHTMLParser(HTMLParser):
         super().__init__(convert_charrefs=False)
         self.meta: dict[str, str] = {}
         self.has_body_marker = False
-        self.has_pm_summary = False
+        self.has_summary_block = False
         self.has_meta_ribbon = False
         self.has_provenance = False
         self.has_read_map = False
@@ -270,11 +278,18 @@ class ArtifactHTMLParser(HTMLParser):
                 self.keywords_meta = html.unescape(attr_map.get("content", ""))
         if tag_name == "body" and attr_map.get("data-human-html-artifact") == "true":
             self.has_body_marker = True
-        if tag_name == "section" and attr_map.get("data-audience", "").lower() == "pm":
-            self.has_pm_summary = True
+        # `data-summary="true"` marks the answer-first opener. `data-summary="true"` is
+        # the pre-rename spelling, still accepted so already-shipped artifacts keep
+        # validating; it is no longer documented because naming a job title in the
+        # markup segments the audience, which the contract bans in the prose.
+        if tag_name == "section" and (
+            attr_map.get("data-summary", "").lower() == "true"
+            or attr_map.get("data-audience", "").lower() == "pm"
+        ):
+            self.has_summary_block = True
             if not self._pm_lead_done:
                 self._capture_pm_lead = True
-        # Capture the first li/p text inside the PM-summary block as a fallback summary.
+        # Capture the first li/p text inside the summary block as a fallback summary.
         if (
             tag_name in ("li", "p")
             and self._capture_pm_lead
@@ -377,7 +392,7 @@ class ArtifactHTMLParser(HTMLParser):
                 self._pm_lead_done = True
                 self._capture_pm_lead = False
         # PM block closed without capturing a lead: stop, so a later paragraph
-        # outside the PM summary is never grabbed.
+        # outside the summary block is never grabbed.
         if tag_name == "section" and self._capture_pm_lead and not self._pm_lead_done:
             self._capture_pm_lead = False
             self._pm_lead_done = True
@@ -615,11 +630,17 @@ def content_shape_violations(
     parser = ArtifactHTMLParser()
     parser.feed(content)
 
-    if not parser.has_pm_summary:
+    # Dynamic mode: the author invented a shape for this one artifact, so the rules
+    # that prescribe WHICH sections exist stand down. Nothing that protects the reader
+    # (viewport, no-JS floor, a visual in every comparison, plain language, em dashes,
+    # slop signals, provenance) is relaxed, because none of it depends on the shape.
+    dynamic = parser.meta.get("artifact-mode", "").strip().lower() == _DYNAMIC_MODE
+
+    if not parser.has_summary_block:
         _add(
-            errors, parser, "pm-summary",
-            f'{rel}: missing top-level <section data-audience="pm"> '
-            f"PM-summary block (plain-language three-bullet opener)",
+            errors, parser, "summary-first",
+            f'{rel}: missing top-level <section data-summary="true"> answer-first '
+            f"opener (what this does, why it matters, what is being asked)",
         )
 
     for heading in find_comparison_violations(content):
@@ -629,9 +650,13 @@ def content_shape_violations(
             "(mermaid / svg / table / img / side-by-side grid)",
         )
 
+    # A long document still needs a way in, but a dynamic artifact may carry the
+    # reader with a keycard grid or a single top-to-bottom argument instead of a TOC,
+    # so the veto becomes a nudge rather than disappearing.
+    nav_bucket = warnings if dynamic else errors
     if parser.h2_count > 3 and parser.nav_count == 0:
         _add(
-            errors, parser, "nav-anchors",
+            nav_bucket, parser, "nav-anchors",
             f"{rel}: artifact has {parser.h2_count} <h2> sections but no <nav>; "
             "add an anchor list before the first <h2>",
         )
@@ -640,13 +665,16 @@ def content_shape_violations(
         for href in parser.nav_hrefs
     ):
         _add(
-            errors, parser, "nav-anchors",
+            nav_bucket, parser, "nav-anchors",
             f"{rel}: artifact has {parser.h2_count} <h2> sections but its <nav> "
             "does not contain valid same-page anchor links",
         )
 
     effective_kind = kind or parser.meta.get("artifact-kind", "")
-    for required_re, severity in REQUIRED_SECTIONS.get(effective_kind, []):
+    # required-section prescribes the skeleton, which is exactly what dynamic mode
+    # opts out of. The kind still means something (it drives the gallery and the
+    # filename); it just stops dictating headings.
+    for required_re, severity in ([] if dynamic else REQUIRED_SECTIONS.get(effective_kind, [])):
         pattern = re.compile(required_re, re.IGNORECASE)
         if not any(pattern.search(h) for h in parser.headings):
             bucket = errors if severity == "error" else warnings
@@ -674,9 +702,12 @@ def content_shape_violations(
         for field_warning in _provenance_field_warnings(rel, parser):
             _add(warnings, parser, "provenance-fields", field_warning)
 
-    # Audience read-map: WARN on long artifacts of multi-audience kinds.
+    # Reading guide: WARN on long artifacts of the kinds that get skimmed at several
+    # depths. Skipped in dynamic mode, where the entry points are part of the invented
+    # shape rather than a fixed block bolted above the first section.
     if (
-        effective_kind in _READ_MAP_KINDS
+        not dynamic
+        and effective_kind in _READ_MAP_KINDS
         and parser.h2_count > 3
         and not parser.has_read_map
     ):
@@ -1215,7 +1246,7 @@ def _truncate_summary(text: str, limit: int = _SUMMARY_MAX) -> str:
 
 
 def _strip_lead_label(text: str) -> str:
-    """PM-summary leads read 'Label: sentence' - keep the sentence."""
+    """Summary-block leads read 'Label: sentence' - keep the sentence."""
     if ":" in text[:60]:
         _, _, tail = text.partition(":")
         if tail.strip():
@@ -1788,11 +1819,11 @@ _SCAFFOLD_STYLE = """
     li { max-width: 72ch; }
     a { color: var(--accent); }
     :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-    .pm-summary { background: var(--surface-2); border-left: 4px solid var(--accent); padding: 20px 22px; border-radius: var(--radius); margin: 16px 0 32px; box-shadow: var(--shadow-sm); }
-    .pm-summary h2 { color: var(--accent); margin-bottom: 12px; }
-    .pm-summary ul { margin: 0; padding-left: 20px; }
-    .pm-summary li { margin-bottom: 8px; color: var(--ink-2); line-height: 1.55; }
-    .pm-summary li strong { color: var(--accent); }
+    .lead-summary { background: var(--surface-2); border-left: 4px solid var(--accent); padding: 20px 22px; border-radius: var(--radius); margin: 16px 0 32px; box-shadow: var(--shadow-sm); }
+    .lead-summary h2 { color: var(--accent); margin-bottom: 12px; }
+    .lead-summary ul { margin: 0; padding-left: 20px; }
+    .lead-summary li { margin-bottom: 8px; color: var(--ink-2); line-height: 1.55; }
+    .lead-summary li strong { color: var(--accent); }
     nav.toc { background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 20px; margin: 16px 0 32px; }
     nav.toc ol { margin: 8px 0 0; padding-left: 22px; columns: 2; column-gap: 24px; }
     nav.toc li { margin-bottom: 4px; }
@@ -2011,7 +2042,7 @@ _EXTRA_SCAFFOLD_STYLE = """
       pre { background: var(--surface-2); color: var(--ink); border: 1px solid var(--line); }
       section.section, table, figure, pre, .callout, .compare-before, .compare-after, .metric, .tile, .card, .keycard, .chip, .confidence, .timeline .event, details { break-inside: avoid; }
       a[href^="http"]::after { content: " (" attr(href) ")"; font-size: .85em; color: var(--muted); }
-      .kind, .sev, .callout, .compare-before, .compare-after, .meta-ribbon, .needs-verification, .chip, .tile, .card, .keycard, .stripe, .confidence, .timeline .actor, .pm-summary, .spark, .bars, .progress, .delta { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      .kind, .sev, .callout, .compare-before, .compare-after, .meta-ribbon, .needs-verification, .chip, .tile, .card, .keycard, .stripe, .confidence, .timeline .actor, .lead-summary, .spark, .bars, .progress, .delta { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
       details:not([open])::details-content { content-visibility: visible; display: block; }
     }
 """.strip()
@@ -2035,11 +2066,11 @@ _INCIDENT_SCAFFOLD_STYLE = """
 """.strip()
 
 
-def _pm_summary_block() -> str:
-    return """    <section data-audience="pm" class="pm-summary">
+def _lead_summary_block() -> str:
+    return """    <section data-summary="true" class="lead-summary">
       <h2>In plain terms</h2>
       <ul>
-        <li><strong>What this does for the user:</strong> Replace with the one-sentence product impact a PM should grasp without engineering context.</li>
+        <li><strong>What this does for the user:</strong> Replace with the one-sentence product impact that lands without engineering context.</li>
         <li><strong>Why it matters:</strong> Replace with the business / user constraint that makes this worth reading.</li>
         <li><strong>What's being asked:</strong> Replace with the decision, approval, or review action the reader should take.</li>
       </ul>
@@ -2228,7 +2259,7 @@ flowchart LR
     </section>
     <section id="context" class="section">
       <h2>Context</h2>
-      <p>Background a PM and an engineer both need.</p>
+      <p>Background every reader needs, whatever depth they read to.</p>
     </section>
     <section id="options" class="section">
       <h2>Current vs proposed</h2>
@@ -2447,14 +2478,52 @@ def _provenance_footer(kind: str, date: str, escaped_source: str, source: str) -
     </footer>"""
 
 
-def render_artifact(title: str, kind: str, date: str, source: str) -> str:
+def _dynamic_body() -> str:
+    """Body for a dynamic-mode scaffold: the floor stated, and nothing prescribed.
+
+    A dynamic artifact invents a structure to fit its own subject, so handing the
+    author a section skeleton would defeat the mode. What it gets instead is the
+    chrome that still applies plus the floor written down as a comment to delete.
+    """
+    return """    <!-- DYNAMIC MODE. Invent the structure this subject needs; there is no
+         skeleton to fill in. What still holds, because none of it depends on shape:
+
+         - Answer first. The <section data-summary="true"> above stays.
+         - Every comparison gets a real visual, not prose.
+         - Content exists with JavaScript off. If JS builds it, ship a <noscript> floor.
+         - Colour never carries meaning alone; pair it with a label or a shape.
+         - Anything hoverable is also focusable and works on a touch screen.
+         - Plain language: gloss a term on first use, no coined framework names.
+         - No em dashes. No violet AI-default accent. Inherit the tokens above;
+           do not invent a palette.
+         - After any list, one sentence saying what it implies.
+
+         Full floor: references/artifact-spine.md. Delete this comment. -->
+    <section id="start">
+      <h2>Replace with the structure this artifact needs</h2>
+      <p>Lead with the finding, the shape of the problem, or whatever this document
+      is actually about. Sections, order, and visuals are yours to choose.</p>
+    </section>"""
+
+
+def render_artifact(
+    title: str, kind: str, date: str, source: str, mode: str = "standard"
+) -> str:
     escaped_title = html.escape(title)
     escaped_source = html.escape(source)
-    nav_items, body = _kind_body(kind)
-    pm = _pm_summary_block()
-    nav = _nav_block(nav_items)
+    dynamic = mode == _DYNAMIC_MODE
+    if dynamic:
+        # No nav, no read map, no per-kind sections: those are the three rules the
+        # mode stands down, so scaffolding them would put back what it removed.
+        body, nav, read_map = _dynamic_body(), "", ""
+        mode_meta = f'\n  <meta name="artifact-mode" content="{_DYNAMIC_MODE}">'
+    else:
+        nav_items, body = _kind_body(kind)
+        nav = _nav_block(nav_items)
+        read_map = _read_map_block(nav_items)
+        mode_meta = ""
+    pm = _lead_summary_block()
     ribbon = _meta_ribbon(kind, date, escaped_source)
-    read_map = _read_map_block(nav_items)
     provenance = _provenance_footer(kind, date, escaped_source, source)
     read_time = "6 min" if kind == "incident" else "5 min"
     extra_style = _EXTRA_SCAFFOLD_STYLE
@@ -2465,12 +2534,12 @@ def render_artifact(title: str, kind: str, date: str, source: str) -> str:
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="artifact-kind" content="{kind}">
+  <meta name="artifact-kind" content="{kind}">{mode_meta}
   <meta name="artifact-audience" content="human">
   <meta name="artifact-created" content="{date}">
   <meta name="artifact-source" content="{escaped_source}">
   <meta name="artifact-read-time" content="{read_time}">
-  <!-- Gallery card text. Leave empty to auto-derive from the PM-summary; fill for a sharper one-liner. -->
+  <!-- Gallery card text. Leave empty to auto-derive from the summary block; fill for a sharper one-liner. -->
   <meta name="artifact-summary" content="">
   <meta name="artifact-keywords" content="">
   <title>{escaped_title}</title>
@@ -2599,7 +2668,10 @@ def cmd_new(args: argparse.Namespace) -> None:
     path = adir / f"{date}-{args.kind}-{slug}.html"
     if path.exists() and not args.force:
         raise SystemExit(f"{path.relative_to(root)} already exists, pass --force to overwrite")
-    path.write_text(render_artifact(args.title, args.kind, date, args.source), encoding="utf-8")
+    path.write_text(
+        render_artifact(args.title, args.kind, date, args.source, args.mode),
+        encoding="utf-8",
+    )
     print(f"created {path.relative_to(root)}")
     write_index(root)
 
@@ -2895,6 +2967,12 @@ def main(argv: list[str] | None = None) -> int:
     new_parser.add_argument("--slug")
     new_parser.add_argument("--date")
     new_parser.add_argument("--source", default="local")
+    new_parser.add_argument(
+        "--mode", choices=MODES, default="standard",
+        help="standard scaffolds the kind's sections; dynamic scaffolds only the "
+             "floor and leaves the structure to you (use when the reader gains "
+             "nothing from this looking like the last one)",
+    )
     new_parser.add_argument("--force", action="store_true")
     new_parser.add_argument(
         "--index",

@@ -88,7 +88,7 @@ When the artifact documents a visual system (tokens, components, brand colors, t
     <div class="meta">
       <strong>--blue</strong>
       <code>#226fb2</code>
-      <span>Primary action, links, focused PM-summary border</span>
+      <span>Primary action, links, focused summary-block border</span>
     </div>
   </div>
   <div class="token">
@@ -278,7 +278,7 @@ A compact strip offering a **Quick read** (the summary + the recommendation/outc
 
 ```html
 <aside class="read-map" aria-label="Reading map">
-  <div><strong>Quick read:</strong> <a href="#pm-summary">Plain terms</a> &middot; <a href="#recommendation">Recommendation</a></div>
+  <div><strong>Quick read:</strong> <a href="#lead-summary">Plain terms</a> &middot; <a href="#recommendation">Recommendation</a></div>
   <div><strong>Full read:</strong> All sections</div>
 </aside>
 ```
@@ -311,17 +311,17 @@ Every artifact is AI-generated to some degree. A provenance footer captures the 
 
 Required fields per the AI-BOM / model-card synthesis: `@id` or `id`, `creator` (model + version), `promptHash` or `prompt`, `dateCreated`, `reviewer`. Prompts containing PII should be hashed and archived externally rather than embedded.
 
-## BLUF compact opener mode (alternative to the 3-bullet PM-summary)
+## BLUF compact opener mode (alternative to the 3-bullet answer-first opener)
 
-The 3-bullet PM-summary (Rule 1) is the default. For time-critical artifacts where 3 bullets is too much (an incident artifact emailed to a CTO; a yes/no decision needing a 30-second read), BLUF (Bottom Line Up Front) is the alternative. Same `data-audience="pm"` marker, different body shape: one short sentence stating the decision or ask, then a one-sentence rationale.
+The 3-bullet answer-first opener (Rule 1) is the default. For time-critical artifacts where 3 bullets is too much (an incident artifact emailed to a CTO; a yes/no decision needing a 30-second read), BLUF (Bottom Line Up Front) is the alternative. Same `data-summary="true"` marker, different body shape: one short sentence stating the decision or ask, then a one-sentence rationale.
 
 ```html
-<section data-audience="pm" class="pm-summary pm-bluf">
+<section data-summary="true" class="lead-summary lead-bluf">
   <p><strong>Approve the migration to district-level geocoding for the May release.</strong> Today's city-level geocoder silently fails for 40% of delivery-address lookups; the migration removes the failure mode and unblocks the mobile launch.</p>
 </section>
 ```
 
-The validator only checks for the `data-audience="pm"` marker, so either form satisfies the contract. Both work; pick the one that fits the reader's time budget.
+The validator only checks for the `data-summary="true"` marker, so either form satisfies the contract. Both work; pick the one that fits the reader's time budget.
 
 ## Appendix lane
 
@@ -630,4 +630,41 @@ Close the artifact with the three-way behaviour ledger, which is what a reviewer
 
 An edge-case table with an explicit `identical` / `equivalent` verdict per row is the natural companion, and define what `equivalent` means in a footnote - "same decision, different surface" is not the same claim as "identical", and a reviewer needs to know which one you are making.
 
----
+## Pre-merge self-check (best in `review`, for an artifact attached to a PR)
+
+A reviewer who has skimmed a review artifact and a reviewer who has read it both click Approve the same way. This pattern lets the second one tell the difference, by asking a handful of questions that are only answerable if you actually understood the change.
+
+**It is a self-check, not a gate, and the framing is load-bearing.** Answering questions about a document is not evidence the change is safe: a reader can ace a quiz about a report whose conclusions are wrong, so treating a score as approval would manufacture confidence rather than test it. What the pattern does honestly is narrower and still useful: if you cannot answer these, you have not read the thing you are about to approve. Never score it, never gate on it, never store a result.
+
+Two rules keep it honest:
+
+1. **Ask about the change, never about the document.** "How many files changed" and "which section covers rollback" test recall of the artifact. "What happens to in-flight requests while the index rebuilds" tests understanding of the work. Only the second kind is worth a reader's time.
+2. **Every answer links back to the section that establishes it.** A question the artifact does not answer is a gap in the artifact, and this is the cheapest way to find those.
+
+Native `<details>` does the whole job, so it works with JavaScript off and needs no script:
+
+```html
+<section id="self-check">
+  <h2>Before you approve</h2>
+  <p>Four questions the change answers. If one is a surprise, the section it links to is
+  worth a second read. Nothing here is recorded or scored.</p>
+
+  <details class="qa">
+    <summary>What happens to in-flight requests during the index rebuild?</summary>
+    <p>They keep serving from the old index. The swap is a pointer move after the new
+    index passes its checksum, so no request sees a partial index.
+    <a href="#rebuild-sequence">Rebuild sequence</a>.</p>
+  </details>
+
+  <details class="qa">
+    <summary>Which change here is hardest to reverse, and how long does reversing take?</summary>
+    <p>The column drop in <code>listing_geo</code>. Reversing means a restore from the
+    nightly snapshot, so roughly 40 minutes with writes paused.
+    <a href="#rollback">Rollback</a>.</p>
+  </details>
+</section>
+```
+
+Four to six questions is the working range. Fewer reads as decoration, and more turns a check into an exam nobody finishes. Aim each one at a place where a reasonable reviewer could hold a wrong model of the change and never find out: the irreversible step, the thing that behaves differently under load, the assumption the tests do not cover.
+
+The strongest single question is "which part of this are you least sure about?" answered by the *author* in the open, next to the reviewer's questions. It tells the reviewer where to spend attention, which is what a self-check is for.
