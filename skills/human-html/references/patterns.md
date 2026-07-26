@@ -598,7 +598,7 @@ The cheapest section in this document. A change that does not state its non-goal
 
 The form that works is **the omission plus its reason**, and the reason is what does the work: *layers on cleanly*, *needs a schema change*, *speculative until we have data*. A bare list of omissions reads as a to-do list you forgot to finish.
 
-Best in `plan`, `review`, `architecture`, and `prototype`. It pairs with, and is not the same as, Open questions: a non-goal is settled (*we are not doing this, here is why*); an open question is unsettled and needs an owner and a date (see "Owners and deadlines on action sections"). Filing an unsettled thing as a non-goal is how a decision gets made by accident.
+Best in `plan`, `review`, `architecture`, and `prototype`. It pairs with, and is not the same as, Open questions: a non-goal is settled (*we are not doing this, here is why*); an open question is unsettled and needs an owner, a date, and your lean (see "Routed open questions"). Filing an unsettled thing as a non-goal is how a decision gets made by accident.
 
 ## Linked source-to-target correspondence (best for ports and migrations)
 
@@ -668,3 +668,77 @@ Native `<details>` does the whole job, so it works with JavaScript off and needs
 Four to six questions is the working range. Fewer reads as decoration, and more turns a check into an exam nobody finishes. Aim each one at a place where a reasonable reviewer could hold a wrong model of the change and never find out: the irreversible step, the thing that behaves differently under load, the assumption the tests do not cover.
 
 The strongest single question is "which part of this are you least sure about?" answered by the *author* in the open, next to the reviewer's questions. It tells the reviewer where to spend attention, which is what a self-check is for.
+
+## Same-data control block (required for any multi-option comparison)
+
+An artifact comparing several options has a failure mode that is almost invisible to the reader: each option quietly gets evaluated against whichever input flatters it. Option one is measured on a quiet Tuesday, option three on a burst, and the table at the end looks like a fair scoreboard. It is not a comparison, it is four anecdotes in a grid, and no reader can tell from the outside.
+
+The fix is one block, before the first option, naming the single input every option is judged against.
+
+```html
+<style>
+  /* .section is the scaffold's; these two are yours, drawn from the inherited tokens */
+  .control { background: var(--surface); border: 1px solid var(--line-strong);
+             border-radius: var(--radius); padding: var(--s-8) var(--s-9); }
+  .control .fixed { font-family: var(--mono); font-size: var(--fs-cap);
+                    letter-spacing: var(--ls-caps); text-transform: uppercase;
+                    color: var(--muted); margin: 0 0 var(--s-3); }
+</style>
+
+<section id="same-data" class="section control">
+  <p class="fixed">Control: one input, replayed four times</p>
+  <h2>The data all four are judged on</h2>
+  <p>One file, <code>relay/traces/2026-07-14-mon.jsonl</code>, replayed through
+  <code>relay/bench/replay.py --direction N</code> with the vendor stubbed by the recorded
+  response log. Monday is the heaviest weekday, so this is a pessimistic input, and it is
+  pessimistic for all four in the same way. Every number in the panels below comes from this
+  file. None of them comes from a hand-picked hour.</p>
+</section>
+```
+
+The border and the mono eyebrow are what make the block read as a fixture rather than as the first option. Both draw from the scaffold's CSS variables, so the treatment inherits the artifact's palette instead of introducing one.
+
+Four things make it do its job:
+
+1. **Name the input precisely enough to re-run.** A path, a command, a date. "Production traffic" is not a control, it is a gesture.
+2. **Say which way it is biased, and confirm the bias is even.** "Pessimistic for all four in the same way" is the sentence that makes the comparison trustworthy. A control that favours one option is worse than no control, because it looks rigorous.
+3. **State the properties that pull the options apart**, not just the volume. Size is rarely what separates designs; a burst shape, a failure window, or a skewed distribution usually is.
+4. **Assert the closure explicitly.** "Every number below comes from this file" is a claim a reader can hold you to, and writing it down is what stops the next number sneaking in from somewhere else.
+
+After that block, the per-option panels carry no input of their own. If an option genuinely needs a second input to be evaluated at all, that is a finding about the option and belongs in its panel as a caveat, not as a quiet substitution.
+
+Best in `decision` and `research`. `dynamic-design-directions.html` is the worked example.
+
+## Routed open questions (owner, date, and your lean)
+
+"Open questions" as a bare bulleted list is where a decision goes to die. Nobody owns it, nothing dates it, and the author's own view is missing, so the reader has to build an opinion from scratch before they can reply at all. The usual outcome is that nobody replies.
+
+Four fields fix it, and the fourth is the one people leave out:
+
+```html
+<table>
+  <thead>
+    <tr><th>Open question</th><th>Who decides</th><th>By</th><th>Where this lands without an answer</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Do digests respect per-user quiet hours, or only the workspace window?</td>
+      <td>Priya</td>
+      <td>2026-08-04</td>
+      <td><strong>Leaning workspace-only.</strong> Per-user needs a timezone column we do not
+          have, and no customer has asked. Cheap to add later, expensive to remove.</td>
+    </tr>
+  </tbody>
+</table>
+```
+
+**State where it lands if nobody answers.** A question with a stated lean can be replied to with one word or one correction, which is a cheap reply and therefore a likely one. A question with no lean demands an essay, so it gets none. The lean also makes the default visible: silence is going to pick something, and this is the honest way to say what.
+
+Two boundaries keep the section meaningful:
+
+- **Not a non-goal.** A non-goal is settled, and states the omission plus its reason. An open question is unsettled. Filing an unsettled thing as a non-goal is how a decision gets made by accident.
+- **Not an action.** An action is already decided and needs doing, so it belongs in the owners-and-deadlines table. A question still needs deciding.
+
+If a question has no owner, it is not an open question, it is a worry. Either find the owner or move it to non-goals with a reason.
+
+Best in `architecture`, `plan`, and `decision`. `architecture` already warns when the section is missing entirely (`required-section`).
