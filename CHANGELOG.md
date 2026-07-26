@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+Continuous integration, and a release gate that verifies it rather than repeating it.
+
+- **`ci.yml`: the suite runs on every push and pull request.** `release.yml` fires only on a `vX.Y.Z` tag, so until now nothing checked a pull request; every PR merged unverified and a broken validator would only have surfaced at release time, after the version bump was already written. Tests now run on Python **3.11, 3.12 and 3.13**, which also means the README's "Python 3.11+ is all you need" is tested rather than asserted for the first time. The shipped examples are validated in a separate job, since that check is version-independent.
+- **The example check is one script instead of two copies.** It moved out of an inline heredoc in `release.yml` into `.github/scripts/check_examples.py`, called by both workflows, because two copies of it would have drifted. It lives under `.github/` rather than in the skill payload so it is not installed onto users' machines, and it doubles as a local tool: plain output in a terminal, GitHub annotations under Actions.
+- **A grandfathered example is now an error.** The inline version validated everything against a hardcoded date, which hid the real risk: an artifact dated before `RULES_EFFECTIVE_DATE` is exempt from the entire content contract, so a shipped example with a stale date would have passed *by never being checked at all*. Each example is now validated under its own `artifact-created` date, and being exempt fails the build, on the grounds that an example must be held to the contract it exists to demonstrate.
+- **`release.yml` verifies CI instead of re-running it.** Repeating the suite at tag time duplicated work CI had already done on that commit, but assuming CI ran is the opposite mistake: a tag can point at any commit, including one that never reached `main` and so was never checked. The release now requires a successful `ci.yml` run for the tag's exact SHA and refuses to publish without one. A tag push does not trigger `ci.yml`, which is scoped to branches, so this only ever matches an earlier run on the same commit.
+- **The landing page shows dynamic mode.** `index.html` listed the nine kinds and nothing else, so a reader arriving from the 1.3.0 announcement saw no sign of the feature it was about. The three dynamic examples now have their own section.
+
 ## 1.3.0 - 2026-07-26
 
 Artifacts gain a **dynamic mode** for the cases where a prescribed section skeleton makes the document worse, and a written **spine** covering what an artifact must never do whatever shape it takes. Rule 9 (no-JS robustness) becomes verifiable instead of assumed. Hook automation is one idempotent command. Three contract defects in the shipped examples are fixed, and the summary marker stops naming a job title.
