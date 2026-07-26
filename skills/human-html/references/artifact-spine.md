@@ -45,7 +45,11 @@ between the two columns is where an artifact goes wrong while passing. Three tha
 - `js-content-fallback` cannot read your fallback. Any `<noscript>`, including an empty one
   or one about something else entirely, satisfies it. It knows JS writes DOM and that the
   word `noscript` appears; it has no idea whether the static content matches what the
-  script would build. Open the page with JavaScript disabled, which `render` cannot yet do.
+  script would build. Verify it by looking: `render --no-js`.
+  Watch the `!important` trap while you are there. A `<noscript>` rule that hides an inert
+  control loses to an inline `style="display:flex"` on that control, so the page renders with
+  a live-looking widget driving nothing. Write `display: none !important` in a `<noscript>`
+  hide, or keep `display` out of the inline style.
 - `table-responsive` matches an `overflow-x` or a media query near a table. It cannot tell
   whether the container is reachable by keyboard, which is the requirement below.
 

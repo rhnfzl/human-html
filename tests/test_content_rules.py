@@ -297,6 +297,82 @@ class NoAudienceSegmentationTest(unittest.TestCase):
         self.assertIn("width=device-width", page)
 
 
+class SimulateNoJsTest(unittest.TestCase):
+    """`render --no-js` rewrites the page the way a JS-disabled browser treats it.
+
+    A Chrome flag would be simpler and none works: `--disable-javascript` is accepted
+    and silently ignored (byte-identical screenshot to JS-on and to an invented flag),
+    and `--blink-settings=scriptEnabled=false` makes headless Chrome emit nothing at all.
+    A flag that quietly does nothing is the worst option, because the render would then
+    certify a no-JS floor it never exercised.
+    """
+
+    def test_scripts_are_removed(self):
+        out = hha.simulate_no_js(
+            '<p>keep</p><script>document.title="x";</script><script src="a.js"></script><p>keep2</p>'
+        )
+        self.assertNotIn("<script", out)
+        self.assertIn("keep", out)
+        self.assertIn("keep2", out)
+
+    def test_noscript_children_are_unwrapped(self):
+        out = hha.simulate_no_js(
+            '<div><noscript><style>.a{display:none}</style><p>fallback</p></noscript></div>'
+        )
+        self.assertNotIn("noscript", out)
+        self.assertIn(".a{display:none}", out)
+        self.assertIn("fallback", out)
+
+    def test_a_noscript_mentioned_in_a_comment_does_not_eat_the_document(self):
+        """The bug this guards cost a whole page.
+
+        `prototype-canonical.html` documents its own floor in a comment that names
+        `<noscript>`. That mention is a false opening tag, so a non-greedy unwrap ran from
+        the comment to the REAL `</noscript>`, deleting everything between and leaving a
+        stray open tag. Comments are stripped first for exactly this reason.
+        """
+        src = (
+            "<div>"
+            "<!-- the controls are hidden in no-JS previews (the <noscript> block below) -->"
+            "<p id='keepme'>load-bearing content</p>"
+            "<noscript><style>.js-only{display:none !important}</style></noscript>"
+            "</div>"
+        )
+        out = hha.simulate_no_js(src)
+        self.assertIn("load-bearing content", out, "content between the comment and the real tag was eaten")
+        self.assertNotIn("noscript", out, f"a stray noscript tag survived: {out}")
+        self.assertIn(".js-only{display:none !important}", out)
+
+    def test_the_real_example_transforms_cleanly(self):
+        proto = REPO / "skills/human-html/examples/prototype-canonical.html"
+        out = hha.simulate_no_js(proto.read_text(encoding="utf-8"))
+        self.assertNotIn("<script", out)
+        self.assertNotIn("noscript", out)
+        # the pre-rendered floor and the no-JS explanation both survive
+        self.assertIn("Customer tier", out)
+        self.assertIn("JavaScript is off", out)
+
+    def test_noscript_hide_beats_inline_styles(self):
+        """A `display: none` that loses to an inline style is not a floor.
+
+        The `.js-only` controls carry `style="display:flex"`, and an inline declaration
+        beats a stylesheet rule, so the plain rule left the slider on screen driving
+        nothing. Only rendering with JS off showed it.
+        """
+        proto = (REPO / "skills/human-html/examples/prototype-canonical.html").read_text(
+            encoding="utf-8"
+        )
+        noscript = re.search(r"<noscript\b.*?</noscript>", proto, re.DOTALL)
+        assert noscript is not None, "the example must still ship a <noscript> floor"
+        block = noscript.group(0)
+        self.assertIn("display: none !important", block)
+        inline_display = re.findall(r'class="js-only"[^>]*style="[^"]*display\s*:', proto)
+        self.assertTrue(
+            inline_display,
+            "if no .js-only control carries an inline display any more, !important can go",
+        )
+
+
 class EveryExampleTest(unittest.TestCase):
     """Rules that hold for every shipped example, dynamic or kind-shaped.
 
