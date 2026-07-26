@@ -16,6 +16,8 @@ npx skills add rhnfzl/human-html
 
 That auto-detects your installed agents. Then ask for a plan, or a review, or a postmortem.
 
+It is a standard [Agent Skill](https://agentskills.io), native in Claude Code, Codex, Cursor and ten others, and covered by the universal installers everywhere else.
+
 ## Every one of them opens the same way
 
 That is the part worth having. You are not scrolling to find where the risks went, they are where they were last time, and so is the summary and so is the rollback. It pays off hardest on anything recurring: when this week's status report looks like last week's, the difference is what stands out.
