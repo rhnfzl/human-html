@@ -2955,10 +2955,50 @@ def _find_chrome() -> "str | None":
     return None
 
 
-def cmd_render(path: str, out: "str | None", width: int, height: int) -> int:
+_SCRIPT_BLOCK_RE = re.compile(r"<script\b[^>]*>.*?</script\s*>", re.DOTALL | re.IGNORECASE)
+_SCRIPT_UNCLOSED_RE = re.compile(r"<script\b[^>]*/?>", re.IGNORECASE)
+_NOSCRIPT_UNWRAP_RE = re.compile(r"<noscript\b[^>]*>(.*?)</noscript\s*>", re.DOTALL | re.IGNORECASE)
+
+
+def simulate_no_js(html: str) -> str:
+    """Rewrite `html` the way a browser with JavaScript disabled treats it.
+
+    Disabling JS changes exactly two things, and this does exactly those two: `<script>`
+    never executes, and `<noscript>` children render as ordinary content.
+
+    Why a rewrite instead of a Chrome flag. `--disable-javascript` is accepted and then
+    silently ignored: its screenshot is byte-identical both to a run with JS on and to a
+    run with a deliberately invented flag. `--blink-settings=scriptEnabled=false` makes
+    headless Chrome emit no output at all, under `--headless=new` and `--headless=old`
+    alike. A flag that quietly does nothing is worse than no flag, because `render` would
+    then report a no-JS floor it never tested.
+
+    So this is a simulation of the two effects rather than the browser's own setting, and
+    it is worth knowing the difference. It will not catch a script that fails to load for
+    some other reason, and it assumes the page's `<noscript>` is where its fallback lives.
+    What it does catch is the thing Rule 9 exists for: content that only exists because
+    JavaScript built it, and a control left visible with nothing behind it.
+    """
+    # Comments go first, and this is not cosmetic. An artifact that *mentions*
+    # `<noscript>` in a comment (prototype-canonical.html documents its own floor that
+    # way) gives the unwrap regex a false opening tag, and the non-greedy match then runs
+    # from the comment to the real `</noscript>`, deleting everything between them and
+    # leaving a stray open tag. Comments never render, so dropping them costs nothing.
+    html = _HTML_COMMENT_RE.sub("", html)
+    html = _SCRIPT_BLOCK_RE.sub("", html)
+    html = _SCRIPT_UNCLOSED_RE.sub("", html)
+    return _NOSCRIPT_UNWRAP_RE.sub(r"\1", html)
+
+
+def cmd_render(
+    path: str, out: "str | None", width: int, height: int, no_js: bool = False
+) -> int:
     """Headless-render an artifact to a PNG so the agent can VIEW it and fix layout / broken or clipped
     diagrams BEFORE handing the file to a human. Serves the file over an ephemeral localhost port so
-    relative assets and any CDN load."""
+    relative assets and any CDN load.
+
+    With `no_js`, serves the page as a JavaScript-disabled browser would treat it, which is
+    the only way to see whether Rule 9's static floor is real (see `simulate_no_js`)."""
     import functools
     import socket
     import subprocess
@@ -2969,12 +3009,35 @@ def cmd_render(path: str, out: "str | None", width: int, height: int) -> int:
         print("render needs Chrome/Chromium; set $CHROME to its path", file=sys.stderr)
         return 1
     f = Path(path).resolve()
-    out = out or str(f.with_suffix(".render.png"))
+    out = out or str(f.with_suffix(".nojs.render.png" if no_js else ".render.png"))
     sock = socket.socket()
     sock.bind(("127.0.0.1", 0))
     port = sock.getsockname()[1]
     sock.close()
-    handler = functools.partial(SimpleHTTPRequestHandler, directory=str(f.parent))
+
+    if no_js:
+        # Serve the rewrite in place of the file, so relative assets still resolve out of
+        # the real directory and nothing is written into the user's tree.
+        payload = simulate_no_js(f.read_text(encoding="utf-8")).encode("utf-8")
+        target = f"/{f.name}"
+
+        class _Handler(SimpleHTTPRequestHandler):
+            def do_GET(self):  # noqa: N802 - base-class name
+                if self.path.split("?")[0] == target:
+                    self.send_response(200)
+                    self.send_header("Content-Type", "text/html; charset=utf-8")
+                    self.send_header("Content-Length", str(len(payload)))
+                    self.end_headers()
+                    self.wfile.write(payload)
+                    return
+                super().do_GET()
+
+            def log_message(self, format: str, *args) -> None:  # noqa: A002 - base signature
+                pass  # keep the probe quiet
+
+        handler = functools.partial(_Handler, directory=str(f.parent))
+    else:
+        handler = functools.partial(SimpleHTTPRequestHandler, directory=str(f.parent))
     srv = ThreadingHTTPServer(("127.0.0.1", port), handler)
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     r = None
@@ -3038,7 +3101,15 @@ def main(argv: list[str] | None = None) -> int:
     render_parser = subparsers.add_parser(
         "render", help="headless-render an artifact to PNG so you can view + verify layout/diagrams")
     render_parser.add_argument("file")
-    render_parser.add_argument("--out", help="output PNG path (default: <file>.render.png)")
+    render_parser.add_argument(
+        "--out",
+        help="output PNG path (default: <file>.render.png, or <file>.nojs.render.png with --no-js)")
+    render_parser.add_argument(
+        "--no-js", action="store_true", dest="no_js",
+        help="render the page as a JavaScript-disabled browser treats it: scripts do not run "
+             "and <noscript> content renders. The only way to SEE whether Rule 9's static "
+             "floor is real, since js-content-fallback only greps for a <noscript>",
+    )
     render_parser.add_argument("--width", type=int, default=1000)
     render_parser.add_argument("--height", type=int, default=6000,
                                help="viewport height; raise for very tall artifacts")
@@ -3060,7 +3131,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "embed-svg":
         return cmd_embed_svg(args.file)
     if args.command == "render":
-        return cmd_render(args.file, args.out, args.width, args.height)
+        return cmd_render(args.file, args.out, args.width, args.height, args.no_js)
     return 2
 
 

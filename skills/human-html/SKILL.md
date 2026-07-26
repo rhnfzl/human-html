@@ -149,7 +149,8 @@ The **card-reflow** pattern (what good looks like): on mobile, set `thead{displa
 **JS-disabled previews are common and silent:** iOS **Quick Look** (opening a file from Files / Mail / AirDrop), Android file-manager and in-app previews, and email clients render HTML+CSS but run **no JavaScript** (Apple disabled it in Quick Look for privacy). An artifact whose core content is built by JS (`element.innerHTML = …`) shows up **blank** there - empty tables, empty lists, "0 results".
 
 - **`js-content-fallback` (WARNS):** if the artifact **inserts DOM from JavaScript** and has no `<noscript>`, it WARNs. Detection covers `.innerHTML` / `.outerHTML` assignment, `insertAdjacentHTML`, `replaceChildren`, `appendChild` / `append` / `prepend`, `insertBefore`, and `document.write`. It deliberately does **not** fire on a bare `createElement` (a detached node puts nothing on the page) so the JS-injected copy-button pattern stays clean. The fix is **progressive enhancement**: pre-render the core content (table rows, list items, counts) into the static HTML so it's readable with JS off, and let JS *enhance* it (sort/filter/live controls) when available. Add a `<noscript>` banner pointing the reader to open it in a real browser, and hide the now-inert controls with `<noscript><style>.controls{display:none}</style></noscript>`. Interactive artifacts (the `prototype` kind, dashboards) are exactly where this matters most.
-- **Passing this rule is not proof of a static floor.** It is a grep, so it cannot see content assembled in a way it does not enumerate, and it cannot tell a *control* from *content*. Until `render` can load a page with JavaScript disabled, the only real verification is opening the artifact with JS off (Safari: Develop → Disable JavaScript) and checking that nothing load-bearing vanished. Do that for any artifact whose core content is JS-assembled.
+- **Passing this rule is not proof of a static floor.** It is a grep, so it cannot see content assembled in a way it does not enumerate, and it cannot tell a *control* from *content*. Verify it by looking: `render --no-js` serves the page as a JavaScript-disabled browser treats it (scripts do not run, `<noscript>` content renders) and screenshots the result, so you can see whether anything load-bearing vanished. Do that for any artifact whose core content is JS-assembled.
+- **The `!important` trap.** Hiding an inert control with `<noscript><style>.controls{display:none}</style></noscript>` silently fails when the control carries an inline `style="display:flex"`, because an inline declaration beats a stylesheet rule. Write `display: none !important` in a `<noscript>` hide, or keep `display` out of the inline style. This shipped broken in `prototype-canonical.html` and passed the rule the whole time; `render --no-js` is what found it.
 
 Mermaid source must stay legible when the CDN or JS is unavailable - the scaffold styles unprocessed `.mermaid` blocks as preformatted source (`white-space: pre`, mono, scrollable) so a diagram that never rendered reads as its flowchart text, not a collapsed wall of prose.
 
@@ -414,7 +415,7 @@ The fuller version of this lane is **`references/artifact-spine.md`**, which add
 **Render-and-verify is required whenever the artifact has diagrams or non-trivial layout - do NOT hand a file to a human on the strength of the HTML source alone.** Live CDN mermaid is fragile: mermaid's batch `run()` can leave later diagrams unsized (missing viewBox -> they render *blank*), it clips node labels, and Quick Look / email / offline run no JS at all, so the diagrams are simply absent. The loop, embedded in the harness:
 
 1. **Make diagrams durable** - `python3 <skill-dir>/human_html_artifacts.py embed-svg <file>` renders every live `<div class="mermaid">` to inline light + dark SVG (source kept in a collapsed `<details>`). No CDN, no JS, no timing bug; renders everywhere. (Needs `mmdc`: `npm i -g @mermaid-js/mermaid-cli`. Without it, keep live mermaid but you MUST still render-check it.)
-2. **Render it** - `python3 <skill-dir>/human_html_artifacts.py render <file>` (add `--height` for a tall page) writes a PNG.
+2. **Render it** - `python3 <skill-dir>/human_html_artifacts.py render <file>` (add `--height` for a tall page) writes a PNG. Add `--no-js` for a second PNG showing the page as a JavaScript-disabled preview treats it; that is the only way to see whether Rule 9's static floor is real, so run it on any artifact whose content is JS-assembled.
 3. **Actually look at the PNG.** Read it. Check every diagram rendered (no blank gaps), no clipped labels, no horizontal overflow, tables and tiles laid out. Re-render in dark too if the content uses it.
 4. **Fix and repeat** until the rendered image is clean. Only then deliver.
 
@@ -494,7 +495,7 @@ python3 <skill-dir>/human_html_artifacts.py check
 python3 <skill-dir>/human_html_artifacts.py embed-svg <file>
 
 # Headless-render an artifact to a PNG so you can view + verify it (diagrams, layout) before delivering.
-python3 <skill-dir>/human_html_artifacts.py render <file> [--width N] [--height N] [--out PNG]
+python3 <skill-dir>/human_html_artifacts.py render <file> [--width N] [--height N] [--out PNG] [--no-js]
 
 # Manually regenerate the gallery (rarely needed; the autoindex hook handles it)
 python3 <skill-dir>/human_html_artifacts.py index
