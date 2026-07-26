@@ -602,18 +602,25 @@ impl Bucket {
         <div class="note" data-link="a4" id="note-4">
           <span class="nmark">4</span>
           <div>
-            <span class="t">An over-capacity bucket now gets repaired instead of crashing.</span>
+            <span class="t">An over-capacity bucket stops growing instead of crashing, and is not repaired.</span>
             <p>In Rust, <code>(self.capacity - self.tokens)</code> is <code>u32</code> subtraction. If
             tokens ever exceeded capacity a debug build panics on that line and a release build wraps
             to a headroom near 2^32, which is the broken invariant made loud. The port clamps the
-            headroom at zero with <code>Math.max(0, ...)</code>, so an over-capacity bucket is
-            quietly clamped downward on its next refill.</p>
+            headroom at zero with <code>Math.max(0, ...)</code>, so refill adds nothing while the
+            bucket is over capacity.</p>
+            <p>Clamping the headroom is not the same as clamping the bucket, and it is worth being
+            exact about which one this is. On a downgrade from 600 to 100 with 600 tokens held,
+            <code>headroom</code> is 0 and <code>this.tokens += Math.min(minted, 0)</code> leaves 600
+            in place. The bucket does not come back under 100 on its own; it only falls as callers
+            spend, so the downgraded tier keeps serving up to 600 of the old allowance before the new
+            cap starts to bite. Nothing in this file notices.</p>
             <p>The only way tokens can exceed capacity is a capacity that shrank under a live bucket,
-            for example a tier downgrade from 600 to 100 applied by config reload. The shipping build
-            puts that in a crash log within one refill; the port absorbs it in silence. That is the
+            for example a tier downgrade applied by config reload. The shipping build puts that in a
+            crash log within one refill; the port absorbs it in silence and keeps serving. That is the
             one change here worth arguing about, and the compensation is not in this file:
             <code>packages/quota/src/store.ts</code> logs at warn level when a reload lowers a
-            capacity under a bucket that is above it.</p>
+            capacity under a bucket that is above it. A log line is weaker than a panic, and it does
+            not bound the over-serving.</p>
             <p class="ref">Marked at <a href="#r4">bucket.rs</a> and <a href="#t4">bucket.ts</a>.</p>
           </div>
         </div>
@@ -712,7 +719,7 @@ impl Bucket {
             <li><code>Instant</code> nanoseconds becomes <code>performance.now()</code> milliseconds, with the backwards-clock clamp kept and now load-bearing (note 5).</li>
             <li><code>Mutex&lt;HashMap&lt;Key, Bucket&gt;&gt;</code> becomes plain fields; atomicity comes from a synchronous-only rule plus one test (note 1).</li>
             <li>A runtime cost guard stands in for what <code>u32</code> used to refuse (note 2).</li>
-            <li>An over-capacity bucket is clamped downward rather than panicking (note 4).</li>
+            <li>An over-capacity bucket stops refilling rather than panicking, and keeps serving its old allowance down (note 4).</li>
           </ul>
           <p class="implies">Each of the four trades a compiler or runtime guarantee for a convention, and each convention has exactly one test holding it up.</p>
         </div>

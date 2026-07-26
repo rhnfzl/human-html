@@ -11,7 +11,8 @@ standard one too; the spine was always in force, it just was not written down.
 
 Three layers, in order of how hard they bind:
 
-1. **The mechanical floor.** Validated by `check`. Cannot be argued with.
+1. **The mechanical floor.** Marked by `check`. Every rule in it is a marker check, so
+   passing means "did not obviously skip this", never "got this right".
 2. **The spine.** Never traded away, in any mode, for any reason. Judgment, not lint.
 3. **Prose discipline.** Craft rules that make an artifact read as though a person
    with a point of view wrote it. Judgment, applied by function and not by keyword.
@@ -24,16 +25,32 @@ These run in both modes and are checked by `human_html_artifacts.py check`. Dyna
 relaxes exactly three rules (`required-section`, `read-map`, and `nav-anchors` from BLOCK
 to WARN) and nothing here.
 
-| What it protects | Rule |
-|---|---|
-| Renders on a phone at all | `viewport-meta` (BLOCKS) |
-| A wide table does not clip | `table-responsive` |
-| Content exists with JavaScript off | `js-content-fallback` |
-| The reader gets the answer first | `summary-first` (BLOCKS) |
-| A comparison gets a real visual | `comparison-visual` (BLOCKS) |
-| The words are gloss-able and plain | `glossary-link` and the plain-language registry |
-| Where this came from is recorded | `provenance-footer`, `provenance-fields`, `meta-ribbon` |
-| House style holds | `em-dash`, `slop-signal` |
+| What it aims at | Rule | What the check actually proves |
+|---|---|---|
+| Renders on a phone at all | `viewport-meta` (BLOCKS) | The meta tag is present and sets `width=device-width` |
+| A wide table does not clip | `table-responsive` | Some responsive treatment exists near a `<table>` |
+| Content exists with JavaScript off | `js-content-fallback` | JS inserts DOM and *a* `<noscript>` exists somewhere |
+| The reader gets the answer first | `summary-first` (BLOCKS) | A `data-summary="true"` section exists somewhere in the page |
+| A comparison gets a real visual | `comparison-visual` (BLOCKS) | A comparison heading's section contains a visual element |
+| The words are gloss-able and plain | `glossary-link` and the plain-language registry | Known terms are wrapped or linked; coined terms are glossed on first use |
+| Where this came from is recorded | `provenance-footer`, `provenance-fields`, `meta-ribbon` | The markers and the documented JSON-LD fields are present |
+| House style holds | `em-dash`, `slop-signal` | No em/en dash in prose; no AI-default violet, emoji heading, or placeholder text |
+
+**Read the third column, not the first.** Every one of these is a marker check, and the gap
+between the two columns is where an artifact goes wrong while passing. Three that matter:
+
+- `summary-first` finds the section anywhere in the document. A summary buried above the
+  footer passes the rule and answers nobody. Put it first because the reader needs it
+  first, not because `check` made you.
+- `js-content-fallback` cannot read your fallback. Any `<noscript>`, including an empty one
+  or one about something else entirely, satisfies it. It knows JS writes DOM and that the
+  word `noscript` appears; it has no idea whether the static content matches what the
+  script would build. Open the page with JavaScript disabled, which `render` cannot yet do.
+- `table-responsive` matches an `overflow-x` or a media query near a table. It cannot tell
+  whether the container is reachable by keyboard, which is the requirement below.
+
+None of this makes the rules pointless. A marker check catches the artifact that never
+tried, which is the common failure. It just never certifies the artifact that did.
 
 Three more belong to the floor and are **not** lintable, so they live here as
 requirements rather than as rules:

@@ -233,6 +233,7 @@ class ArtifactHTMLParser(HTMLParser):
         self.meta: dict[str, str] = {}
         self.has_body_marker = False
         self.has_summary_block = False
+        self.stray_mode_attrs: set[str] = set()
         self.has_meta_ribbon = False
         self.has_provenance = False
         self.has_read_map = False
@@ -298,6 +299,11 @@ class ArtifactHTMLParser(HTMLParser):
         ):
             self._capture_lead_tag = tag_name
             self._lead_buffer = []
+        # The mode lives in `<meta name="artifact-mode">`, alongside artifact-kind. An
+        # author who writes it as an element attribute instead gets no mode and, without
+        # this, no signal either: the shape rules simply stay on and look inexplicable.
+        if "artifact-mode" in attr_map or "data-artifact-mode" in attr_map:
+            self.stray_mode_attrs.add(tag_name)
         if attr_map.get("data-meta-ribbon", "").lower() == "true":
             self.has_meta_ribbon = True
         if attr_map.get("data-provenance", "").lower() == "true":
@@ -601,9 +607,24 @@ _EM_EN_DASH_RE = re.compile(
 _SIZE_BUDGET_BYTES = 512 * 1024
 
 
+# Retired rule IDs that a `<!-- human-html-disable: ... -->` comment may still name.
+# Renaming a rule silently invalidates every suppression written against the old ID, which
+# turns a rename into a new BLOCKING error in artifacts that were passing. A rule keeps
+# answering to its former name for as long as artifacts written against it exist.
+_RULE_ID_ALIASES: dict[str, tuple[str, ...]] = {
+    "summary-first": ("pm-summary",),
+}
+
+
 def _add(bucket: list[str], parser: ArtifactHTMLParser, rule_id: str, msg: str) -> None:
-    """Append a violation unless the artifact has suppressed `rule_id` inline."""
-    if rule_id in parser.suppressed_rules or "all" in parser.suppressed_rules:
+    """Append a violation unless the artifact has suppressed `rule_id` inline.
+
+    Honours retired IDs too, so a suppression written before a rename keeps working.
+    """
+    suppressed = parser.suppressed_rules
+    if "all" in suppressed or rule_id in suppressed:
+        return
+    if any(alias in suppressed for alias in _RULE_ID_ALIASES.get(rule_id, ())):
         return
     bucket.append(f"{msg} [rule={rule_id}]")
 
@@ -644,6 +665,14 @@ def content_shape_violations(
             warnings, parser, "artifact-mode",
             f'{rel}: unrecognised artifact-mode "{mode}" (expected '
             f"{' or '.join(MODES)}); treated as standard, so the shape rules still apply",
+        )
+    if not mode and parser.stray_mode_attrs:
+        where = ", ".join(f"<{t}>" for t in sorted(parser.stray_mode_attrs))
+        _add(
+            warnings, parser, "artifact-mode",
+            f"{rel}: artifact-mode is set as an attribute on {where} but the validator "
+            'reads <meta name="artifact-mode" content="dynamic"> in <head>; the mode is '
+            "not in effect, so the shape rules still apply",
         )
 
     if not parser.has_summary_block:

@@ -203,6 +203,52 @@ class DynamicModeTest(unittest.TestCase):
                     f"{mode or 'absent'} is valid and must not warn: {warnings}",
                 )
 
+    def test_retired_rule_id_still_suppresses(self):
+        """Renaming a rule must not invalidate suppressions written against the old ID.
+
+        `pm-summary` became `summary-first`. `_add` matches the emitted ID exactly, so
+        without an alias every artifact carrying
+        `<!-- human-html-disable: pm-summary -->` turns a passing build into a BLOCKING
+        error on upgrade. That is a silent breaking change for installed workspaces.
+        """
+        for suppressed in ("pm-summary", "summary-first"):
+            with self.subTest(rule_id=suppressed):
+                art = _artifact(
+                    f"<!-- human-html-disable: {suppressed} -->"
+                ).replace('<section data-summary="true"><h2>In plain terms</h2>'
+                          "<ul><li>What: a thing.</li></ul></section>", "")
+                errors, _ = hha.content_shape_violations(
+                    Path("a.html"), art, "2026-07-26", REPO, "plan"
+                )
+                self.assertFalse(
+                    any("summary-first" in e for e in errors),
+                    f"suppressing {suppressed} must silence summary-first: {errors}",
+                )
+
+    def test_an_unsuppressed_missing_summary_still_blocks(self):
+        """Guard the guard: the alias must not silence the rule for everyone."""
+        art = _artifact("<p>x</p>").replace(
+            '<section data-summary="true"><h2>In plain terms</h2>'
+            "<ul><li>What: a thing.</li></ul></section>", "")
+        errors, _ = hha.content_shape_violations(
+            Path("a.html"), art, "2026-07-26", REPO, "plan"
+        )
+        self.assertTrue(any("summary-first" in e for e in errors), errors)
+
+    def test_mode_written_as_an_attribute_warns(self):
+        """The mode is a meta tag. Writing it as an attribute must not fail silently."""
+        art = _artifact("<p>x</p>").replace(
+            '<body data-human-html-artifact="true">',
+            '<body data-human-html-artifact="true" data-artifact-mode="dynamic">',
+        )
+        _, warnings = hha.content_shape_violations(
+            Path("a.html"), art, "2026-07-26", REPO, "plan"
+        )
+        self.assertTrue(
+            any("artifact-mode" in w for w in warnings),
+            f"an attribute-form mode must warn that it is not in effect: {warnings}",
+        )
+
     def test_legacy_audience_marker_still_satisfies_the_rule(self):
         """Artifacts written before the rename must keep validating."""
         legacy = _artifact("<p>x</p>").replace(

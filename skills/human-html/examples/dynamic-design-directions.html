@@ -373,7 +373,7 @@
 
     <div class="keycard good" aria-label="The pick">
       <div class="big">3<small>direction picked</small></div>
-      <p><b>Give each recipient a fixed slot inside every 15 minute period, and keep direction 4's 20 minute age cap underneath it as a guard.</b> On the replayed day it is the only direction whose peak second stays at 11 sends without touching the vendor cap of 120, and the only one where a 3m 20s run of vendor 502s costs 470 digests rather than 4,180. It does not ship until <code>relay_pending</code> gets a composite index, which is blocked on the current migration freeze.</p>
+      <p><b>Give each recipient a fixed slot inside every 15 minute period, and keep direction 4's 20 minute age cap underneath it as a guard.</b> On the replayed day it is the only direction whose peak second stays at 11 sends without touching the vendor cap of 120, and the only one whose outage cost holds up wherever the outage falls: a 3m 20s run of vendor 502s costs it 470 digests against direction 1's 4,180. Direction 4 loses fewer, 190, but only because this particular outage missed its burst by two minutes. It does not ship until <code>relay_pending</code> gets a composite index, which is blocked on the current migration freeze.</p>
     </div>
 
     <section data-summary="true" class="lead-summary">
@@ -423,7 +423,7 @@
 
       <div class="callout callout-warning">
         <strong>One place this trace flatters a direction</strong>
-        <p>The 502 window starts at 09:14:40, three minutes after the import stops writing. Direction 4 flushes on a 20 minute age cap, so its burst lands from 09:18 onwards, just past the end of the window, and it scores well on outage cost by accident of where the recording falls. That is called out in its own panel rather than quietly banked.</p>
+        <p>The 502 window starts at 09:14:40, under three minutes after the import stops writing. Direction 4 flushes on a 20 minute age cap, so the import's own digests land from 09:20 onwards, after the window has closed, and all the window catches is the thin pre-import tail still flushing through it. It scores well on outage cost by accident of where the recording falls. That is called out in its own panel rather than quietly banked.</p>
       </div>
     </section>
 
@@ -590,8 +590,8 @@
       <p>Flush when a recipient has 20 pending events, or when their oldest pending event turns 20 minutes old, whichever comes first. Two triggers, both checked on the same tick.</p>
       <figure>
         <svg class="fig" viewBox="0 0 640 196" role="img" aria-labelledby="c-t c-d">
-          <title id="c-t">Which trigger fired across the day, and the retry burst at 09:18</title>
-          <desc id="c-d">Of 12,410 digests in the day, 9,240 fired on the 20 minute age cap and 3,170 on the 20 event count ceiling. Below that, the nine sends one failed digest made between 09:18:00 and 09:19:01, every one of them into a vendor still returning 502.</desc>
+          <title id="c-t">Which trigger fired across the day, and one digest's retry burst inside the outage</title>
+          <desc id="c-d">Of 12,410 digests in the day, 9,240 fired on the 20 minute age cap and 3,170 on the 20 event count ceiling. Below that, the nine sends one failed digest made between 09:16:59 and 09:18:00, every one of them inside the outage window and every one answered with a 502.</desc>
           <defs>
             <pattern id="c-hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line class="hatch" x1="0" y1="0" x2="0" y2="6"/></pattern>
           </defs>
@@ -601,7 +601,7 @@
           <rect x="457" y="34" width="143" height="28" fill="url(#c-hatch)"/>
           <text class="val" x="40" y="80">age cap, 20 min: 9,240 (74%)</text>
           <text class="val" x="600" y="80" text-anchor="end">count ceiling, 20 events: 3,170 (26%)</text>
-          <text class="lbl" x="40" y="116">one digest that failed at 09:18:00, its next 61 seconds</text>
+          <text class="lbl" x="40" y="116">one digest that failed at 09:16:59, its next 61 seconds</text>
           <line class="retry" x1="40" y1="126" x2="40" y2="150"/>
           <line class="retry" x1="97" y1="126" x2="97" y2="150"/>
           <line class="retry" x1="164" y1="126" x2="164" y2="150"/>
@@ -613,15 +613,15 @@
           <line class="retry" x1="553" y1="126" x2="553" y2="150"/>
           <line class="axis" x1="40" y1="150" x2="620" y2="150"/>
           <text class="val" x="40" y="170">9 sends, 9 responses of HTTP 502</text>
-          <text class="lbl" x="40" y="188">09:18:00</text>
-          <text class="lbl" x="620" y="188" text-anchor="end">09:19:01</text>
+          <text class="lbl" x="40" y="188">09:16:59</text>
+          <text class="lbl" x="620" y="188" text-anchor="end">09:18:00</text>
         </svg>
         <figcaption>The upper bar splits the day's digests by which of the two triggers fired; the hatched right-hand segment is the count ceiling. The lower ticks are one digest's repeated sends after its first attempt failed.</figcaption>
       </figure>
       <p>The age cap is the useful half. It gives the tightest worst-case latency of the four, 20m 02s, and it does so without knowing anything about volume. 74% of the day's digests fire on it, so for most recipients the count ceiling is decoration.</p>
       <p>The count ceiling is the problem half, and it is a tuning trap rather than a bug. At 20 events the busiest recipient receives 58 digests across the day, which is not a digest cadence, it is the current per-event behaviour at a 20&times; discount. Raise the ceiling to 60 and it fires 412 times a day across all recipients instead of 3,170, at which point the age cap does all the work and the ceiling is a second code path with no measurable job. No setting is right for both the 71% and the 38.</p>
-      <p>The concrete failure is the retry. When a send fails the pending rows stay pending, and their oldest event is by then older than 20 minutes, so the age cap is satisfied again on the very next tick. The replay recorded 9 sends for one digest between 09:18:00 and 09:19:01, all nine into a vendor returning 502, until the flusher was disabled by hand. Fixing it needs an attempt counter and a backoff column, which is the same claim-row work direction 1 needs, so it is not an argument against direction 4 specifically. The scoring below assumes that fix is in place for all four.</p>
-      <p>On outage cost direction 4 loses 190 digests, the best of the four, and that number should not be trusted. Its flush distribution is a 20 minute delayed copy of the arrival distribution, so its exposure depends entirely on where an outage falls. The recorded window ends at 09:18:00 and direction 4's burst starts at 09:18. An outage twenty minutes later would have hit it as hard as the 09:15 sweep hits direction 1.</p>
+      <p>The concrete failure is the retry. When a send fails the pending rows stay pending, and their oldest event is by then older than 20 minutes, so the age cap is satisfied again on the very next tick. The replay recorded 9 sends for one digest in the 61 seconds from 09:16:59, all nine answered with a 502, and what stopped the loop was the vendor recovering at 09:18:00 rather than anything in the flusher. Fixing it needs an attempt counter and a backoff column, which is the same claim-row work direction 1 needs, so it is not an argument against direction 4 specifically. The scoring below assumes that fix is in place for all four.</p>
+      <p>On outage cost direction 4 loses 190 digests, the best of the four, and that number should not be trusted. Its flush distribution is a 20 minute delayed copy of the arrival distribution, so its exposure depends entirely on where an outage falls. The window happens to cover 09:14:40 to 09:18:00, which for direction 4 is the sparse tail of pre-import traffic; the import's own 4,180 digests flush from 09:20, two minutes after the vendor came back. An outage twenty minutes later would have hit it as hard as the 09:15 sweep hits direction 1.</p>
       <dl class="verdict">
         <dt><span class="chip good">Take</span></dt>
         <dd>The 20 minute age cap, as a floor under whatever else fires. It is the cheapest way to make the 30 minute commitment structural rather than emergent.</dd>

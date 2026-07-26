@@ -256,7 +256,7 @@ Exactly three rules stand down, and all three are rules about *which sections ex
 | `read-map` | WARN | off | Entry points become part of the invented shape, not a fixed block above section one |
 | `nav-anchors` | BLOCK | WARN | A long doc still needs a way in, but a single top-to-bottom argument may not want a TOC. Nudge, not veto |
 
-**Nothing else is relaxed.** Every other rule protects the reader rather than the structure, and none of it depends on which sections exist: the artifact still renders on a phone, still exists with JavaScript off, still answers first, still puts a real visual in every comparison, still glosses its terms, still records where it came from, still carries no em dashes and no AI-default violet.
+**Nothing else is relaxed.** Every other rule aims at the reader rather than the structure, and none of it depends on which sections exist: a dynamic artifact is still required to render on a phone, to exist with JavaScript off, to answer first, to put a real visual in every comparison, to gloss its terms, to record where it came from, and to carry no em dashes and no AI-default violet. Those are requirements, not guarantees the validator can issue. Most of these rules check for a marker, so passing means the artifact did not obviously skip the requirement; `references/artifact-spine.md` sets out exactly what each check does and does not establish.
 
 The reason the split is this clean is that the rules were always two populations wearing one coat. `required-section` says *a plan looks like this*. `viewport-meta` says *a human on a phone can read this*. Only the first kind is about shape, so only the first kind can be relaxed when the shape is yours.
 
