@@ -554,3 +554,80 @@ Breaking a continuous explanation into **learner-paced segments** improves trans
 No-JS view: all steps show as a normal ordered list (`render()` never runs, so nothing is hidden and the `hidden` nav stays hidden). Reserve for a genuine ordered build-up; for reference material a plain list or `<details>` is enough.
 
 ---
+
+## Review order vs execution order (best in `plan`)
+
+The `plan` scaffold (Outcome / Approach / Sequence / Risks / Rollback) is shaped by **how the work will happen**. But a reader's attention is the scarce resource, not the build order - and the parts they are most likely to change are scattered through a document sorted by something else. A plan sorted by *likelihood you will want to tweak it* puts every judgment call in front of them and sinks the mechanical work to the bottom.
+
+Declare the sort explicitly, or the reader assumes chronology and gets confused:
+
+```html
+<div class="stripe high">
+  <p><strong>This plan is sorted by likelihood-of-tweaking, not execution order.</strong>
+     Top to bottom = most worth your attention first. Section A holds every judgment call;
+     B is the build order; C is mechanical and safe to skip.</p>
+</div>
+```
+
+Then three sections:
+
+- **A - Decisions you'll probably want to change.** Each one states the choice made, the alternative considered, and the cost of switching. Say which way you lean and why; a choice presented without a lean makes the reader do your work.
+- **B - Sequencing.** The ordinary ordered build steps, with estimates. This is the old `plan` body.
+- **C - Mechanical work.** Renames, fixture updates, flag registration. Collapse it: `<details><summary>Boring but necessary <span class="count">8 tasks · ~0.5d, folded into the estimates above</span></summary>`. Naming it *mechanical* is a promise that there are no decisions hiding in there - so make sure that is true.
+
+Two refinements that make this land:
+
+- **Flag the weakest part of your own plan.** One step marked "weakest part of this plan", with a paragraph on why, buys more trust than a uniformly confident document and directs review at the place it pays off.
+- **Pre-write the likely pushbacks.** Two or three ready-to-send one-liners ("Cut `TimecodeRange`; nobody asked for per-scene export") next to the decisions they target. This is the inverse of an open question: instead of asking what the reader thinks, you draft their most probable disagreement and let them send it in one click. Pair with the reader-response compiler in `references/workflow-integrations.md`.
+
+Not a scaffold change and not a rule - the execution-ordered `plan` is still the right default for small, low-judgment plans. Reach for this ordering when the plan contains real forks.
+
+## What we deliberately did not do (non-goals)
+
+The cheapest section in this document. A change that does not state its non-goals invites the entire class of review comment that begins *"why didn't you also…"* - and each one costs a round trip to answer.
+
+```html
+<h2>What we deliberately did not do</h2>
+<ul>
+  <li><strong>No per-user digest batching.</strong> Layers on top of this cleanly; bundling it
+      would make the change unreviewable.</li>
+  <li><strong>No delivery receipts.</strong> Needs a schema change we do not want in this PR.</li>
+  <li><strong>No priority lanes.</strong> Speculative until we see the queue depth in production.</li>
+</ul>
+```
+
+The form that works is **the omission plus its reason**, and the reason is what does the work: *layers on cleanly*, *needs a schema change*, *speculative until we have data*. A bare list of omissions reads as a to-do list you forgot to finish.
+
+Best in `plan`, `review`, `architecture`, and `prototype`. It pairs with, and is not the same as, Open questions: a non-goal is settled (*we are not doing this, here is why*); an open question is unsettled and needs an owner and a date (see "Owners and deadlines on action sections"). Filing an unsettled thing as a non-goal is how a decision gets made by accident.
+
+## Linked source-to-target correspondence (best for ports and migrations)
+
+When an artifact argues that *this* code becomes *that* code - a port to another language, a framework migration, a rewritten module - the reader's real question is line-by-line: which part maps to which, and where does the mapping break? Two code blocks side by side do not answer that; the reader does the diffing by eye and misses the traps.
+
+Give corresponding regions a shared token and a number, and put the trap in a numbered note beside them:
+
+```html
+<mark class="lk" data-link="a2">elapsed.as_nanos() * rate / 1_000_000_000<sup>2</sup></mark>
+<!-- ...in the other panel... -->
+<mark class="lk" data-link="a2">Math.floor((elapsedMs * ratePerSec) / 1000)<sup>2</sup></mark>
+
+<div class="note" data-link="a2">
+  <span class="nmark">2</span>
+  <strong>Integer vs float division.</strong> Rust's <code>u64</code> division truncates; JS
+  division does not. <code>Math.floor</code> restores truncation. Dropping it is an easy
+  "simplification" that silently changes behaviour at low rates.
+</div>
+```
+
+**The numbered correspondence must work with no pointer and no JS** - the `<sup>2</sup>` markers and the numbered note carry the whole meaning on their own. Hover/focus highlighting is enhancement only, and if you add it, bind `mouseenter`/`mouseleave` **and** `focusin`/`focusout` with the `<mark>` made focusable, or keyboard and touch readers lose it. Hover-only correspondence is the trap this pattern exists to avoid.
+
+Close the artifact with the three-way behaviour ledger, which is what a reviewer actually needs to sign off a port:
+
+| Preserved exactly | Deliberately changed | Dropped (not needed) |
+|---|---|---|
+| Refill truncation + the mint guard | `u64` nanos → `number` ms (all products provably < 2⁵³) | Overflow guards - unreachable once the cap applies in ms |
+| Jitter formula, inclusive both ends | `Mutex` → plain fields (single-threaded; atomicity by sync-only convention + test) | Thread-sharing impls - no threads to share across |
+
+An edge-case table with an explicit `identical` / `equivalent` verdict per row is the natural companion, and define what `equivalent` means in a footnote - "same decision, different surface" is not the same claim as "identical", and a reviewer needs to know which one you are making.
+
+---

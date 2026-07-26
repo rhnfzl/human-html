@@ -121,9 +121,26 @@ _RESPONSIVE_TABLE_RE = re.compile(
 )
 # Progressive enhancement: JS-disabled previews (iOS Quick Look, Android file /
 # in-app previews, email) render HTML+CSS but run NO JavaScript. An artifact that
-# builds its core content with .innerHTML and offers no <noscript> fallback shows
-# up blank in those contexts. If it writes content with JS, it must degrade.
-_JS_DOM_WRITE_RE = re.compile(r"\.innerHTML\s*=", re.IGNORECASE)
+# builds its core content in JS and offers no <noscript> fallback shows up blank
+# in those contexts. If it writes content with JS, it must degrade.
+#
+# Match INSERTION, not creation. A bare document.createElement() returns a detached
+# node and puts nothing on the page; only attaching it does. Matching creation would
+# fire on the copy-button pattern in references/patterns.md, which builds its control
+# in JS precisely so no-JS surfaces never show a dead one.
+#
+# This rule used to match only `.innerHTML =`, so content built via
+# createElement + textContent + appendChild passed silently -- including in this
+# skill's own examples/prototype-canonical.html. Passing was not proof of a floor.
+_JS_DOM_WRITE_RE = re.compile(
+    r"\.(?:inner|outer)HTML\s*=(?!=)"  # assignment, not the `===` comparison
+    r"|\.insertAdjacentHTML\s*\("
+    r"|\.replaceChildren\s*\("
+    r"|\.(?:appendChild|append|prepend)\s*\("
+    r"|\.insertBefore\s*\("
+    r"|document\.write(?:ln)?\s*\(",
+    re.IGNORECASE,
+)
 _NOSCRIPT_RE = re.compile(r"<noscript[\s>]", re.IGNORECASE)
 
 
@@ -714,10 +731,13 @@ def content_shape_violations(
     if _JS_DOM_WRITE_RE.search(content) and not _NOSCRIPT_RE.search(content):
         _add(
             warnings, parser, "js-content-fallback",
-            f"{rel}: builds content with JavaScript (.innerHTML) but has no <noscript> "
-            "fallback -- it renders BLANK in JS-disabled previews (iOS Quick Look, "
-            "Android file/in-app previews, email). Pre-render the core content into the "
-            "static HTML (JS then enhances it) or add a <noscript> fallback",
+            f"{rel}: inserts DOM from JavaScript (innerHTML / appendChild / "
+            "insertAdjacentHTML / replaceChildren / document.write) but has no "
+            "<noscript> fallback -- it renders BLANK in JS-disabled previews (iOS "
+            "Quick Look, Android file/in-app previews, email). Pre-render the core "
+            "content into the static HTML (JS then enhances it) or add a <noscript> "
+            "fallback. If the JS only injects a CONTROL (a copy button, a stepper "
+            "nav), a short <noscript> banner satisfies this",
         )
 
     slop_hits: list[str] = []

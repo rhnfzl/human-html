@@ -141,3 +141,117 @@ Add `confidence` to the JSON-LD `Decision` object **and** show the badge on the 
 ### Re-entry context
 
 `review` and `architecture` scaffolds ship a **Re-entry context** section: the invariants that must stay true, the non-obvious coupling, and the easy-to-miss step a returning reader (or agent) needs to resume the work. Keep it to the 3-5 things that are not recoverable by reading the code.
+
+---
+
+## Implementation deviation ledger (optional; use the `status` kind)
+
+The gap this fills: a plan is written *before* the work and a review happens *after* it, so everything the code teaches you *during* the build - the NULL column nobody documented, the helper that already existed, the permission the plan got wrong - evaporates into agent scrollback. The next attempt rediscovers all of it.
+
+Ask the agent to log every deviation as it happens, then hand the log back as the input to the next plan. Use the existing `status` kind while work is in flight; there is no separate artifact kind for this, and the block is plain HTML with no JS.
+
+**Every deviation carries the same four fields.** The fixed shape is the point - it makes the log skimmable and stops entries degrading into "ran into a thing, fixed it".
+
+| Field | What goes in it |
+|---|---|
+| **Plan said** | The assumption as written, quoted, not paraphrased |
+| **Code revealed** | What was actually true, with the file / migration / row count that proves it |
+| **Conservative choice** | What was done *and why it is the cautious option* - never the clever one |
+| **Revisit** | The braver option that was declined, so the decision is reopenable |
+
+```html
+<section id="deviations" class="section" data-deviation-ledger="true">
+  <h2>Deviations from the plan</h2>
+  <p>Four entries. Two need a human decision (flagged below); neither blocks merge.</p>
+
+  <article class="stripe high">
+    <h3>Legacy rows have no frame timestamp</h3>
+    <dl class="deflist">
+      <dt>Plan said</dt>
+      <dd>Every annotation has a <code>frame_ts</code>, so the renderer can place them all.</dd>
+      <dt>Code revealed</dt>
+      <dd>~12% of <code>annotations</code> predate migration <code>0087</code> and have
+          <code>frame_ts IS NULL</code> - they were general comments before per-frame existed.</dd>
+      <dt>Conservative choice</dt>
+      <dd>Excluded from the video burn-in; kept in the CSV sidecar with a
+          <code>legacy_comment</code> flag. Nothing is silently dropped from the export.</dd>
+      <dt>Revisit</dt>
+      <dd>Could interpolate a timestamp from <code>created_at</code>. Declined: unclear whether
+          a guessed timecode is honest enough to burn into a video.</dd>
+    </dl>
+  </article>
+</section>
+```
+
+**Close with the fold-forward block - this is the part that earns the ledger.** Without it you have a diary; with it you have an input to the next plan. Keep it to three bullets, each phrased as an instruction to the next attempt, not a description of the past one.
+
+```html
+<section id="fold-forward" class="section">
+  <h2>What this changes about attempt #2</h2>
+  <ol>
+    <li><strong>State the legacy-data caveat up front.</strong> ~12% of annotations have a null
+        <code>frame_ts</code>. Settle interpolate-vs-sidecar before implementation, not at 14:41
+        mid-build.</li>
+    <li><strong>Spec queue payloads as wire types.</strong> The queue round-trips through JSON, so
+        payload interfaces use ISO strings, never <code>Date</code>.</li>
+    <li><strong>Search for prior art before adding a dependency.</strong> Two of four deviations were
+        "this already exists". Add a prior-art step to the plan template.</li>
+  </ol>
+</section>
+```
+
+Entry types worth distinguishing when the log gets long (chip them with `.chip`): `plan-confirmed` (went as written - keep a few so the log is not only bad news), `discovery` (a trap found, no plan change), `deviation` (the four-field shape above), `human-decision` (parked for the reader, with what it costs to change). Surface the counts as `.tiles` at the top: entries / deviations / needing your judgment.
+
+---
+
+## Reader-response compiler (optional)
+
+Most artifacts end with the reader having read. This pattern ends with the reader having *replied*: concrete choices assemble a plain-text block they paste straight back into the agent. It suits `decision`, `review`, `architecture`, and `prototype` - anywhere the artifact presents options and the next step is the reader picking among them.
+
+**Rule 9 is the whole difficulty here, so the shape is prescribed.** The obvious implementation - chips wired to a JS reply builder - renders as dead controls and an empty box in iOS Quick Look, email, and Android previews. Four requirements, none optional:
+
+1. **Native form controls.** Real `<input type="checkbox">` / `<input type="radio">` inside a `<fieldset>` with a `<legend>`. Native state is keyboard-operable and announced correctly with no `aria-pressed` bookkeeping, and it still *works* (checkable) with no JS.
+2. **The choice text lives in the HTML**, never in a JS array. A no-JS reader must be able to read every option.
+3. **A pre-rendered default reply.** Ship a sensible reply already written into the `<pre>`, so the box is never empty - JS only *re*-compiles it. Give the `<pre>` `aria-live="polite"` so recompiles are announced.
+4. **`<noscript>` swaps the compiler for a manual template.** Controls that cannot function must not render; the reader gets a fill-in-the-blanks version instead.
+
+```html
+<section id="your-call" class="section">
+  <h2>Reply with your picks</h2>
+
+  <form class="compiler-controls" id="reply-form">
+    <fieldset>
+      <legend>Which direction?</legend>
+      <label><input type="radio" name="dir" value="Direction 2 (editorial)" checked> Editorial cards</label>
+      <label><input type="radio" name="dir" value="Direction 1 (ops console)"> Dense ops console</label>
+    </fieldset>
+    <fieldset>
+      <legend>Worth keeping from the others</legend>
+      <label><input type="checkbox" name="keep" value="the 4-stat metric strip" checked> 4-stat metric strip</label>
+      <label><input type="checkbox" name="keep" value="the age-in-queue timeline"> Age-in-queue timeline</label>
+    </fieldset>
+  </form>
+
+  <!-- Pre-rendered at the default selection, so no-JS readers get a usable reply. -->
+  <pre id="reply" aria-live="polite">Go with Direction 2 (editorial).
+Keep: the 4-stat metric strip.
+Then build it at src/pages/ReviewQueue.tsx.</pre>
+
+  <noscript>
+    <style>.compiler-controls { display: none; } .manual-template { display: block; }</style>
+    <p>JavaScript is off, so the picker is hidden. Copy the template below and fill it in.</p>
+  </noscript>
+  <div class="manual-template" hidden>
+    <pre>Go with Direction ___.
+Keep: ___
+Drop: ___
+Then build it at ___.</pre>
+  </div>
+</section>
+```
+
+The script reads `form.elements`, rebuilds the reply with `textContent` (never `innerHTML`), and injects the copy button rather than shipping it in markup - same guard as the copy-button pattern in `patterns.md`, so no surface ever shows a control it cannot use.
+
+Two details worth copying from the source of this pattern: **pre-select a sensible default** so the reply never opens empty, and **end the compiled reply with the concrete next step** (the file to change, the endpoint to hit). A reply that says only "I like option 2" sends the agent back for another round.
+
+Keep this optional and unvalidated for now. There is no validator rule: the shape has not stabilised across enough real artifacts to mechanise, and a premature rule would be another string heuristic to maintain.

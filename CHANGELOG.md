@@ -2,11 +2,26 @@
 
 ## Unreleased
 
-Hook automation can now be enabled with one idempotent command after installation.
+Hook automation can now be enabled with one idempotent command after installation. Three contract defects in the shipped examples are fixed, and five workflow patterns are documented.
 
 - **Global hook activation.** `python3 <skill-dir>/activate_hooks.py` merges the advisory and autoindex hooks into Claude Code, Codex, Cursor, and Windsurf settings without replacing unrelated configuration.
 - **Windsurf support.** A thin adapter translates Cascade's write and command hook payloads into the existing agent-neutral hook input.
 - **Discoverable wiring metadata.** The shipped hooks include their event and matcher headers for downstream installers.
+
+### Fixed
+
+- **`js-content-fallback` now detects DOM insertion, not one phrase.** The rule matched only `.innerHTML =`, so content assembled with `createElement` + `textContent` + `appendChild` passed silently - including in this skill's own `prototype-canonical.html`, which shipped an empty `<ul>` filled by JS and no `<noscript>`, rendering blank in iOS Quick Look. Detection now covers `innerHTML` / `outerHTML` assignment, `insertAdjacentHTML`, `replaceChildren`, `appendChild` / `append` / `prepend`, `insertBefore`, and `document.write`, and deliberately **not** a bare `createElement` (a detached node puts nothing on the page), so the JS-injected copy-button pattern stays clean. Also fixes a pre-existing false positive: `.innerHTML ===` (a read) matched as a write. `prototype-canonical.html` gained a real static floor - its seven default rows pre-rendered, plus a `<noscript>` block that hides the slider and copy button. SKILL.md now states plainly that passing this rule is not proof of a static floor, because the check is a grep and cannot tell a control from content.
+- **Reading guides in all nine canonical examples were role-based, which the contract forbids.** SKILL.md requires depth-based guides and explicitly bans job-title labels, yet every example shipped `Exec (2 min)` / `PM (5 min)` / `Engineer (15 min)`. Because SKILL.md tells agents to read the canonical example before writing an artifact of that kind, the example was quietly overriding the rule. Relabelled to `Quick read (2 min)` / `Standard (5 min)` / `Full read (15 min)`, keeping the time budgets, which were the useful part of the old labels.
+- **Mermaid label clipping was fixed in the scaffold but never backfilled to the examples.** All nine canonical examples carried live mermaid with neither half of the fix, so every shipped diagram clipped its node labels at the right edge. Both halves are now present in all nine: the CSS that neutralizes page kerning / ligatures / letter-spacing inside `.mermaid` (with `foreignObject { overflow: visible }`), and `flowchart: { htmlLabels: true, padding: 12, useMaxWidth: true }` in the init config.
+- **`tests/test_content_rules.py` (new)** guards all three: eighteen positive and negative cases for the DOM-insertion regex, plus contract tests asserting that no example carries a role-based read map, inserts DOM without a `<noscript>` floor, or ships a mermaid diagram missing the clip fix. Each test fails against the pre-fix tree.
+
+### Added
+
+- **Implementation deviation ledger** (`references/workflow-integrations.md`). The during-the-build log that had no home: `plan` is written before the work and `review` happens after it, so everything the code teaches you mid-build evaporates into agent scrollback and the next attempt rediscovers it. Four fixed fields per entry - what the plan said, what the code revealed, the conservative choice taken, what to revisit - closing with a mandatory fold-forward block that turns the surprises into three instructions for the next attempt. Uses the existing `status` kind; no new artifact kind and no validator rule.
+- **Reader-response compiler** (`references/workflow-integrations.md`). Most artifacts end with the reader having read; this one ends with them having replied, as a block they paste straight back. The no-JS shape is prescribed rather than suggested, because the obvious implementation renders as dead controls and an empty box in exactly the previews Rule 9 exists to protect: native form controls, choice text in the HTML, a pre-rendered default reply with `aria-live`, and a `<noscript>` swap to a manual template.
+- **Review order vs execution order** (`references/patterns.md`). A `plan` sorted by likelihood-of-tweaking rather than build order, so every judgment call is up front and the mechanical work collapses into `<details>`. Includes flagging the weakest part of your own plan, and pre-writing the two or three likeliest pushbacks so the reader can send one in a click.
+- **Non-goals** (`references/patterns.md`). "What we deliberately did not do", written as the omission plus its reason. Pre-empts the whole class of review comment that begins "why didn't you also...". Distinguished from Open questions: a non-goal is settled, an open question needs an owner and a date.
+- **Linked source-to-target correspondence** (`references/patterns.md`). For ports and migrations: corresponding regions in the source and target excerpts share a token and a number, with the trap in a numbered margin note, plus a preserved / deliberately changed / dropped ledger. The numbered correspondence must carry the meaning with no pointer and no JS; hover highlighting is enhancement only, and must bind focus events too or keyboard and touch readers lose it.
 
 ## 1.2.4 - 2026-07-12
 

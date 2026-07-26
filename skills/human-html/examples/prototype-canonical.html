@@ -101,6 +101,14 @@
     pre { background: #0f172a; color: #e2e8f0; border-radius: var(--radius); padding: 14px; overflow: auto; }
     pre code { background: transparent; border: 0; color: inherit; }
     .mermaid svg { max-width: 100%; height: auto; }
+    /* Mermaid node labels clip on the right when the page's kerning / ligatures / letter-spacing widen the
+       final SVG text past mermaid's own measurement. Neutralize those inside the diagram, and let a label
+       spill into the node's padding rather than be cut off. */
+    .mermaid text, .mermaid .nodeLabel, .mermaid .edgeLabel,
+    .mermaid foreignObject div, .mermaid foreignObject span, .mermaid foreignObject p {
+      font-feature-settings: normal; font-variant-ligatures: none; letter-spacing: normal; text-rendering: auto;
+    }
+    .mermaid foreignObject { overflow: visible; }
     .mermaid:not([data-processed]) { font-family: var(--mono); font-size: var(--fs-sm); white-space: pre; overflow-x: auto; background: var(--surface-2); border: 1px dashed var(--line-strong); border-radius: var(--radius); padding: var(--s-6); color: var(--muted); }
     .needs-verification { display: inline-block; font-family: var(--mono); padding: 2px 8px; border-radius: var(--radius-sm); font-size: var(--fs-cap); font-weight: 700; background: var(--warn-bg); color: var(--warn); border: 1px solid var(--warn-line); }
     /* responsive overrides for components live next to the component (in _EXTRA_SCAFFOLD_STYLE) */
@@ -278,6 +286,7 @@
     if (document.querySelector(".mermaid")) {
       const { default: mermaid } = await import("https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.esm.min.mjs");
       mermaid.initialize({ startOnLoad: false, securityLevel: "loose", theme: "base",
+        flowchart: { htmlLabels: true, padding: 12, useMaxWidth: true },
         /* keep themeVariables in sync with the :root tokens above (single file, two spots) */
         themeVariables: { primaryColor: "#eef5fb", primaryBorderColor: "#b9d5ec", primaryTextColor: "#172033", lineColor: "#5a6577", fontFamily: "inherit", fontSize: "14px" } });
       await mermaid.run();   /* module scripts defer, so the DOM is parsed; run() renders every .mermaid once */
@@ -318,9 +327,9 @@
     </section>
 
     <aside class="read-map" aria-label="Reading map">
-      <div><strong>Exec (2 min):</strong> <a href="#goal">Goal</a> &middot; <a href="#try-it">Try it</a></div>
-      <div><strong>PM (5 min):</strong> <a href="#goal">Goal</a> &middot; <a href="#current-vs-target">Current vs target</a> &middot; <a href="#mocked">What's mocked</a></div>
-      <div><strong>Engineer (15 min):</strong> All sections</div>
+      <div><strong>Quick read (2 min):</strong> <a href="#goal">Goal</a> &middot; <a href="#try-it">Try it</a></div>
+      <div><strong>Standard (5 min):</strong> <a href="#goal">Goal</a> &middot; <a href="#current-vs-target">Current vs target</a> &middot; <a href="#mocked">What's mocked</a></div>
+      <div><strong>Full read (15 min):</strong> All sections</div>
     </aside>
 
     <nav class="toc" aria-label="On this page">
@@ -458,15 +467,35 @@ make run
       <h3>Interactive: tune the extraction confidence threshold</h3>
       <p>Below is a live in-artifact sandbox demonstrating the second prototype variable: at what confidence score do we pre-fill a field vs leave it blank? Slide and watch which of the 12 fields the prototype would pre-fill. Use the copy button to capture the threshold you want to ship with.</p>
       <div id="confidence-sandbox" style="border:1px solid var(--line); border-radius:8px; padding:18px; margin-top:12px; background:var(--soft);">
-        <label style="display:flex; align-items:center; gap:12px; font-weight:600;">
+        <!-- Rule 9 static floor: the slider and the copy button only work with JS, so
+             they are hidden in no-JS previews (the <noscript> block below), and the
+             list below is PRE-RENDERED at the default threshold of 60% so a reader in
+             iOS Quick Look / email sees the same 7 fields the script would build.
+             Keep this list in sync with the `fields` array in the script. -->
+        <label class="js-only" style="display:flex; align-items:center; gap:12px; font-weight:600;">
           Confidence threshold:
           <input id="confidence-slider" type="range" min="0" max="100" value="60" style="flex:1;">
           <output id="confidence-value" style="min-width:48px; text-align:right; color:var(--blue); font-variant-numeric:tabular-nums;">60%</output>
         </label>
-        <p style="margin-top:14px;">Pre-filled: <strong id="prefill-count-num">7</strong> of <strong id="prefill-total">12</strong> fields</p>
-        <ul id="prefill-list" style="margin:0; padding-left:22px; font-size:.92rem;"></ul>
-        <button id="copy-button" type="button" style="margin-top:14px; background:var(--blue); color:white; border:0; padding:8px 16px; border-radius:6px; font-weight:600; cursor:pointer;">Copy threshold for the prompt</button>
-        <span id="copy-status" style="margin-left:10px; color:var(--green); font-size:.85rem;"></span>
+        <p style="margin-top:14px;">Pre-filled: <strong id="prefill-count-num">7</strong> of <strong id="prefill-total">12</strong> fields <span class="static-note" hidden>at the default 60% threshold</span></p>
+        <ul id="prefill-list" style="margin:0; padding-left:22px; font-size:.92rem;">
+          <li>Subject <span style="color:var(--muted)">(95%)</span></li>
+          <li>Product area <span style="color:var(--muted)">(90%)</span></li>
+          <li>Severity <span style="color:var(--muted)">(80%)</span></li>
+          <li>Affected version <span style="color:var(--muted)">(75%)</span></li>
+          <li>Steps to reproduce <span style="color:var(--muted)">(70%)</span></li>
+          <li>Environment <span style="color:var(--muted)">(65%)</span></li>
+          <li>Customer tier <span style="color:var(--muted)">(60%)</span></li>
+        </ul>
+        <button id="copy-button" class="js-only" type="button" style="margin-top:14px; background:var(--blue); color:white; border:0; padding:8px 16px; border-radius:6px; font-weight:600; cursor:pointer;">Copy threshold for the prompt</button>
+        <span id="copy-status" class="js-only" style="margin-left:10px; color:var(--green); font-size:.85rem;"></span>
+        <noscript>
+          <style>#confidence-sandbox .js-only { display: none; } #confidence-sandbox .static-note { display: inline; }</style>
+          <p style="margin:14px 0 0; font-size:.88rem; color:var(--muted);">
+            JavaScript is off, so the threshold slider is hidden and the list above shows
+            the default 60% cut. Open this file in a browser to tune it live.
+          </p>
+        </noscript>
       </div>
       <p style="margin-top:14px; font-size:.82rem; color:var(--muted);">Tip: the URL hash updates as you slide. Bookmark or share the URL to capture this exact threshold.</p>
       <script>
