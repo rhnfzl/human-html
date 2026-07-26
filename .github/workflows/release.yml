@@ -40,6 +40,45 @@ jobs:
           grep -qE "^## ${VERSION//./\\.} " CHANGELOG.md || { echo "::error::CHANGELOG.md has no '## $VERSION' section"; fail=1; }
           exit $fail
 
+      # No other workflow runs the suite, so a tag is the last place to catch a broken
+      # validator before it reaches everyone who installs the skill. Stdlib unittest only,
+      # no dependencies to install.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Run the test suite
+        run: python3 -m unittest discover -s tests -v
+
+      # The shipped examples ARE the documentation an agent copies from, so an example
+      # that violates the contract is worse than a docs bug: the example wins. Fail the
+      # release rather than publish one.
+      - name: Validate the shipped examples
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import importlib.util, pathlib, sys
+          spec = importlib.util.spec_from_file_location(
+              "hha", "skills/human-html/human_html_artifacts.py")
+          hha = importlib.util.module_from_spec(spec)
+          sys.modules["hha"] = hha
+          spec.loader.exec_module(hha)
+          bad = 0
+          for p in sorted(pathlib.Path("skills/human-html/examples").glob("*.html")):
+              parser = hha.ArtifactHTMLParser()
+              text = p.read_text(encoding="utf-8")
+              parser.feed(text)
+              errors, warnings = hha.content_shape_violations(
+                  p, text, "2026-07-26", pathlib.Path("."),
+                  parser.meta.get("artifact-kind", ""))
+              for e in errors:
+                  print(f"::error::{e}"); bad += 1
+              for w in warnings:
+                  print(f"::warning::{w}")
+          print(f"validated {len(list(pathlib.Path('skills/human-html/examples').glob('*.html')))} examples")
+          sys.exit(1 if bad else 0)
+          PY
+
       # Slice the CHANGELOG section for this version: from its "## X.Y.Z" heading to the
       # next "## " heading, dropping the heading line itself.
       - name: Extract release notes
