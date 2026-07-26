@@ -401,10 +401,43 @@ class SourceFilesProvenanceTest(unittest.TestCase):
         self.assertTrue(any("non-empty array" in w for w in warnings), warnings)
 
     def test_wrong_shape_warns_instead_of_crashing(self):
-        for bad in (["a.ts"], "a.ts", 3):
+        for bad in (["a.ts"], "a.ts", 3, None):
             with self.subTest(value=bad):
                 warnings = hha._source_files_warnings(Path("a.html"), {"sourceFiles": bad})
                 self.assertTrue(warnings, f"{bad!r} should warn")
+
+    def test_an_explicit_null_is_not_the_same_as_omission(self):
+        """`"sourceFiles": null` means the author started the block and left it empty."""
+        self.assertEqual(hha._source_files_warnings(Path("a.html"), {}), [])
+        self.assertTrue(hha._source_files_warnings(Path("a.html"), {"sourceFiles": None}))
+
+    def test_element_types_are_checked_not_just_truthiness(self):
+        """The block's only job is to make a `git diff` runnable.
+
+        A numeric revision or a path array of integers passes a truthiness check and
+        produces an unusable command, which is the failure this guards.
+        """
+        bad_paths = [
+            ([1, 2, 3], "integers"),
+            (["a.ts", ""], "an empty string among real paths"),
+            (["   "], "whitespace only"),
+            ("a.ts", "a bare string instead of an array"),
+        ]
+        for paths, why in bad_paths:
+            with self.subTest(paths=why):
+                warnings = hha._source_files_warnings(
+                    Path("a.html"), {"sourceFiles": {"paths": paths, "readAtRevision": "9c2ad10"}}
+                )
+                self.assertTrue(any("path strings" in w for w in warnings), f"{why}: {warnings}")
+
+        for revision, why in ((12345, "a number"), ("", "empty"), ("  ", "whitespace")):
+            with self.subTest(revision=why):
+                warnings = hha._source_files_warnings(
+                    Path("a.html"), {"sourceFiles": {"paths": ["a.ts"], "readAtRevision": revision}}
+                )
+                self.assertTrue(
+                    any("readAtRevision" in w for w in warnings), f"{why}: {warnings}"
+                )
 
     def test_the_worked_example_agrees_with_its_own_json_ld(self):
         """The visible list and the JSON-LD are one fact written twice.

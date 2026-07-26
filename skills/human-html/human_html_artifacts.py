@@ -980,20 +980,33 @@ def _source_files_warnings(rel: Path, obj: dict) -> list[str]:
     Nothing here fires unless `sourceFiles` is present. This is an adoptable pattern, not a
     requirement, and a rule that nags every artifact into carrying one would be wrong.
     """
-    source_files = obj.get("sourceFiles")
-    if source_files is None:
+    # Membership, not `.get()`: an explicit `"sourceFiles": null` means the author started the
+    # block and left it empty, which is worth flagging. Only true omission is silent.
+    if "sourceFiles" not in obj:
         return []
+    source_files = obj["sourceFiles"]
     if not isinstance(source_files, dict):
         return [f"{rel}: provenance sourceFiles must be an object with paths + readAtRevision"]
 
+    # Types are checked down to the element, because the block's only job is to make
+    # `git diff <readAtRevision>..HEAD -- <paths>` runnable. A numeric revision or a path
+    # array of integers would satisfy a truthiness check and produce an unusable command.
     warnings: list[str] = []
     paths = source_files.get("paths")
-    if not isinstance(paths, list) or not paths:
-        warnings.append(f"{rel}: provenance sourceFiles.paths must be a non-empty array")
-    if not source_files.get("readAtRevision"):
+    if not (
+        isinstance(paths, list)
+        and paths
+        and all(isinstance(item, str) and item.strip() for item in paths)
+    ):
         warnings.append(
-            f"{rel}: provenance sourceFiles has no readAtRevision, so a reader cannot tell "
-            "whether the files have changed since; add the commit the artifact was written against"
+            f"{rel}: provenance sourceFiles.paths must be a non-empty array of non-empty "
+            "path strings"
+        )
+    revision = source_files.get("readAtRevision")
+    if not (isinstance(revision, str) and revision.strip()):
+        warnings.append(
+            f"{rel}: provenance sourceFiles needs a readAtRevision string, so a reader can tell "
+            "whether the files have changed since; use the commit the artifact was written against"
         )
     return warnings
 
