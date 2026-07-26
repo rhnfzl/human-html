@@ -498,7 +498,7 @@ curl -sS "$AGENT_SERVICE_URL/chat/completions" \
           <li><code>acme-agent-service/agent_service/api/routers/chat.py</code></li>
           <li><code>acme-mcp/server.py</code></li>
         </ul>
-        <p>Still accurate? <code>git diff --stat 4e91c07 -- gateway/app/views.py acme-agent-service/agent_service/api/routers/chat.py acme-mcp/server.py</code>. Empty output means none of the three files this trace depends on has changed since, in history or in your working copy. Note the missing <code>..HEAD</code>: that form compares two commits and would call an uncommitted edit clean.</p>
+        <p>Still accurate? <code>git diff --stat 4e91c07 -- gateway/app/views.py acme-agent-service/agent_service/api/routers/chat.py acme-mcp/server.py</code>. Empty output means all three still match what this trace was written against, your uncommitted edits included. Note the missing <code>..HEAD</code>: that form compares two commits and would call an uncommitted edit clean.</p>
       </details>
       <script type="application/ld+json" id="provenance">
         {
