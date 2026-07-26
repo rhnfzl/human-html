@@ -453,7 +453,7 @@ graph TB
         <p class="tags"><span class="chip crit">Band 1: stop</span> <span class="chip neutral">Bites: first archive after cutover</span> <span class="chip neutral">Radius: everything archived between two Sundays</span></p>
         <p><b>Assumed.</b> Every change to a document arrives on <code>corpus.changes</code>, deletes included.</p>
         <p><b>Actually.</b> The wiki and tickets sources, which are 94% of rows, never hard-delete anything. They set <code>archived = true</code> in place, and the connector drops archived rows before they reach the topic (<code>connectors/wiki.properties:22</code>). An archive therefore produces no event at all. The nightly rebuild hid this completely, because it read the sources with <code>where archived = false</code> and an archived page simply failed to appear in the next index.</p>
-        <p><b>What breaks.</b> After cutover the only thing that removes a document is a full rebuild, so a page archived at 09:00 on Monday is still returned by search 6 days and 22 hours later. The bad case is not staleness. It is a page that was archived precisely because it should stop being read.</p>
+        <p><b>What breaks.</b> After cutover the only thing that removes a document is a full rebuild, so a page archived at 09:00 on Monday keeps being returned until the Sunday alias flip: the job starts at 01:00 and takes 5h40m, which puts the flip 5 days and 22 hours after the archive. A page archived just after a flip waits the full seven days. The bad case is not staleness. It is a page that was archived precisely because it should stop being read.</p>
         <p class="cost"><b>Fix now:</b> stop excluding archived rows and treat <code>archived = true</code> as a delete in the consumer. About two days, including one replay of the last week of events. <b>Fix after cutover:</b> the same code, but there is no event trail for the archives that were already dropped, so finding them means diffing every index id against the source tables, which took a week the last time it was done for a single source.</p>
       </article>
     </section>
@@ -477,7 +477,7 @@ graph TB
         <p><b>Assumed.</b> Mapping changes are out of scope for RFC 214.</p>
         <p><b>Actually.</b> They were in scope of the nightly rebuild. Every new field and every analyser change has shipped by merging a mapping and letting that night's rebuild pick it up. The cluster will not change the analyser on an existing field in place, so once the rebuild is weekly there is no path between Sundays.</p>
         <p><b>What breaks.</b> A filter that needs one new keyword field goes from "merge it and wait a night" to "merge it and wait up to seven days". The predictable response to that wait is writing the value into an existing text field, which is how <code>tickets.status_text</code> ended up holding three unrelated things.</p>
-        <p class="cost"><b>Fix now:</b> keep the build-a-new-index-and-flip path as a job someone can trigger rather than a cron entry. The code is already in <code>jobs/rebuild_all.py</code>; it needs a trigger and a lock, about a day. <b>Fix after cutover:</b> someone reinstates it under time pressure without the alias flip, and every search hits a half-filled index for the 40 minutes the build takes.</p>
+        <p class="cost"><b>Fix now:</b> keep the build-a-new-index-and-flip path as a job someone can trigger rather than a cron entry. The code is already in <code>jobs/rebuild_all.py</code>; it needs a trigger and a lock, about a day. <b>Fix after cutover:</b> someone reinstates it under time pressure without the alias flip, and every search hits a half-filled index for the 5h40m the build takes.</p>
       </article>
 
       <article class="finding build" id="f-order">
@@ -515,7 +515,7 @@ graph TB
 
     <section class="section" id="cost">
       <h2>What fixing each finding costs</h2>
-      <div class="table-scroll">
+      <div class="table-scroll" role="region" aria-label="What fixing each finding costs, before and after cutover" tabindex="0">
         <table>
           <thead>
             <tr><th scope="col">Finding</th><th scope="col">Band</th><th scope="col">Fix before cutover</th><th scope="col">Fix after cutover</th></tr>

@@ -451,9 +451,10 @@
       note links back to both marks.</p>
       <p>Numbers and notes carry the whole relationship. Nothing here depends on colour, on a pointer,
       or on JavaScript: the pairing survives a print-out, a greyscale copy, and a JavaScript-disabled
-      preview. Each mark is also a tab stop, and focusing or hovering one brightens its counterpart in
-      the other panel. That brightening is decoration on top of the numbers, so losing it costs
-      nothing.</p>
+      preview. Each numbered link is a tab stop, and reaching one by keyboard or hovering its region
+      brightens the counterpart in the other panel, because the highlight listens on the region and
+      focus events bubble up from the link inside it. That brightening is decoration on top of the
+      numbers, so losing it costs nothing.</p>
     </section>
 
     <section class="section" id="correspondence">
@@ -470,10 +471,10 @@
 }
 
 impl Bucket {
-    /// <mark class="lk" data-link="a1" id="r1" tabindex="0">Caller holds the shard lock for the whole call.<sup><a href="#note-1">1</a></sup></mark>
-    pub fn try_take(&amp;mut self, now: Instant, <mark class="lk" data-link="a2" id="r2" tabindex="0">cost: u32<sup><a href="#note-2">2</a></sup></mark>) -&gt; Outcome {
+    /// <mark class="lk" data-link="a1" id="r1">Caller holds the shard lock for the whole call.<sup><a href="#note-1">1</a></sup></mark>
+    pub fn try_take(&amp;mut self, now: Instant, <mark class="lk" data-link="a2" id="r2">cost: u32<sup><a href="#note-2">2</a></sup></mark>) -&gt; Outcome {
         self.refill(now);
-        if <mark class="lk" data-link="a3" id="r3" tabindex="0">self.tokens &gt;= cost<sup><a href="#note-3">3</a></sup></mark> {
+        if <mark class="lk" data-link="a3" id="r3">self.tokens &gt;= cost<sup><a href="#note-3">3</a></sup></mark> {
             self.tokens -= cost;
             Outcome::Allowed { remaining: self.tokens }
         } else {
@@ -482,21 +483,21 @@ impl Bucket {
     }
 
     fn refill(&amp;mut self, now: Instant) {
-        let elapsed = <mark class="lk" data-link="a5" id="r5" tabindex="0">now.saturating_duration_since(self.last_refill)<sup><a href="#note-5">5</a></sup></mark>;
+        let elapsed = <mark class="lk" data-link="a5" id="r5">now.saturating_duration_since(self.last_refill)<sup><a href="#note-5">5</a></sup></mark>;
         let minted = (elapsed.as_nanos() as u64)
             .saturating_mul(self.refill_per_sec as u64)
-            <mark class="lk" data-link="a6" id="r6" tabindex="0">/ 1_000_000_000<sup><a href="#note-6">6</a></sup></mark>;
-        <mark class="lk" data-link="a7" id="r7" tabindex="0">if minted == 0 {
+            <mark class="lk" data-link="a6" id="r6">/ 1_000_000_000<sup><a href="#note-6">6</a></sup></mark>;
+        <mark class="lk" data-link="a7" id="r7">if minted == 0 {
             return;
         }<sup><a href="#note-7">7</a></sup></mark>
-        let headroom = <mark class="lk" data-link="a4" id="r4" tabindex="0">(self.capacity - self.tokens) as u64<sup><a href="#note-4">4</a></sup></mark>;
+        let headroom = <mark class="lk" data-link="a4" id="r4">(self.capacity - self.tokens) as u64<sup><a href="#note-4">4</a></sup></mark>;
         self.tokens += minted.min(headroom) as u32;
         self.last_refill = now;
     }
 
     fn retry_after_secs(&amp;self, cost: u32) -&gt; u64 {
         let deficit = (cost - self.tokens) as u64;
-        <mark class="lk" data-link="a8" id="r8" tabindex="0">deficit.div_ceil(self.refill_per_sec as u64).max(1)<sup><a href="#note-8">8</a></sup></mark>
+        <mark class="lk" data-link="a8" id="r8">deficit.div_ceil(self.refill_per_sec as u64).max(1)<sup><a href="#note-8">8</a></sup></mark>
     }
 }</code></pre>
         </div>
@@ -515,11 +516,11 @@ impl Bucket {
     this.lastRefillMs = nowMs;
   }
 
-  /** <mark class="lk" data-link="a1" id="t1" tabindex="0">Synchronous on purpose: no await between refill and the subtraction.<sup><a href="#note-1">1</a></sup></mark> */
+  /** <mark class="lk" data-link="a1" id="t1">Synchronous on purpose: no await between refill and the subtraction.<sup><a href="#note-1">1</a></sup></mark> */
   tryTake(nowMs: number, cost: number): Outcome {
-    <mark class="lk" data-link="a2" id="t2" tabindex="0">if (!Number.isInteger(cost) || cost &lt; 1) throw new BadCost(cost);<sup><a href="#note-2">2</a></sup></mark>
+    <mark class="lk" data-link="a2" id="t2">if (!Number.isInteger(cost) || cost &lt; 1) throw new BadCost(cost);<sup><a href="#note-2">2</a></sup></mark>
     this.refill(nowMs);
-    if (<mark class="lk" data-link="a3" id="t3" tabindex="0">this.tokens &gt;= cost<sup><a href="#note-3">3</a></sup></mark>) {
+    if (<mark class="lk" data-link="a3" id="t3">this.tokens &gt;= cost<sup><a href="#note-3">3</a></sup></mark>) {
       this.tokens -= cost;
       return { kind: "allowed", remaining: this.tokens };
     }
@@ -527,19 +528,19 @@ impl Bucket {
   }
 
   private refill(nowMs: number): void {
-    const elapsedMs = <mark class="lk" data-link="a5" id="t5" tabindex="0">Math.max(0, nowMs - this.lastRefillMs)<sup><a href="#note-5">5</a></sup></mark>;
-    const minted = <mark class="lk" data-link="a6" id="t6" tabindex="0">Math.floor((elapsedMs * this.refillPerSec) / 1000)<sup><a href="#note-6">6</a></sup></mark>;
-    <mark class="lk" data-link="a7" id="t7" tabindex="0">if (minted === 0) {
+    const elapsedMs = <mark class="lk" data-link="a5" id="t5">Math.max(0, nowMs - this.lastRefillMs)<sup><a href="#note-5">5</a></sup></mark>;
+    const minted = <mark class="lk" data-link="a6" id="t6">Math.floor((elapsedMs * this.refillPerSec) / 1000)<sup><a href="#note-6">6</a></sup></mark>;
+    <mark class="lk" data-link="a7" id="t7">if (minted === 0) {
       return;
     }<sup><a href="#note-7">7</a></sup></mark>
-    const headroom = <mark class="lk" data-link="a4" id="t4" tabindex="0">Math.max(0, this.capacity - this.tokens)<sup><a href="#note-4">4</a></sup></mark>;
+    const headroom = <mark class="lk" data-link="a4" id="t4">Math.max(0, this.capacity - this.tokens)<sup><a href="#note-4">4</a></sup></mark>;
     this.tokens += Math.min(minted, headroom);
     this.lastRefillMs = nowMs;
   }
 
   private retryAfterSecs(cost: number): number {
     const deficit = cost - this.tokens;
-    <mark class="lk" data-link="a8" id="t8" tabindex="0">return Math.max(1, Math.ceil(deficit / this.refillPerSec));<sup><a href="#note-8">8</a></sup></mark>
+    <mark class="lk" data-link="a8" id="t8">return Math.max(1, Math.ceil(deficit / this.refillPerSec));<sup><a href="#note-8">8</a></sup></mark>
   }
 }</code></pre>
         </div>
@@ -731,7 +732,7 @@ impl Bucket {
 
     <section class="section" id="edge-cases">
       <h2>Edge cases and the verdict on each</h2>
-      <div class="table-scroll">
+      <div class="table-scroll" role="region" aria-label="Edge cases and the verdict on each" tabindex="0">
         <table>
           <thead>
             <tr><th scope="col">Case</th><th scope="col">Shipping build (Rust)</th><th scope="col">Port (TypeScript)</th><th scope="col">Verdict</th></tr>
@@ -858,8 +859,11 @@ impl Bucket {
   <script>
     /* Enhancement only: the numbered marks and notes already carry the correspondence with no
        script, no pointer and no colour. This just brightens both halves of a pair together, and
-       binds focusin/focusout alongside the pointer events so a tab stop or a touch focus works
-       exactly like a hover. It toggles a class and never inserts DOM. */
+       binds focusin/focusout alongside the pointer events so keyboard and touch behave like a
+       hover. focusin is deliberate: it bubbles, so focusing the numbered link inside a region
+       reaches this listener on the region itself, which means the region needs no tabindex of
+       its own and the page does not grow a second, inert tab stop per pair. It toggles a class
+       and never inserts DOM. */
     (function () {
       var marks = document.querySelectorAll('.lk[data-link]');
       if (!marks.length) return;

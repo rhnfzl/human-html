@@ -19,7 +19,7 @@ If the document is a single HTML page with a plain-language summary at the top, 
 
 This skill enforces that switch as a workspace contract. When an agent (you, Claude, Codex, or anyone else) produces a *human review surface* (a plan, a code review, an architecture explainer, an understanding doc, a research synthesis, a decision aid, a prototype, a status report, or an incident postmortem) the artifact lands as HTML under `docs/human-html/` of the active workspace. Not as Markdown. Markdown is still the right format for scratch notes, ticket drafts, durable references, and meeting transcripts; it is the agent's memory layer. HTML is the human's review layer. The split is the point.
 
-The skill enforces two layers of contract: a **file contract** (naming, metadata, allowlist; unchanged since the original file-contract release) and a **content contract** (answer-first summary, diagram-in-comparison, nav-when-many-sections, required sections per kind, glossary linking, read-map, Q&A overlay schema, metadata ribbon, provenance footer, mobile responsiveness, and no-JS robustness; effective for artifacts created on or after `2026-05-25`). Earlier artifacts are grandfathered. The content rules are validated mechanically by `human_html_artifacts.py check`; four rules always block (summary-first, comparison-visual, nav-anchors, viewport-meta), required sections block for `incident` and warn for other kinds, and read-map / Q&A / glossary / ribbon / provenance / table-responsive / js-content-fallback warn when applicable. Each violation prints a `[rule=<id>]` suffix; per-artifact suppression is available via `<!-- human-html-disable: ... -->`.
+The skill enforces two layers of contract: a **file contract** (naming, metadata, allowlist; unchanged since the original file-contract release) and a **content contract** (answer-first summary, diagram-in-comparison, nav-when-many-sections, required sections per kind, glossary linking, read-map, Q&A overlay schema, metadata ribbon, provenance footer, mobile responsiveness, and no-JS robustness; effective for artifacts created on or after `2026-05-25`). Earlier artifacts are grandfathered. The content rules are validated mechanically by `human_html_artifacts.py check`; three rules always block (summary-first, comparison-visual, viewport-meta), nav-anchors blocks in standard mode and warns in dynamic mode, required sections block for `incident` and warn for other kinds, and read-map / Q&A / glossary / ribbon / provenance / table-responsive / js-content-fallback warn when applicable. Each violation prints a `[rule=<id>]` suffix; per-artifact suppression is available via `<!-- human-html-disable: ... -->`.
 
 Adoption costs ten seconds per workspace. After that, two hooks keep the contract self-enforcing: one nudges an agent that is about to write a human-review Markdown file in the wrong place; the other regenerates the gallery `index.html` automatically whenever an artifact lands.
 
@@ -54,7 +54,7 @@ Every artifact whose `artifact-created` is on or after `2026-05-25` (the `RULES_
 Every artifact opens with a top-level `<section data-summary="true">` containing a three-bullet plain-language block (product context before technical detail):
 
 ```html
-<section data-summary="true" class="lead-summary">
+<section id="lead-summary" data-summary="true" class="lead-summary">
   <h2>In plain terms</h2>
   <ul>
     <li><strong>What this does for the user:</strong> One sentence that lands without engineering context.</li>
@@ -65,6 +65,8 @@ Every artifact opens with a top-level `<section data-summary="true">` containing
 ```
 
 The `data-summary="true"` attribute is what the validator checks. Class names and bullet wording can vary; only the attribute is load-bearing.
+
+Three bullets is the default, not the only compliant form. For a reader on a 30-second budget (an incident emailed to a director, a yes/no decision) the **BLUF** opener is an equally compliant alternative: the same `data-summary="true"` marker holding one sentence that states the decision or the ask, then one sentence of rationale. See "BLUF compact opener mode" in `references/patterns.md`. Both satisfy the contract in full; pick the one that fits the reader's time budget.
 
 Per-section plain-language leads (a 1-sentence opener inside each `<h2>` section) are strongly recommended but not validated - that's a writer's judgment call the validator can't reliably enforce.
 
@@ -470,7 +472,7 @@ Before publishing, fill `<meta name="artifact-summary">` (or make the summary bl
 Required content (for artifacts created on or after `2026-05-25`):
 
 ```html
-<section data-summary="true" class="lead-summary"> ... </section>
+<section id="lead-summary" data-summary="true" class="lead-summary"> ... </section>
 <nav class="toc"> ... </nav>   <!-- required when >3 h2 sections; anchors must resolve -->
 <!-- visuals required inside any h2/h3 whose heading matches the comparison regex -->
 ```
@@ -606,7 +608,7 @@ Install the skill with `npx skills add rhnfzl/human-html`, or clone the repo and
 
 `human_html_artifacts.py deps` reports which of these are present and how to get the rest. `deps --fix` does the one safe automation available: it symlinks an already-on-disk `excalidraw-mcp` into any client skill dir (`~/.claude/skills`, `~/.codex/skills`, `~/.cursor/skills`) that exists but lacks it - never clobbering an existing entry, never creating a client dir that isn't set up, and never touching the Excalidraw MCP server config (that lives in client config and is out of a script's reach). Without `--fix` it only reports.
 
-After init: every `new <kind> "<title>"` writes a scaffold (summary block + nav + per-kind section skeleton, all passing the content contract) and refreshes `index.html`; the autoindex hook catches later direct artifact edits, and the advisory hook nudges if an HIL-shaped MD slips through.
+After init: every `new <kind> "<title>"` writes a scaffold that passes the content contract and refreshes `index.html`. In the default standard mode that scaffold is summary block + nav + the per-kind section skeleton; with `--mode dynamic` it is the same chrome and the same mechanical floor with no section skeleton, because inventing the structure is the point of that mode. The autoindex hook catches later direct artifact edits, and the advisory hook nudges if an HIL-shaped MD slips through.
 
 ### Rollback
 

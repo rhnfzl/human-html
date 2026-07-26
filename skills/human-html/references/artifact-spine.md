@@ -35,18 +35,32 @@ to WARN) and nothing here.
 | Where this came from is recorded | `provenance-footer`, `provenance-fields`, `meta-ribbon` |
 | House style holds | `em-dash`, `slop-signal` |
 
-Two more belong to the floor and are **not** lintable, so they live here as
+Three more belong to the floor and are **not** lintable, so they live here as
 requirements rather than as rules:
 
 - **Colour never carries meaning alone.** Every status, severity, or delta that is
-  colour-coded also carries a label, a shape, or a glyph. Roughly one reader in twelve
-  cannot resolve a red/green pair, and a printed or greyscale copy resolves none of them.
+  colour-coded also carries a label, a shape, or a glyph. Two mechanisms defeat hue on
+  its own and neither is rare: a reader with red-green colour vision deficiency, and any
+  greyscale or printed copy, which flattens every hue in the artifact at once. WCAG 1.4.1
+  states the requirement; the fix is one word of text beside the swatch.
 - **Anything hoverable is also focusable, and works on a touch screen.** Hover is a
   mouse-only affordance. A `<span>` with `cursor: help` and a `mouseenter` handler
   promises interactivity to everyone and delivers it to one input device. Bind
-  `focusin`/`focusout` alongside the pointer events, give the trigger a tab stop, and
-  make sure the relationship still reads with no pointer, no JavaScript, and no colour
-  (a numbered `<sup>` correspondence does this; a highlight alone does not).
+  `focusin`/`focusout` alongside the pointer events, make sure the trigger is reachable
+  by keyboard, and make sure the relationship still reads with no pointer, no JavaScript,
+  and no colour (a numbered `<sup>` correspondence does this; a highlight alone does not).
+
+  Reach for `focusin` rather than `focus`, because it bubbles. If the region already
+  contains something natively focusable, a link or a `<summary>` or a control, listening
+  on the region catches focus from inside it and the region needs no `tabindex` of its
+  own. Adding one anyway doubles the tab stops and every second stop does nothing when
+  activated, which is its own accessibility problem. Add `tabindex="0"` only when nothing
+  inside the region can take focus.
+- **A scroll container is reachable by keyboard.** Any `overflow-x: auto` wrapper (the
+  standard treatment for a wide table) needs `role="region"`, an `aria-label` naming what
+  it holds, and `tabindex="0"`. Without a tab stop the container can be scrolled by
+  trackpad and by nothing else, so a keyboard reader simply cannot see the clipped
+  columns.
 
 ## 2. The spine
 
@@ -59,11 +73,16 @@ structure is wrong, not the rule.
   handle defined on first use ("blindspot pass"), is fine: the ban is on branding, not on
   vocabulary.
 
-- **Never name, address, flatter, segment, or exclude a reader.** No "for the engineers",
-  no "if you are non-technical", no reading guide labelled by job title, and no job title
-  in the markup either. Depth is offered and never assigned: lead with the plain
-  intuition, then give the concrete detail, and let people stop where they want. Reading
-  guides are labelled by depth (`Quick read`, `Standard`, `Full read`).
+- **Never name, segment, flatter, or exclude a reader.** No "for the engineers", no "if
+  you are non-technical", no reading guide labelled by job title, and no job title in the
+  markup either. Depth is offered and never assigned: lead with the plain intuition, then
+  give the concrete detail, and let people stop where they want. Reading guides are
+  labelled by depth (`Quick read`, `Standard`, `Full read`).
+
+  This bans sorting readers into groups, not the second person. "You" is fine and usually
+  better: it is one peer over your shoulder, and an instruction reads plainer as "wrap the
+  table in a scroll container" than as "the table should be wrapped". What is banned is
+  the sentence that decides which reader you are before addressing you.
 
 - **Refuse the engineered keystone.** No sentence built to be quoted, no bolded law per
   section on a schedule, no aphorism as a closer. An artifact ends on the finding or the

@@ -2077,7 +2077,7 @@ _INCIDENT_SCAFFOLD_STYLE = """
 
 
 def _lead_summary_block() -> str:
-    return """    <section data-summary="true" class="lead-summary">
+    return """    <section id="lead-summary" data-summary="true" class="lead-summary">
       <h2>In plain terms</h2>
       <ul>
         <li><strong>What this does for the user:</strong> Replace with the one-sentence product impact that lands without engineering context.</li>
