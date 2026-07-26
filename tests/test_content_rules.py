@@ -446,17 +446,35 @@ class SourceFilesProvenanceTest(unittest.TestCase):
         Shared by the two guards below so they cannot end up disagreeing about what
         counts as a listed path, which is how the `<li>` blind spot below survived.
         """
-        # A sample of the pattern shown inside a <textarea> or a raw-text <script> is not
-        # a block the browser renders; it is text. Strip those before counting, or an
-        # artifact that demonstrates the pattern gets rejected for having two.
-        text = re.sub(
-            r"<(textarea|script)\b[^>]*>.*?</\1\s*>", "", text,
-            flags=re.DOTALL | re.IGNORECASE,
-        )
-        blocks = re.findall(r'<details class="files-read">(.*?)</details>', text, re.DOTALL)
-        if not blocks:
+        pattern = r'<details class="files-read">(.*?)</details>'
+        # Comments come out first. A <script> or <textarea> merely NAMED inside a comment is
+        # not an element, and treating it as an opening tag would delete everything up to the
+        # next real closing tag, swallowing the block. Same bug simulate_no_js hit with
+        # <noscript>; see human_html_artifacts.py.
+        source = hha._HTML_COMMENT_RE.sub("", text)
+
+        # Spans whose contents a browser renders as text, not markup. A block inside one is a
+        # sample being displayed, not a block on the page.
+        samples = [
+            match.span()
+            for match in re.finditer(
+                r"<(textarea|script)\b[^>]*>.*?</\1\s*>", source,
+                flags=re.DOTALL | re.IGNORECASE,
+            )
+        ]
+
+        def is_sample(start: int) -> bool:
+            return any(begin <= start < end for begin, end in samples)
+
+        # Compared by position rather than by counting before and after the strip. Counting
+        # cannot tell "an unbalanced tag ate a real block" from "the only block was a sample",
+        # and those need opposite answers: the first is a guard failure, the second is simply
+        # not a carrier.
+        found = [m for m in re.finditer(pattern, source, re.DOTALL) if not is_sample(m.start())]
+        if not found:
             return None
-        html = blocks[0]
+        html = found[0].group(1)
+        blocks = [m.group(1) for m in found]
         summary = re.search(r"<summary\b[^>]*>(.*?)</summary>", html, re.DOTALL)
         return {
             "html": html,
@@ -553,9 +571,21 @@ class SourceFilesProvenanceTest(unittest.TestCase):
                     self._summary_revision(parts), revision,
                     "the revision the summary shows is not the one the JSON-LD declares",
                 )
+                operands = self._command_operands(parts)
                 self.assertIn(
-                    revision, self._command_operands(parts),
+                    revision, operands,
                     "the command does not pass the revision the JSON-LD declares",
+                )
+                # And it must be the LAST thing before the `--`. Membership alone lets a
+                # second commit operand through: `git diff <rev> HEAD -- <paths>` contains
+                # the declared revision and is still a commit-to-commit diff, which reports
+                # an uncommitted edit as clean. That is the same defect as the `<rev>..HEAD`
+                # spelling this pattern exists to avoid, just written with a space.
+                self.assertEqual(
+                    operands[-1], revision,
+                    "the declared revision must be the last thing the command passes before "
+                    "the `--`, so no second commit operand can turn it into a diff between "
+                    "two commits",
                 )
         self.assertGreaterEqual(
             len(carriers), 2,
