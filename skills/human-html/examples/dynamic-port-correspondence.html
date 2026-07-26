@@ -848,7 +848,10 @@ impl Bucket {
         <p>All five were read at the branch tip <code>4f1c9ab</code>, which carries both the
         shipping Rust and the port, so one revision covers the whole comparison. Still
         accurate? <code>git diff --stat 4f1c9ab..HEAD -- crates/quota/src packages/quota</code>.
-        Empty output means every claim below still describes the code as it stands.</p>
+        That is deliberately wider than the five files: a correspondence map is also wrong
+        when a <em>sixth</em> file appears in the port that nobody mapped, and a check scoped
+        to the files already read cannot see one arrive. Empty output means every claim below
+        still describes the code as it stands.</p>
       </details>
       <script type="application/ld+json" id="provenance">
         {

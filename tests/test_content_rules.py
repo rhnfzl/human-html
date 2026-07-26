@@ -480,6 +480,41 @@ class SourceFilesProvenanceTest(unittest.TestCase):
             "at least two shipped examples should demonstrate the pattern; found: " + str(carriers),
         )
 
+    def test_every_staleness_command_covers_every_file_it_lists(self):
+        """The `git diff` pathspec may exceed the listed files; it must never trim them.
+
+        The block's promise is that empty output means nothing the artifact read has
+        moved. A pathspec narrower than the list breaks that promise without ever
+        looking broken: the command still prints nothing while a file a claim rests on
+        has changed underneath it. Widening is legitimate and sometimes stronger, so
+        this asserts containment rather than equality.
+        """
+        examples = sorted((REPO / "skills/human-html/examples").glob("*.html"))
+        for path in examples:
+            text = path.read_text(encoding="utf-8")
+            block = re.search(r'<details class="files-read">(.*?)</details>', text, re.DOTALL)
+            if block is None:
+                continue
+            with self.subTest(example=path.name):
+                shown = re.findall(r"<li><code>([^<]+)</code></li>", block.group(1))
+                # The command is line-wrapped in the source; collapse before matching.
+                flat = " ".join(block.group(1).split())
+                command = re.search(r"<code>(git diff [^<]*)</code>", flat)
+                assert command is not None, f"{path.name} states no staleness command"
+                _, separator, pathspec = command.group(1).partition(" -- ")
+                self.assertTrue(separator, "the staleness command has no `--` pathspec")
+                scopes = pathspec.split()
+                self.assertTrue(scopes, "the staleness command has an empty pathspec")
+                for listed in shown:
+                    self.assertTrue(
+                        any(
+                            listed == scope or listed.startswith(scope.rstrip("/") + "/")
+                            for scope in scopes
+                        ),
+                        f"{listed} is listed as read but falls outside the pathspec "
+                        f"{scopes}, so empty output would not prove it is untouched",
+                    )
+
 
 class EveryExampleTest(unittest.TestCase):
     """Rules that hold for every shipped example, dynamic or kind-shaped.

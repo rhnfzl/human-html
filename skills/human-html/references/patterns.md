@@ -347,10 +347,11 @@ And in the provenance JSON-LD, so it is machine-checkable rather than only reada
 
 **The revision is the whole pattern.** A bare path list looks informative and answers nothing: the reader already assumed you read the rate limiter. What they cannot know is whether it has changed since. `readAtRevision` is what converts the block from a credential into a staleness check somebody can actually run, which is why the validator warns when `sourceFiles` is present without it. Nothing warns if you leave the block out entirely; this is an adoptable pattern, not a requirement.
 
-Two things keep it honest:
+Three things keep it honest:
 
 - **List what was read, not what exists.** The temptation is to paste the module's whole file tree, which inflates the apparent thoroughness and makes the `git diff` useless by dragging in files no claim depends on. If a file did not inform a claim, leave it out.
 - **A glob is fine when it is what you actually did.** `routes/*.ts` is honest if you read the directory; it is dishonest as shorthand for "some routes".
+- **The command's scope must contain the list, and may exceed it.** The paths are what you read; the `git diff` is what would falsify the artifact, and those are not the same set. A correspondence or migration artifact is also wrong when a file *appears* in the target that nobody mapped, and a check scoped to the files already read cannot see one arrive, so widening to the directory is the stronger choice there (`dynamic-port-correspondence.html` does this). Widening is safe in one direction only: empty output still has to prove every listed file is untouched, so the scope may grow past the list and must never trim it. If you do widen it, say why in a clause, because a command that does not visibly match the list above it otherwise reads as a mistake.
 
 Keep it in `<details>`, collapsed. It is reference material for a reader who has already decided to trust or check the artifact, so it should cost nothing on the way past. Native `<details>` also means it works with JavaScript off, and the scaffold already styles `details` and `summary`, so `.files-read` needs no CSS of its own.
 
