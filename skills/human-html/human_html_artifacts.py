@@ -974,8 +974,10 @@ def _source_files_warnings(rel: Path, obj: dict) -> list[str]:
 
     A "files read" list without the revision it was read at cannot answer the one question
     it exists for: is this artifact still true about those files? With the revision a reader
-    runs `git diff <rev>..HEAD -- <paths>` and an empty result means nothing it consulted has
-    moved. Without it the list is decoration, so the revision is the part worth checking.
+    runs `git diff <rev> -- <paths>` and an empty result means nothing it consulted has
+    changed. Without it the list is decoration, so the revision is the part worth checking.
+    (Deliberately not `<rev>..HEAD`: that compares two commits and calls an uncommitted edit
+    clean. See "Files read" in references/patterns.md.)
 
     Nothing here fires unless `sourceFiles` is present. This is an adoptable pattern, not a
     requirement, and a rule that nags every artifact into carrying one would be wrong.
@@ -989,7 +991,7 @@ def _source_files_warnings(rel: Path, obj: dict) -> list[str]:
         return [f"{rel}: provenance sourceFiles must be an object with paths + readAtRevision"]
 
     # Types are checked down to the element, because the block's only job is to make
-    # `git diff <readAtRevision>..HEAD -- <paths>` runnable. A numeric revision or a path
+    # `git diff <readAtRevision> -- <paths>` runnable. A numeric revision or a path
     # array of integers would satisfy a truthiness check and produce an unusable command.
     warnings: list[str] = []
     paths = source_files.get("paths")

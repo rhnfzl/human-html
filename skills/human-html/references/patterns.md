@@ -330,9 +330,9 @@ An artifact that explains code makes claims about a codebase that keeps moving. 
     <li><code>config/limits.yaml</code></li>
     <li><code>routes/*.ts</code></li>
   </ul>
-  <p>Still accurate? <code>git diff --stat 9c2ad10..HEAD -- middleware/ratelimit.ts
+  <p>Still accurate? <code>git diff --stat 9c2ad10 -- middleware/ratelimit.ts
   lib/tokenBucket.ts config/limits.yaml routes/</code>. Empty output means nothing this
-  artifact read has moved.</p>
+  artifact read has changed since, in history or in your working copy.</p>
 </details>
 ```
 
@@ -347,8 +347,9 @@ And in the provenance JSON-LD, so it is machine-checkable rather than only reada
 
 **The revision is the whole pattern.** A bare path list looks informative and answers nothing: the reader already assumed you read the rate limiter. What they cannot know is whether it has changed since. `readAtRevision` is what converts the block from a credential into a staleness check somebody can actually run, which is why the validator warns when `sourceFiles` is present without it. Nothing warns if you leave the block out entirely; this is an adoptable pattern, not a requirement.
 
-Three things keep it honest:
+Four things keep it honest:
 
+- **Write the command against the revision alone, not `<rev>..HEAD`.** The two-dot form compares two *commits*, so a reader sitting on uncommitted edits to one of the listed files gets empty output and concludes the artifact is current. `git diff --stat <rev> -- <paths>` compares the revision against the working tree, which is the question the reader is actually asking. Checked rather than assumed: with an uncommitted edit in place, the two-dot form prints nothing and the one-argument form prints the change. Neither form sees a brand-new **untracked** file, so an artifact whose accuracy can be broken by a file *arriving* (a port, a migration) should point at `git status` for that half.
 - **List what was read, not what exists.** The temptation is to paste the module's whole file tree, which inflates the apparent thoroughness and makes the `git diff` useless by dragging in files no claim depends on. If a file did not inform a claim, leave it out.
 - **A glob is fine when it is what you actually did.** `routes/*.ts` is honest if you read the directory; it is dishonest as shorthand for "some routes".
 - **The command's scope must contain the list, and may exceed it.** The paths are what you read; the `git diff` is what would falsify the artifact, and those are not the same set. A correspondence or migration artifact is also wrong when a file *appears* in the target that nobody mapped, and a check scoped to the files already read cannot see one arrive, so widening to the directory is the stronger choice there (`dynamic-port-correspondence.html` does this). Widening is safe in one direction only: empty output still has to prove every listed file is untouched, so the scope may grow past the list and must never trim it. If you do widen it, say why in a clause, because a command that does not visibly match the list above it otherwise reads as a mistake.
