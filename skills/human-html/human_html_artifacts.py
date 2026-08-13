@@ -815,7 +815,13 @@ class _ProseTextParser(HTMLParser):
     warnings out of markup the reader never sees.
     """
 
-    _SKIP = frozenset(("script", "style", "svg"))
+    # `pre` joins the skip list because block-preformatted content is not read at prose
+    # speed and often is not read at all: a code sample, an ASCII diagram, or the mermaid
+    # source `embed-svg` parks in a collapsed <details> as the no-JS fallback. Counting
+    # that meant the skill's own tooling inflated the length it then measured. Inline
+    # `code` deliberately stays counted, because it sits inside a sentence and is read
+    # with it.
+    _SKIP = frozenset(("script", "style", "svg", "pre"))
 
     def __init__(self) -> None:
         super().__init__(convert_charrefs=True)

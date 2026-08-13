@@ -637,6 +637,15 @@ class ProseBudgetTest(unittest.TestCase):
         attribute value became prose the reader never sees."""
         self.assertEqual(hha.prose_words('<p title="one two > three four five">visible</p>'), 1)
 
+    def test_preformatted_blocks_are_not_prose_but_inline_code_is(self):
+        """Block-preformatted content is not read at prose speed and often is not read at
+        all: a code sample, an ASCII diagram, or the mermaid source `embed-svg` parks in a
+        collapsed <details>. Counting it meant the tooling inflated the length it measured.
+        Inline `code` stays counted, because it sits inside a sentence."""
+        self.assertEqual(hha.prose_words("<p>one</p><pre>two three four</pre>"), 1)
+        self.assertEqual(hha.prose_words("<p>one <code>two</code> three</p>"), 3)
+        self.assertEqual(hha.prose_words("<pre><code>a b c</code></pre>"), 0)
+
     def test_prose_words_ignores_markup_script_and_style(self):
         content = (
             "<p>one two three</p><script>var a = 1; var b = 2; var c = 3;</script>"
