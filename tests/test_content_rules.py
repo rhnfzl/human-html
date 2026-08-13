@@ -251,17 +251,53 @@ class DynamicModeTest(unittest.TestCase):
             f"an attribute-form mode must warn that it is not in effect: {warnings}",
         )
 
-    def test_legacy_audience_marker_still_satisfies_the_rule(self):
-        """Artifacts written before the rename must keep validating."""
-        legacy = _artifact("<p>x</p>").replace(
+    def test_retired_audience_marker_is_rejected_and_explained(self):
+        """The alias is gone, and this test is the inverse of the one it replaces.
+
+        `data-audience="pm"` was accepted so pre-rename artifacts would keep validating.
+        Measured on a live lane of 165 artifacts, 124 carried it, 0 carried
+        `data-summary`, and the newest of the 124 was written that same week. The alias
+        was not easing a migration, it was the reason none started: nothing ever told an
+        author, or the model copying the previous artifact, that the marker names a job
+        title in the markup. Segmenting the reader is one of the spine's absolutes.
+
+        Both errors must fire. `summary-first` alone would say "add a summary block" to
+        an artifact that already has one, which sends the author looking for the wrong
+        problem; `audience-segmentation` is the one that names the actual fix.
+        """
+        retired = _artifact("<p>x</p>").replace(
             '<section data-summary="true">', '<section data-audience="pm">'
         )
         errors, _ = hha.content_shape_violations(
-            Path("a.html"), legacy, "2026-07-26", REPO, "plan"
+            Path("a.html"), retired, "2026-07-26", REPO, "plan"
         )
-        self.assertFalse(
-            any("summary-first" in e for e in errors),
-            'pre-rename data-audience="pm" must still count: ' + str(errors),
+        self.assertTrue(
+            any("[rule=audience-segmentation]" in e for e in errors),
+            "retired data-audience must be named as segmentation: " + str(errors),
+        )
+        self.assertTrue(
+            any("[rule=summary-first]" in e for e in errors),
+            "retired data-audience must no longer count as the summary marker: " + str(errors),
+        )
+
+    def test_rule_id_alias_for_the_retired_rule_name_still_answers(self):
+        """The asymmetry is deliberate: a retired RULE ID keeps answering forever, because
+        a suppression comment is an author's decision that must not silently invert. A
+        retired CONTENT MARKER does not, because keeping it alive perpetuates the thing
+        the rule exists to remove."""
+        self.assertIn("pm-summary", hha._RULE_ID_ALIASES["summary-first"])
+
+    def test_role_labelled_reading_guide_warns(self):
+        body = (
+            '<aside class="read-map"><div><strong>Exec:</strong> summary only</div></aside>'
+            '<section id="s"><h2>Context</h2><p>x</p></section>'
+        )
+        warnings = hha.content_shape_violations(
+            Path("a.html"), _artifact(body), "2026-07-26", REPO, "plan"
+        )[1]
+        self.assertTrue(
+            any("[rule=audience-segmentation]" in w for w in warnings),
+            "a reading guide labelled by job title should warn: " + str(warnings),
         )
 
 
@@ -317,6 +353,123 @@ class ClaimOwnerTest(unittest.TestCase):
         one of the three shape rules that stand down."""
         body = '<section id="j"><h2>Recommendation</h2><p>x</p></section>'
         self.assertEqual(len(self._warn_rules(body, mode="dynamic")), 1)
+
+
+class ProseBudgetTest(unittest.TestCase):
+    """The ceiling `required-section` never had, measured in words rather than bytes."""
+
+    def _warns(self, body: str) -> list[str]:
+        return hha.content_shape_violations(
+            Path("a.html"), _artifact(body), "2026-07-26", REPO, "plan"
+        )[1]
+
+    def test_prose_words_ignores_markup_script_and_style(self):
+        content = (
+            "<p>one two three</p><script>var a = 1; var b = 2; var c = 3;</script>"
+            "<style>.x{color:red;background:blue;border:0}</style>"
+            "<svg><text>alpha beta gamma delta</text></svg><!-- four five six -->"
+        )
+        self.assertEqual(hha.prose_words(content), 3)
+
+    def test_warns_past_the_budget(self):
+        body = "<p>" + ("word " * (hha._PROSE_BUDGET_WORDS + 200)) + "</p>"
+        self.assertTrue(any("[rule=prose-budget]" in w for w in self._warns(body)))
+
+    def test_silent_under_the_budget(self):
+        body = "<p>" + ("word " * 200) + "</p>"
+        self.assertFalse(any("[rule=prose-budget]" in w for w in self._warns(body)))
+
+    def test_budget_is_calibrated_above_every_shipped_example(self):
+        """A ceiling that fires on the skill's own examples would be noise on arrival."""
+        examples = sorted((REPO / "skills/human-html/examples").glob("*.html"))
+        self.assertTrue(examples)
+        worst = max(hha.prose_words(p.read_text(encoding="utf-8")) for p in examples)
+        self.assertLess(worst, hha._PROSE_BUDGET_WORDS)
+
+
+class ReadTimeTest(unittest.TestCase):
+    """A declared read-time that tracks nothing is what a model writes when nothing
+    constrains it. Measured on a live lane: 194 words claimed 5 min, 4,701 words claimed
+    5 min, and the longest artifact gave up and said "browse"."""
+
+    def _artifact_with(self, declared: str, words: int) -> str:
+        art = _artifact("<p>" + ("word " * words) + "</p>")
+        return art.replace(
+            '<meta name="artifact-created" content="2026-07-26">',
+            '<meta name="artifact-created" content="2026-07-26">'
+            f'<meta name="artifact-read-time" content="{declared}">',
+        )
+
+    def _warns(self, declared: str, words: int) -> list[str]:
+        return hha.content_shape_violations(
+            Path("a.html"), self._artifact_with(declared, words), "2026-07-26", REPO, "plan"
+        )[1]
+
+    def test_warns_when_the_claim_does_not_track_the_prose(self):
+        self.assertTrue(any("[rule=read-time]" in w for w in self._warns("5 min", 3000)))
+
+    def test_warns_when_the_field_carries_no_number(self):
+        self.assertTrue(any("[rule=read-time]" in w for w in self._warns("browse", 3000)))
+
+    def test_silent_within_tolerance(self):
+        # ~870 words is about 4 minutes; a 5 minute claim is honest.
+        self.assertFalse(any("[rule=read-time]" in w for w in self._warns("5 min", 870)))
+
+    def test_silent_when_absent_on_a_scaffold_sized_artifact(self):
+        """A fresh scaffold is placeholder prose. Nagging there trains an author to ignore
+        the rule before they have written anything, so the nudge waits for real content."""
+        warns = hha.content_shape_violations(
+            Path("a.html"), _artifact("<p>x</p>"), "2026-07-26", REPO, "plan"
+        )[1]
+        self.assertFalse(any("[rule=read-time]" in w for w in warns))
+
+    def test_warns_when_absent_once_the_artifact_has_real_content(self):
+        body = "<p>" + ("word " * (hha._READ_TIME_MIN_WORDS + 100)) + "</p>"
+        warns = hha.content_shape_violations(
+            Path("a.html"), _artifact(body), "2026-07-26", REPO, "plan"
+        )[1]
+        self.assertTrue(any("[rule=read-time]" in w for w in warns), str(warns))
+
+    def test_scaffold_ships_no_read_time_and_says_so_in_the_ribbon(self):
+        page = hha.render_artifact("T", "plan", "2026-07-26", "local")
+        self.assertIn('<meta name="artifact-read-time" content="">', page)
+        self.assertIn("fill before publishing", page)
+
+
+class ReviewStateTest(unittest.TestCase):
+    """Three named states, because a live lane hand-rolled "pending" in four spellings."""
+
+    def _provenance(self, extra: str) -> list[str]:
+        body = (
+            '<section id="s"><h2>Context</h2><p>x</p></section>'
+            '<footer data-provenance="true">'
+            '<script type="application/ld+json" id="provenance">'
+            '{"@id":"urn:x","dateCreated":"2026-07-26",'
+            '"creator":{"name":"m"},"prompt":"p","reviewer":"Ana Silva"' + extra + "}"
+            "</script></footer>"
+        )
+        return hha.content_shape_violations(
+            Path("a.html"), _artifact(body), "2026-07-26", REPO, "plan"
+        )[1]
+
+    def test_known_state_is_accepted(self):
+        for state in hha._REVIEW_STATES:
+            with self.subTest(state=state):
+                warns = self._provenance(f',"reviewState":"{state}"')
+                self.assertFalse([w for w in warns if "reviewState" in w], str(warns))
+
+    def test_unknown_state_warns(self):
+        warns = self._provenance(',"reviewState":"pending"')
+        self.assertTrue(any("reviewState" in w for w in warns), str(warns))
+
+    def test_missing_state_is_reported_as_a_missing_field(self):
+        warns = self._provenance("")
+        self.assertTrue(any("reviewState" in w for w in warns), str(warns))
+
+    def test_scaffold_ships_unreviewed(self):
+        page = hha.render_artifact("T", "plan", "2026-07-26", "local")
+        self.assertIn('"reviewState": "unreviewed"', page)
+        self.assertIn("not yet reviewed by a human", page)
 
 
 class LayoutRegressionTest(unittest.TestCase):

@@ -106,7 +106,7 @@ For components, render a live contact sheet of each variant (button default, hov
 
 `examples/prototype-canonical.html` includes a worked swatch + component contact-sheet demo for a brand-system proposal.
 
-Best for: `prototype` artifacts that propose a visual system, `decision` artifacts where the choice is between two visual treatments, `understanding` artifacts that orient a new hire to the brand. If your workspace ships a brand-locked presentation or deck skill, use that for formal decks; the human-html design-system pattern is the right fit for ad-hoc design documentation that does not need the full deck format.
+Best for: `prototype` artifacts that propose a visual system, `decision` artifacts where the choice is between two visual treatments, `understanding` artifacts that orient someone new to the brand. If your workspace ships a brand-locked presentation or deck skill, use that for formal decks; the human-html design-system pattern is the right fit for ad-hoc design documentation that does not need the full deck format.
 
 Before adopting or overriding tokens, honor what's already there - the user's words, then the workspace's existing design system, then scaffold defaults; see SKILL.md, "Honor what's already there", for the precedence order and the brand-override `:root` recipe.
 
@@ -274,7 +274,7 @@ For `incident` artifacts, the ribbon follows the postmortem shape from `examples
 
 ## Reading guide
 
-A compact strip offering a **Quick read** (the summary + the recommendation/outcome) versus a **Full read** (all sections), so a reader can pick depth without guessing. Keep it depth-based, not role-based - do not label sections by job title (PM / engineer / exec).
+A compact strip offering a **Quick read** (the summary + the recommendation/outcome) versus a **Full read** (all sections), so a reader can pick depth without guessing. Keep it depth-based: label by how far a reader wants to go, never by who they are. A reader picks a depth; nobody should be told which reader they are.
 
 ```html
 <aside class="read-map" aria-label="Reading map">
@@ -319,7 +319,17 @@ Two things follow. First, replace it when a human has actually read the artifact
 
 The examples under `examples/` carry real reviewer names on purpose. They show the end state of the lifecycle; the scaffold shows the start. An artifact that never gets the field replaced is telling the truth about itself.
 
-`reviewer` is artifact-wide. Ownership of a specific recommendation, verdict, or decision is `data-owner` on that section (Rule 11), which is a different claim and usually a different person.
+**`reviewState` names what the review amounts to**, in one of three values, while `reviewer` says who or what did it:
+
+| `reviewState` | `reviewer` | Means |
+|---|---|---|
+| `unreviewed` | `pending` | Generated, nobody has read it. The scaffold default |
+| `agent-reviewed` | the agent, e.g. `Codex` | A model reviewed it. Honest, and previously unsayable |
+| `human-reviewed` | the person | A person read it before it was forwarded |
+
+Three values rather than a free-text field, because free text is exactly what produced four spellings of "pending" in one lane. The validator warns on a fourth value: an unnamed state is the problem the field was added to solve.
+
+`reviewer` and `reviewState` are both artifact-wide. Ownership of a specific recommendation, verdict, or decision is `data-owner` on that section (Rule 11), which is a different claim and usually a different person.
 
 ### House rule: the prompt lives here, never in a card at the top
 

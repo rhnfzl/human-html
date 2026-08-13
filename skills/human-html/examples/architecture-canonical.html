@@ -360,7 +360,7 @@
     <section id="c1" class="section">
       <p class="eyebrow">Candidate 1</p>
       <h2>Wrapper repetition vs declarative tool registration</h2>
-      <p><span class="chip good">Strong</span> <em>PM lead: when a teammate adds a new MCP tool today, they copy ~140 lines from another wrapper. Fixing a bug means replaying it across 50 of those wrappers.</em></p>
+      <p><span class="chip good">Strong</span> <em>In plain terms: when a teammate adds a new MCP tool today, they copy ~140 lines from another wrapper. Fixing a bug means replaying it across 50 of those wrappers.</em></p>
       <p><code class="m">server.py</code> &middot; <code class="m">server/tool_bundles/*_impl</code></p>
 
       <h3>The friction</h3>
@@ -420,7 +420,7 @@ graph TB
     <section id="c2" class="section">
       <p class="eyebrow">Candidate 2</p>
       <h2>ApiContext: collapse the 22-parameter impl signature</h2>
-      <p><span class="chip good">Strong</span> <em>PM lead: every tool today drags 7 infrastructure plumbing arguments through every internal call. Bundling them as one context object simplifies tests and removes a documented technical-debt marker.</em></p>
+      <p><span class="chip good">Strong</span> <em>In plain terms: every tool today drags 7 infrastructure plumbing arguments through every internal call. Bundling them as one context object simplifies tests and removes a documented technical-debt marker.</em></p>
       <p><code class="m">server/tool_bundles/crud.py (~1,800 lines)</code></p>
 
       <h3>The friction</h3>
@@ -463,7 +463,7 @@ ctx = ApiContext.from_server(server_ctx)</code></pre>
     <section id="c3" class="section">
       <p class="eyebrow">Candidate 3</p>
       <h2>_helpers.py is a seven-concern junk drawer</h2>
-      <p><span class="chip good">Strong</span> <em>PM lead: forty-nine helpers serving seven unrelated concerns share one 1,298-line file, so every bug fix touches the same crowded file. Splitting it by concern makes each piece easy to find and easy to test.</em></p>
+      <p><span class="chip good">Strong</span> <em>In plain terms: forty-nine helpers serving seven unrelated concerns share one 1,298-line file, so every bug fix touches the same crowded file. Splitting it by concern makes each piece easy to find and easy to test.</em></p>
       <p><code class="m">server/tool_bundles/helpers.py</code></p>
 
       <h3>The friction</h3>
@@ -575,6 +575,7 @@ ctx = ApiContext.from_server(server_ctx)</code></pre>
           "creator": { "@type": "SoftwareApplication", "name": "claude-opus-4-7" },
           "promptHash": "<sha256 of prompt; canonical example, no real prompt>",
           "reviewer": "Jordan Ellis",
+          "reviewState": "human-reviewed",
           "source": "canonical-example"
         }
       </script>

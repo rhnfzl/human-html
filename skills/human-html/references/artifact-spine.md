@@ -1,6 +1,6 @@
 # The artifact spine
 
-The sixteen content rules say what an artifact must **contain**. This file says what an
+The twenty content rules say what an artifact must **contain**. This file says what an
 artifact must never **do**, whatever shape it takes. That distinction is the whole reason
 the file exists: a rule about containing something can only be written for a known
 structure, and `artifact-mode="dynamic"` throws the structure away. Everything below
@@ -35,6 +35,9 @@ to WARN) and nothing here.
 | The words are gloss-able and plain | `glossary-link` and the plain-language registry | Known terms are wrapped or linked; coined terms are glossed on first use |
 | Where this came from is recorded | `provenance-footer`, `provenance-fields`, `meta-ribbon` | The markers and the documented JSON-LD fields are present |
 | A judgment has a holder | `claim-owner` | A non-empty `data-owner` sits on the judgment section. Not that the named person ever saw it |
+| No reader is sorted into a group | `audience-segmentation` | No `data-audience` attribute, and no reading guide labelled by job title. Not that the prose avoids it |
+| Length has a ceiling, not just a floor | `prose-budget` | The prose is under 4,000 words. Not that any of them earn their place |
+| The stated read-time is a real number | `read-time` | The claim tracks the word count within 2.5x. Not that the estimate is right for this reader |
 | House style holds | `em-dash`, `slop-signal` | No em/en dash in prose; no AI-default violet, emoji heading, or placeholder text |
 
 **Read the third column, not the first.** Every one of these is a marker check, and the gap

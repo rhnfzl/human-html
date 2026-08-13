@@ -125,6 +125,18 @@ JUDGMENT_HEADING_RE = re.compile(
     re.IGNORECASE,
 )
 
+# Audience segmentation, which the spine bans outright: depth is offered, never assigned.
+# Two detectors at two severities, because the evidence differs.
+#   - the attribute is a machine-written marker with no legitimate reading, so it BLOCKS.
+#   - a reading guide labelled by job title is the same ban with judgment surface around
+#     it (a section may legitimately discuss "the product team"), so it WARNS. The regex
+#     is deliberately anchored to the read-map block rather than to the words alone.
+_AUDIENCE_ATTR_RE = re.compile(r"""\bdata-audience\s*=\s*['"]?[^\s'">]+""", re.IGNORECASE)
+_ROLE_READMAP_RE = re.compile(
+    r"read-map.{0,800}?<strong>\s*(?:Exec|PM|Product|Engineer|Manager|Dev)\b",
+    re.IGNORECASE | re.DOTALL,
+)
+
 # A non-empty data-owner marks who holds the claim. Like every rule in the mechanical
 # floor this is a marker check: it proves a name was written, never that the named person
 # agreed. The visible prose beside it is what a reader actually acts on.
@@ -285,8 +297,8 @@ class ArtifactHTMLParser(HTMLParser):
         self.keywords_meta = ""
         self.h2_headings: list[str] = []
         self.pm_lead = ""
-        self._capture_pm_lead = False
-        self._pm_lead_done = False
+        self._capture_lead = False
+        self._lead_done = False
         self._capture_lead_tag: str | None = None
         self._lead_buffer: list[str] = []
 
@@ -305,22 +317,31 @@ class ArtifactHTMLParser(HTMLParser):
                 self.keywords_meta = html.unescape(attr_map.get("content", ""))
         if tag_name == "body" and attr_map.get("data-human-html-artifact") == "true":
             self.has_body_marker = True
-        # `data-summary="true"` marks the answer-first opener. `data-summary="true"` is
-        # the pre-rename spelling, still accepted so already-shipped artifacts keep
-        # validating; it is no longer documented because naming a job title in the
-        # markup segments the audience, which the contract bans in the prose.
-        if tag_name == "section" and (
-            attr_map.get("data-summary", "").lower() == "true"
-            or attr_map.get("data-audience", "").lower() == "pm"
-        ):
+        # `data-summary="true"` marks the answer-first opener, and it is the only spelling.
+        #
+        # `data-audience="pm"` was the pre-rename marker and was kept as an accepted alias
+        # so already-shipped artifacts would keep validating. Measured on a live lane of 165
+        # artifacts, that kindness did the opposite of its purpose: 124 carried
+        # `data-audience`, 0 carried `data-summary`, and the newest of the 124 was written
+        # the same week the count was taken. The alias was not easing a migration, it was
+        # the reason no migration ever started, because nothing ever told an author (or the
+        # model copying the previous artifact) that the marker names a job title in the
+        # markup. Segmenting the reader is one of the spine's absolutes, so the alias is
+        # retired and `audience-segmentation` now says so in as many words.
+        #
+        # Note the deliberate asymmetry with `_RULE_ID_ALIASES`: a retired RULE ID keeps
+        # answering forever, because a suppression comment is an author's decision that
+        # should not silently invert. A retired CONTENT MARKER does not, because keeping it
+        # alive perpetuates the thing the rule exists to remove.
+        if tag_name == "section" and attr_map.get("data-summary", "").lower() == "true":
             self.has_summary_block = True
-            if not self._pm_lead_done:
-                self._capture_pm_lead = True
+            if not self._lead_done:
+                self._capture_lead = True
         # Capture the first li/p text inside the summary block as a fallback summary.
         if (
             tag_name in ("li", "p")
-            and self._capture_pm_lead
-            and not self._pm_lead_done
+            and self._capture_lead
+            and not self._lead_done
             and self._capture_lead_tag is None
         ):
             self._capture_lead_tag = tag_name
@@ -421,13 +442,13 @@ class ArtifactHTMLParser(HTMLParser):
             self._lead_buffer = []
             if lead_text:
                 self.pm_lead = lead_text
-                self._pm_lead_done = True
-                self._capture_pm_lead = False
-        # PM block closed without capturing a lead: stop, so a later paragraph
+                self._lead_done = True
+                self._capture_lead = False
+        # summary block closed without capturing a lead: stop, so a later paragraph
         # outside the summary block is never grabbed.
-        if tag_name == "section" and self._capture_pm_lead and not self._pm_lead_done:
-            self._capture_pm_lead = False
-            self._pm_lead_done = True
+        if tag_name == "section" and self._capture_lead and not self._lead_done:
+            self._capture_lead = False
+            self._lead_done = True
 
 
 def slugify(value: str) -> str:
@@ -630,6 +651,50 @@ def find_unowned_judgment_headings(content: str) -> list[str]:
     return violations
 
 
+_NON_PROSE_RE = re.compile(r"(?is)<(script|style|svg)\b.*?</\1\s*>")
+
+
+def prose_words(content: str) -> int:
+    """Words a human actually reads: markup, scripts, styles and inline SVG removed.
+
+    This is the unit for both the length ceiling and the read-time check, and it is
+    deliberately NOT bytes. `_SIZE_BUDGET_BYTES` measures the payload, which inline SVG
+    and CSS dominate, so it fires once in a corpus of two hundred artifacts and stays
+    silent on an eight-thousand-word wall of text. Bytes are a transport concern; words
+    are the reader's concern, and they are different numbers.
+    """
+    text = _NON_PROSE_RE.sub(" ", content)
+    text = _HTML_COMMENT_RE.sub(" ", text)
+    text = re.sub(r"(?s)<[^>]+>", " ", text)
+    text = re.sub(r"&[a-zA-Z#0-9]+;", " ", text)
+    return len(text.split())
+
+
+# Words per minute for a technical reader. Used only to sanity-check a declared
+# `artifact-read-time`, never to overwrite it, so the exact figure matters less than the
+# tolerance around it.
+_WORDS_PER_MINUTE = 230
+
+# The ceiling `required-section` never had. Calibrated against the shipped examples: the
+# longest is a little over 3,500 words, so this flags the tail and not the norm. WARN, per
+# the documented staged rollout for a new rule.
+_PROSE_BUDGET_WORDS = 4000
+
+# A declared read-time is allowed to be wrong by this factor before it is worth saying so.
+# Wide on purpose: diagrams, tables and code legitimately slow a reader down, so a short
+# artifact claiming several minutes is honest. What this catches is the field that tracks
+# nothing at all, which is what a model writes when nothing constrains it.
+_READ_TIME_TOLERANCE = 2.5
+
+# Below this the artifact is still a scaffold, so an absent read-time is not yet a gap.
+_READ_TIME_MIN_WORDS = 500
+
+# The three states a provenance block can honestly be in. `reviewer` says who or what;
+# this says what that amounts to. An agent name in `reviewer` is accurate reporting, and
+# before these values existed the schema had no way to record it as anything else.
+_REVIEW_STATES = ("unreviewed", "agent-reviewed", "human-reviewed")
+
+
 def _artifact_in_force(date_str: str) -> bool:
     """True if the artifact must satisfy the new content-shape rules."""
     try:
@@ -734,6 +799,64 @@ def content_shape_violations(
             f"{rel}: artifact-mode is set as an attribute on {where} but the validator "
             'reads <meta name="artifact-mode" content="dynamic"> in <head>; the mode is '
             "not in effect, so the shape rules still apply",
+        )
+
+    words = prose_words(content)
+    if words > _PROSE_BUDGET_WORDS:
+        _add(
+            warnings, parser, "prose-budget",
+            f"{rel}: {words:,} words of prose (budget {_PROSE_BUDGET_WORDS:,}). "
+            "required-section is a floor and this is the matching ceiling: sections "
+            "accrete because nothing opposes them. Cut, or split into linked artifacts",
+        )
+
+    declared = parser.meta.get("artifact-read-time", "").strip()
+    computed = max(1, round(words / _WORDS_PER_MINUTE))
+    if not declared:
+        # A fresh scaffold is a few hundred words of placeholder and has no honest
+        # read-time yet, so nagging there would train an author to ignore the rule before
+        # they had written anything. The nudge waits until the artifact has real content.
+        if words > _READ_TIME_MIN_WORDS:
+            _add(
+                warnings, parser, "read-time",
+                f"{rel}: no artifact-read-time, and the prose is now {words:,} words "
+                f"(about {computed} min at {_WORDS_PER_MINUTE} wpm). It is the one field "
+                "a reader uses to decide whether to commit",
+            )
+    else:
+        stated = re.search(r"\d+", declared)
+        if not stated:
+            _add(
+                warnings, parser, "read-time",
+                f'{rel}: artifact-read-time "{declared}" carries no number, so a reader '
+                f"cannot budget for it; ~{computed} min at {_WORDS_PER_MINUTE} wpm",
+            )
+        else:
+            claimed = int(stated.group(0))
+            if claimed and not (
+                1 / _READ_TIME_TOLERANCE <= claimed / computed <= _READ_TIME_TOLERANCE
+            ):
+                _add(
+                    warnings, parser, "read-time",
+                    f'{rel}: artifact-read-time claims {claimed} min but the prose is '
+                    f"{words:,} words, about {computed} min at {_WORDS_PER_MINUTE} wpm. "
+                    "Diagrams and tables justify some of a gap, not this one",
+                )
+
+    if _AUDIENCE_ATTR_RE.search(content):
+        _add(
+            errors, parser, "audience-segmentation",
+            f"{rel}: data-audience names a job title in the markup, which segments the "
+            "reader; depth is offered, never assigned. It is also no longer accepted as "
+            'the answer-first marker: replace it with data-summary="true" (the summary '
+            "itself does not change, only the attribute)",
+        )
+    if _ROLE_READMAP_RE.search(content):
+        _add(
+            warnings, parser, "audience-segmentation",
+            f"{rel}: reading guide is labelled by job title; label it by depth instead "
+            "(Quick read / Full read), so a reader picks how far to go rather than being "
+            "told which reader they are",
         )
 
     if not parser.has_summary_block:
@@ -1031,9 +1154,19 @@ def _provenance_field_warnings(rel: Path, parser: ArtifactHTMLParser) -> list[st
                 missing.append("dateCreated")
             if not obj.get("reviewer"):
                 missing.append("reviewer")
+            if not obj.get("reviewState"):
+                missing.append("reviewState")
             if missing:
                 warnings.append(
                     f"{rel}: provenance JSON-LD missing fields: {', '.join(missing)}"
+                )
+            state = obj.get("reviewState")
+            if isinstance(state, str) and state and state not in _REVIEW_STATES:
+                warnings.append(
+                    f'{rel}: provenance reviewState "{state}" is not one of '
+                    f"{', '.join(_REVIEW_STATES)}. The field exists because a live lane "
+                    'hand-rolled "pending" in four different spellings, so an unnamed '
+                    "fifth value is the problem it was added to solve"
                 )
             warnings.extend(_source_files_warnings(rel, obj))
     return warnings
@@ -1139,7 +1272,7 @@ _JARGON_ALLOWLIST_DEFAULT = frozenset({
 })
 
 # Number of distinct coined terms above which we warn (Federal PLG: "<= 3,
-# preferably 2"; we allow more headroom for engineering docs).
+# preferably 2"; we allow more headroom for technical docs).
 _TERM_COUNT_WARN = 8
 
 _DFN_RE = re.compile(r"<dfn\b[^>]*>(.*?)</dfn>", re.IGNORECASE | re.DOTALL)
@@ -2234,7 +2367,7 @@ def _lead_summary_block() -> str:
     return """    <section id="lead-summary" data-summary="true" class="lead-summary">
       <h2>In plain terms</h2>
       <ul>
-        <li><strong>What this does for the user:</strong> Replace with the one-sentence product impact that lands without engineering context.</li>
+        <li><strong>What this does for the user:</strong> Replace with the one-sentence impact that lands without needing the implementation.</li>
         <li><strong>Why it matters:</strong> Replace with the business / user constraint that makes this worth reading.</li>
         <li><strong>What's being asked:</strong> Replace with the decision, approval, or review action the reader should take.</li>
         <li><strong>What would change this:</strong> Replace with the one thing that would overturn the conclusion and where it is examined, then say nothing else below changes it. Delete this bullet rather than write a hollow one.</li>
@@ -2371,7 +2504,7 @@ flowchart TB
         nav = [("what-it-is", "What it is"), ("how-it-works", "How it works"), ("gotchas", "Gotchas"), ("where-to-dig", "Where to dig")]
         body = """    <section id="what-it-is" class="section">
       <h2>What this thing is</h2>
-      <p>Plain definition. One sentence a new hire could repeat.</p>
+      <p>Plain definition. One sentence someone new could repeat.</p>
     </section>
     <section id="how-it-works" class="section">
       <h2>How it works</h2>
@@ -2589,14 +2722,14 @@ def _meta_ribbon(kind: str, date: str, escaped_source: str) -> str:
       <span><strong>Resolved</strong> &lt;time UTC&gt;</span>
       <span><strong>Owner</strong> &lt;name&gt;</span>
       <span><strong>Status</strong> Draft</span>
-      <span><strong>Read time</strong> ~6 min</span>
+      <span><strong>Read time</strong> &lt;fill before publishing&gt;</span>
     </div>"""
     return f"""    <div class="meta-ribbon" data-meta-ribbon="true" aria-label="Artifact metadata">
       <span><strong>Kind</strong> {kind}</span>
       <span><strong>Created</strong> {date}</span>
       <span><strong>Owner</strong> &lt;name&gt;</span>
       <span><strong>Status</strong> Draft</span>
-      <span><strong>Read time</strong> ~5 min</span>
+      <span><strong>Read time</strong> &lt;fill before publishing&gt;</span>
       <span><strong>Source</strong> {escaped_source}</span>
     </div>"""
 
@@ -2628,6 +2761,7 @@ def _provenance_footer(kind: str, date: str, escaped_source: str, source: str) -
         },
         "promptHash": "<sha256 of prompt; or replace with full prompt if non-sensitive>",
         "reviewer": "pending",
+        "reviewState": "unreviewed",
         "source": source,
     }
     provenance_json = "\n".join(
@@ -2690,10 +2824,14 @@ def render_artifact(
         nav = _nav_block(nav_items)
         read_map = _read_map_block(nav_items)
         mode_meta = ""
-    pm = _lead_summary_block()
+    lead = _lead_summary_block()
     ribbon = _meta_ribbon(kind, date, escaped_source)
     provenance = _provenance_footer(kind, date, escaped_source, source)
-    read_time = "6 min" if kind == "incident" else "5 min"
+    # Left empty on purpose. A scaffold is placeholder prose, so any figure here would be
+    # a guess the `read-time` rule would immediately contradict, which teaches an author
+    # to ignore the rule before they have written anything. The rule stays quiet until the
+    # artifact has real content, then asks for it.
+    read_time = ""
     extra_style = _EXTRA_SCAFFOLD_STYLE
     if kind == "incident":
         extra_style = f"{extra_style}\n{_INCIDENT_SCAFFOLD_STYLE}"
@@ -2729,7 +2867,7 @@ def render_artifact(
       <h1>{escaped_title}</h1>
     </header>
 {ribbon}
-{pm}
+{lead}
 {read_map}
 {nav}
 {body}
