@@ -28,9 +28,11 @@ hha = importlib.util.module_from_spec(_spec)
 sys.modules["hha"] = hha
 _spec.loader.exec_module(hha)
 
+f_unowned = hha.find_unowned_judgment_headings
+
 # Read maps must be depth-based ("Quick read" / "Full read"), never labelled by job
 # title. This lives in the test rather than the validator on purpose: the decision was
-# to fix the examples, not to add a 16th rule. It guards the shipped examples from
+# to fix the examples, not to add another rule. It guards the shipped examples from
 # drifting back without putting another string heuristic into the contract.
 _ROLE_READMAP_RE = re.compile(
     r"read-map.{0,800}?<strong>\s*(?:Exec|PM|Product|Engineer|Manager|Dev)\b",
@@ -251,18 +253,573 @@ class DynamicModeTest(unittest.TestCase):
             f"an attribute-form mode must warn that it is not in effect: {warnings}",
         )
 
-    def test_legacy_audience_marker_still_satisfies_the_rule(self):
-        """Artifacts written before the rename must keep validating."""
-        legacy = _artifact("<p>x</p>").replace(
+    def test_retired_audience_marker_is_rejected_and_explained(self):
+        """The alias is gone, and this test is the inverse of the one it replaces.
+
+        `data-audience="pm"` was accepted so pre-rename artifacts would keep validating.
+        Measured on a live lane of 197 artifacts, 158 carried it, 0 carried
+        `data-summary`, and the newest of the 158 was written that same week. The alias
+        was not easing a migration, it was the reason none started: nothing ever told an
+        author, or the model copying the previous artifact, that the marker names a job
+        title in the markup. Segmenting the reader is one of the spine's absolutes.
+
+        Both errors must fire. `summary-first` alone would say "add a summary block" to
+        an artifact that already has one, which sends the author looking for the wrong
+        problem; `audience-segmentation` is the one that names the actual fix.
+        """
+        retired = _artifact("<p>x</p>").replace(
             '<section data-summary="true">', '<section data-audience="pm">'
         )
         errors, _ = hha.content_shape_violations(
-            Path("a.html"), legacy, "2026-07-26", REPO, "plan"
+            Path("a.html"), retired, "2026-07-26", REPO, "plan"
         )
-        self.assertFalse(
-            any("summary-first" in e for e in errors),
-            'pre-rename data-audience="pm" must still count: ' + str(errors),
+        self.assertTrue(
+            any("[rule=audience-segmentation]" in e for e in errors),
+            "retired data-audience must be named as segmentation: " + str(errors),
         )
+        self.assertTrue(
+            any("[rule=summary-first]" in e for e in errors),
+            "retired data-audience must no longer count as the summary marker: " + str(errors),
+        )
+
+    def test_rule_id_alias_for_the_retired_rule_name_still_answers(self):
+        """The asymmetry is deliberate: a retired RULE ID keeps answering forever, because
+        a suppression comment is an author's decision that must not silently invert. A
+        retired CONTENT MARKER does not, because keeping it alive perpetuates the thing
+        the rule exists to remove."""
+        self.assertIn("pm-summary", hha._RULE_ID_ALIASES["summary-first"])
+
+    def test_the_retired_marker_can_be_documented_without_failing(self):
+        """A regex over the source cannot tell an attribute from one quoted in a comment
+        or shown as escaped text, so an artifact explaining the migration failed the very
+        rule it was explaining."""
+        for body, label in (
+            ('<!-- <section data-audience="pm"> --><p>x</p>', "in a comment"),
+            ('<pre>&lt;section data-audience="pm"&gt;</pre>', "escaped in a pre"),
+        ):
+            with self.subTest(label):
+                errors = hha.content_shape_violations(
+                    Path("a.html"), _artifact(body), "2026-07-26", REPO, "plan"
+                )[0]
+                self.assertFalse(
+                    any("[rule=audience-segmentation]" in e for e in errors), label
+                )
+
+    def test_a_real_audience_attribute_still_blocks(self):
+        errors = hha.content_shape_violations(
+            Path("a.html"), _artifact('<section data-audience="pm"><p>x</p></section>'),
+            "2026-07-26", REPO, "plan",
+        )[0]
+        self.assertTrue(any("[rule=audience-segmentation]" in e for e in errors))
+
+    def test_prose_near_a_read_map_mention_does_not_warn(self):
+        """The windowed regex matched `read-map` anywhere and then any `<strong>` within
+        800 characters, so an ordinary paragraph tripped it."""
+        body = (
+            "<p>The read-map goes above the first section.</p>"
+            "<p><strong>Product launch</strong> is in June.</p>"
+            '<section id="s"><h2>Context</h2><p>x</p></section>'
+        )
+        warnings = hha.content_shape_violations(
+            Path("a.html"), _artifact(body), "2026-07-26", REPO, "plan"
+        )[1]
+        self.assertFalse(any("[rule=role-labelled-guide]" in w for w in warnings))
+
+    def test_a_depth_labelled_reading_guide_does_not_warn(self):
+        body = '<aside class="read-map"><div><strong>Quick read:</strong> summary</div></aside>'
+        warnings = hha.content_shape_violations(
+            Path("a.html"), _artifact(body), "2026-07-26", REPO, "plan"
+        )[1]
+        self.assertFalse(any("[rule=role-labelled-guide]" in w for w in warnings))
+
+    def test_role_labelled_reading_guide_warns(self):
+        body = (
+            '<aside class="read-map"><div><strong>Exec:</strong> summary only</div></aside>'
+            '<section id="s"><h2>Context</h2><p>x</p></section>'
+        )
+        warnings = hha.content_shape_violations(
+            Path("a.html"), _artifact(body), "2026-07-26", REPO, "plan"
+        )[1]
+        self.assertTrue(
+            any("[rule=role-labelled-guide]" in w for w in warnings),
+            "a reading guide labelled by job title should warn: " + str(warnings),
+        )
+
+
+class ClaimOwnerTest(unittest.TestCase):
+    """A section that commits somebody has to name who.
+
+    The windowing is the part worth testing. An owner is normally declared on the
+    section's own opening tag, which sits BEFORE the heading, so the search window
+    cannot start where `comparison-visual`'s does. It also cannot run back
+    unbounded, or a neighbouring section's owner would satisfy an unowned one.
+    """
+
+    def _warn_rules(self, body: str, *, mode: str = "", kind: str = "decision") -> list[str]:
+        warnings = hha.content_shape_violations(
+            Path("a.html"), _artifact(body, mode=mode, kind=kind), "2026-07-26", REPO, kind
+        )[1]
+        return [w for w in warnings if "[rule=claim-owner]" in w]
+
+    def test_fires_on_unowned_judgment_heading(self):
+        for heading in ("Decision", "Verdict", "Recommendation", "Corrective actions", "Next steps"):
+            with self.subTest(heading=heading):
+                warns = self._warn_rules(f'<section id="j"><h2>{heading}</h2><p>x</p></section>')
+                self.assertEqual(len(warns), 1, f"{heading} should warn: {warns}")
+
+    def test_silent_when_owner_on_the_section_opening_tag(self):
+        # The tag precedes the heading, which is exactly why the window is widened.
+        body = '<section id="j" data-owner="Ana Silva"><h2>Decision</h2><p>x</p></section>'
+        self.assertEqual(self._warn_rules(body), [])
+
+    def test_owner_on_a_sibling_does_not_count(self):
+        """Ownership is an enclosing claim, not a nearby one. A `<p>` after the heading is
+        a sibling, so it cannot answer for the section."""
+        body = '<section id="j"><h2>Decision</h2><p data-owner="Ana Silva">x</p></section>'
+        self.assertEqual(len(self._warn_rules(body)), 1)
+
+    def test_owner_on_an_ancestor_covers_a_nested_heading(self):
+        """Both reviewers reproduced the inverse under the old substring window: a `<div>`
+        closed before the heading was taken for its container, so an owned section still
+        warned."""
+        body = (
+            '<section id="j" data-owner="Ana Silva"><h2>Context</h2>'
+            '<div class="callout">note</div><h3>Decision</h3><p>x</p></section>'
+        )
+        self.assertEqual(self._warn_rules(body), [])
+
+    def test_a_closed_sibling_cannot_lend_its_owner(self):
+        """The other half of the same reviewer finding: a preceding closed `<div>` with an
+        unrelated data-owner used to satisfy an unowned judgment section."""
+        body = (
+            '<section id="s"><h2>Context</h2><div data-owner="chart source"></div>'
+            "<h2>Decision</h2><p>x</p></section>"
+        )
+        self.assertEqual(len(self._warn_rules(body)), 1)
+
+    def test_neighbouring_owner_does_not_satisfy_an_unowned_section(self):
+        body = (
+            '<section id="a" data-owner="Ana Silva"><h2>Context</h2><p>x</p></section>'
+            '<section id="b"><h2>Decision</h2><p>x</p></section>'
+        )
+        self.assertEqual(len(self._warn_rules(body)), 1)
+
+    def test_empty_owner_does_not_count(self):
+        for value in ('""', '" "', '"&nbsp;"'):
+            with self.subTest(value=value):
+                body = f'<section id="j" data-owner={value}><h2>Decision</h2><p>x</p></section>'
+                self.assertEqual(len(self._warn_rules(body)), 1)
+
+    def test_unquoted_owner_counts(self):
+        """Valid HTML, and the old regex required quotes."""
+        body = '<section id="j" data-owner=Ana><h2>Decision</h2><p>x</p></section>'
+        self.assertEqual(self._warn_rules(body), [])
+
+    def test_a_longer_attribute_name_does_not_count(self):
+        r"""`\bdata-owner` matched the tail of `data-source-data-owner`, because `-` is
+        not a word character."""
+        body = '<section data-source-data-owner="Ana"><h2>Decision</h2><p>x</p></section>'
+        self.assertEqual(len(self._warn_rules(body)), 1)
+
+    def test_an_owner_in_a_comment_or_shown_as_text_does_not_count(self):
+        for body in (
+            '<!-- <section data-owner="Ana"> --><section><h2>Decision</h2><p>x</p></section>',
+            '<section><h2>Decision</h2><pre>&lt;section data-owner="Ana"&gt;</pre></section>',
+        ):
+            with self.subTest(body=body[:40]):
+                self.assertEqual(len(self._warn_rules(body)), 1)
+
+    def test_body_and_main_cannot_own_the_whole_page(self):
+        """One attribute high enough up would silently satisfy every section below it."""
+        art = _artifact('<section id="j"><h2>Decision</h2><p>x</p></section>').replace(
+            "<main>", '<main data-owner="Ana Silva">'
+        )
+        warnings = hha.content_shape_violations(
+            Path("a.html"), art, "2026-07-26", REPO, "decision"
+        )[1]
+        self.assertTrue(any("[rule=claim-owner]" in w for w in warnings))
+
+    def test_implicitly_closed_elements_are_not_ancestors(self):
+        """HTML closes some elements for you. `<p data-owner>` before an `<h2>` is a
+        sibling to a browser, so it cannot own the heading; keeping it on the stack made
+        the rule silently accept an unowned section."""
+        for body, label in (
+            ('<p data-owner="Ana Silva"><h2>Decision</h2>', "p closed by h2"),
+            ('<ul><li data-owner="Ana Silva"><li><h2>Decision</h2></ul>', "li closed by li"),
+            ('<table><tr><td data-owner="Ana"><tr><td><h2>Decision</h2></table>', "td/tr"),
+        ):
+            with self.subTest(label):
+                self.assertEqual(len(self._warn_rules(body)), 1)
+
+    def test_a_genuine_ancestor_still_owns_after_an_implicit_close(self):
+        body = '<section data-owner="Ana Silva"><p>lead</p><h2>Decision</h2></section>'
+        self.assertEqual(self._warn_rules(body), [])
+
+    def test_a_trailing_slash_on_a_non_void_element_does_not_close_it(self):
+        """HTML treats `<section/>` as a parse error and then ignores the slash, so the
+        section stays open and owns what follows. Treating it as opened-and-closed made
+        the rule disagree with every browser and warn on an owned section."""
+        self.assertEqual(f_unowned('<section data-owner="Ana"/><h2>Decision</h2><p>x</p>'), [])
+
+    def test_a_void_element_still_never_becomes_an_ancestor(self):
+        self.assertEqual(f_unowned('<br data-owner="Ana"/><h2>Decision</h2>'), ["Decision"])
+
+    def test_both_parsers_agree_on_duplicate_attributes(self):
+        """The first fix reached the judgment parser only; the artifact parser kept
+        last-wins, so the two disagreed about the same markup."""
+        for markup, expected in (
+            ('<section data-summary="true" data-summary="false"><h2>x</h2></section>', True),
+            ('<section data-summary="false" data-summary="true"><h2>x</h2></section>', False),
+        ):
+            with self.subTest(markup=markup[:48]):
+                parser = hha.ArtifactHTMLParser()
+                parser.feed(markup)
+                self.assertEqual(parser.has_summary_block, expected)
+
+    def test_duplicate_owner_attributes_take_the_first(self):
+        """A browser keeps the first; a dict comprehension keeps the last, which read an
+        empty owner as owned and, reversed, invented a warning on a real one."""
+        self.assertEqual(
+            len(self._warn_rules('<section data-owner="" data-owner="Ana"><h2>Decision</h2></section>')), 1
+        )
+        self.assertEqual(
+            self._warn_rules('<section data-owner="Ana" data-owner=""><h2>Decision</h2></section>'), []
+        )
+
+    def test_data_judgment_opts_a_non_matching_heading_in(self):
+        """The escape hatch for a section whose heading states the judgment rather than
+        naming it, e.g. "Lead with the narrow first stage" as a recommendation."""
+        body = (
+            '<section id="j" data-judgment="true">'
+            "<h2>Lead with the narrow first stage</h2><p>x</p></section>"
+        )
+        self.assertEqual(len(self._warn_rules(body)), 1)
+        owned = body.replace('data-judgment="true"', 'data-judgment="true" data-owner="Ana"')
+        self.assertEqual(self._warn_rules(owned), [])
+
+    def test_non_judgment_headings_never_fire(self):
+        for heading in ("Context", "Findings", "Where we are", "Next", "Open questions"):
+            with self.subTest(heading=heading):
+                body = f'<section id="j"><h2>{heading}</h2><p>x</p></section>'
+                self.assertEqual(self._warn_rules(body, kind="research"), [])
+
+    def test_in_force_in_dynamic_mode(self):
+        """Who holds a call does not depend on which sections exist, so this is not
+        one of the three shape rules that stand down."""
+        body = '<section id="j"><h2>Recommendation</h2><p>x</p></section>'
+        self.assertEqual(len(self._warn_rules(body, mode="dynamic")), 1)
+
+
+class DocsMatchTheCodeTest(unittest.TestCase):
+    """The documentation and the checker must agree about what the checker does.
+
+    Asked for by a reviewer after finding that the references still described the
+    pre-change contract. It earned its place immediately: the first run found
+    `size-budget`, a rule the checker had been emitting for releases with no row in the
+    documented table at all, so nobody reading the contract knew it existed.
+    """
+
+    SKILL = REPO / "skills/human-html/SKILL.md"
+    _EMITTED_RE = re.compile(r'_add\(\s*\w+,\s*parser,\s*"([a-z-]+)"')
+    # plain_language_findings yields (rule_id, message) pairs and they reach `_add` through
+    # a variable, so a literal-only scan missed all seven and both set-equality assertions
+    # stayed green whichever way that family drifted.
+    _APPENDED_RE = re.compile(r'out\.append\(\(\s*\n?\s*"([a-z-]+)",')
+
+    def _emitted_rule_ids(self) -> set[str]:
+        source = SCRIPT.read_text(encoding="utf-8")
+        return set(self._EMITTED_RE.findall(source)) | set(self._APPENDED_RE.findall(source))
+
+    def _documented_rule_ids(self) -> set[str]:
+        text = self.SKILL.read_text(encoding="utf-8")
+        table = re.search(r"\| Rule ID \| Severity.*?\n\n", text, re.S)
+        assert table is not None, "the rule ID table is missing from SKILL.md"
+        return set(re.findall(r"^\| `([a-z-]+)`", table.group(0), re.M))
+
+    def test_every_emitted_rule_is_documented(self):
+        undocumented = self._emitted_rule_ids() - self._documented_rule_ids()
+        self.assertEqual(
+            undocumented, set(),
+            "these rules can fire but are not in the SKILL.md table, so a reader of the "
+            f"contract cannot know they exist: {sorted(undocumented)}",
+        )
+
+    def test_every_documented_rule_can_actually_fire(self):
+        phantom = self._documented_rule_ids() - self._emitted_rule_ids()
+        self.assertEqual(
+            phantom, set(),
+            f"documented but never emitted, so the table promises what the checker does "
+            f"not do: {sorted(phantom)}",
+        )
+
+    def test_the_spine_states_the_right_rule_count(self):
+        spine = (REPO / "skills/human-html/references/artifact-spine.md").read_text(encoding="utf-8")
+        words = {
+            15: "fifteen", 16: "sixteen", 17: "seventeen", 18: "eighteen", 19: "nineteen",
+            20: "twenty", 21: "twenty-one", 22: "twenty-two", 23: "twenty-three",
+            24: "twenty-four", 25: "twenty-five", 26: "twenty-six", 27: "twenty-seven",
+            28: "twenty-eight", 29: "twenty-nine", 30: "thirty", 31: "thirty-one",
+        }
+        expected = words.get(len(self._documented_rule_ids()))
+        self.assertIsNotNone(expected, "extend the number words in this test")
+        self.assertIn(
+            f"The {expected} content rules", spine,
+            "artifact-spine.md opens by counting the rules; that count has drifted",
+        )
+
+    def test_the_readme_states_the_right_blocker_count(self):
+        text = self.SKILL.read_text(encoding="utf-8")
+        found = re.search(r"\| Rule ID \| Severity.*?\n\n", text, re.S)
+        assert found is not None
+        table = found.group(0)
+        blockers = [
+            row for row in table.splitlines()
+            if row.startswith("| `") and re.search(r"\bBLOCK\b", row)
+        ]
+        words = {2: "two", 3: "three", 4: "four", 5: "five", 6: "six"}
+        # nav-anchors and required-section are conditional, so the README counts the
+        # rules that block unconditionally rather than every row mentioning BLOCK.
+        unconditional = [r for r in blockers if "WARN" not in r]
+        readme = (REPO / "README.md").read_text(encoding="utf-8")
+        self.assertIn(
+            f"blocks on {words[len(unconditional)]} rules", readme,
+            f"README blocker count has drifted; unconditional blockers are "
+            f"{[re.findall(r'`([a-z-]+)`', r)[0] for r in unconditional]}",
+        )
+
+
+class ExamplesDoNotContradictThemselvesTest(unittest.TestCase):
+    """A reviewer found the flagship examples undercutting the branch's own thesis.
+
+    `review-canonical` said "the one required change" three times and listed two.
+    `status-canonical` asked a person who owned nothing to confirm a blocker while the
+    real owner went unnamed. Neither is reachable by a content rule, because both are
+    the answer-first opener disagreeing with the detail rather than a missing marker.
+    These two guards are narrow on purpose: they hold the shipped examples to the
+    counts they claim, and nothing more.
+    """
+
+    EXAMPLES = REPO / "skills/human-html/examples"
+
+    def _section_items(self, name: str, anchor: str) -> int:
+        text = (self.EXAMPLES / name).read_text(encoding="utf-8")
+        section = re.search(rf'<section[^>]*id="{anchor}".*?</section>', text, re.S)
+        assert section is not None, f"{name} has no #{anchor}"
+        return len(re.findall(r"<li\b", section.group(0)))
+
+    def test_review_examples_required_count_matches_its_claim(self):
+        text = (self.EXAMPLES / "review-canonical.html").read_text(encoding="utf-8")
+        claims_one = "the one required change" in text
+        self.assertTrue(claims_one, "the summary's wording changed; update this guard")
+        self.assertEqual(
+            self._section_items("review-canonical.html", "required"), 1,
+            "the summary says one required change; #required lists a different number",
+        )
+
+    def test_status_example_asks_only_real_owners_to_confirm(self):
+        text = (self.EXAMPLES / "status-canonical.html").read_text(encoding="utf-8")
+        summary = re.search(r'<section[^>]*data-summary="true".*?</section>', text, re.S)
+        assert summary is not None
+        asked = set(re.findall(r"\b([A-Z][a-z]+)\b(?=[,)])", summary.group(0)))
+        blockers = re.search(r'<section[^>]*id="blockers".*?</section>', text, re.S)
+        assert blockers is not None
+        # Only an explicit ownership statement counts. Matching any name that merely
+        # appears in the section made "escalate to Marcus" read as ownership, which is
+        # the exact confusion this guard exists to catch.
+        owners = set(re.findall(r"\b([A-Z][a-z]+)\s+owns\b", blockers.group(0)))
+        self.assertTrue(asked, "no names parsed out of the summary; update this guard")
+        self.assertTrue(owners, "no explicit 'X owns' statement in #blockers")
+        self.assertTrue(
+            asked <= owners,
+            f"the summary asks {sorted(asked - owners)} to confirm a blocker, but the only "
+            f"names #blockers says own one are {sorted(owners)}. An escalation path is not "
+            "an owner",
+        )
+
+
+class ProseBudgetTest(unittest.TestCase):
+    """The ceiling `required-section` never had, measured in words rather than bytes."""
+
+    def _warns(self, body: str) -> list[str]:
+        return hha.content_shape_violations(
+            Path("a.html"), _artifact(body), "2026-07-26", REPO, "plan"
+        )[1]
+
+    def test_a_gt_inside_an_attribute_does_not_leak_into_the_count(self):
+        """Stripping tags with `<[^>]+>` ends the tag at the first `>`, so the tail of an
+        attribute value became prose the reader never sees."""
+        self.assertEqual(hha.prose_words('<p title="one two > three four five">visible</p>'), 1)
+
+    def test_preformatted_blocks_are_not_prose_but_inline_code_is(self):
+        """Block-preformatted content is not read at prose speed and often is not read at
+        all: a code sample, an ASCII diagram, or the mermaid source `embed-svg` parks in a
+        collapsed <details>. Counting it meant the tooling inflated the length it measured.
+        Inline `code` stays counted, because it sits inside a sentence."""
+        self.assertEqual(hha.prose_words("<p>one</p><pre>two three four</pre>"), 1)
+        self.assertEqual(hha.prose_words("<p>one <code>two</code> three</p>"), 3)
+        self.assertEqual(hha.prose_words("<pre><code>a b c</code></pre>"), 0)
+
+    def test_prose_words_ignores_markup_script_and_style(self):
+        content = (
+            "<p>one two three</p><script>var a = 1; var b = 2; var c = 3;</script>"
+            "<style>.x{color:red;background:blue;border:0}</style>"
+            "<svg><text>alpha beta gamma delta</text></svg><!-- four five six -->"
+        )
+        self.assertEqual(hha.prose_words(content), 3)
+
+    def test_warns_past_the_budget(self):
+        body = "<p>" + ("word " * (hha._PROSE_BUDGET_WORDS + 200)) + "</p>"
+        self.assertTrue(any("[rule=prose-budget]" in w for w in self._warns(body)))
+
+    def test_silent_under_the_budget(self):
+        body = "<p>" + ("word " * 200) + "</p>"
+        self.assertFalse(any("[rule=prose-budget]" in w for w in self._warns(body)))
+
+    def test_budget_is_calibrated_above_every_shipped_example(self):
+        """A ceiling that fires on the skill's own examples would be noise on arrival."""
+        examples = sorted((REPO / "skills/human-html/examples").glob("*.html"))
+        self.assertTrue(examples)
+        worst = max(hha.prose_words(p.read_text(encoding="utf-8")) for p in examples)
+        self.assertLess(worst, hha._PROSE_BUDGET_WORDS)
+
+
+class ReadTimeTest(unittest.TestCase):
+    """A declared read-time that tracks nothing is what a model writes when nothing
+    constrains it. Measured on a live lane: 194 words claimed 5 min, 4,701 words claimed
+    5 min, and the longest artifact gave up and said "browse"."""
+
+    def _artifact_with(self, declared: str, words: int) -> str:
+        art = _artifact("<p>" + ("word " * words) + "</p>")
+        return art.replace(
+            '<meta name="artifact-created" content="2026-07-26">',
+            '<meta name="artifact-created" content="2026-07-26">'
+            f'<meta name="artifact-read-time" content="{declared}">',
+        )
+
+    def _warns(self, declared: str, words: int) -> list[str]:
+        return hha.content_shape_violations(
+            Path("a.html"), self._artifact_with(declared, words), "2026-07-26", REPO, "plan"
+        )[1]
+
+    def test_warns_when_the_claim_does_not_track_the_prose(self):
+        self.assertTrue(any("[rule=read-time]" in w for w in self._warns("5 min", 3000)))
+
+    def test_a_zero_minute_claim_warns(self):
+        """`0 min` carries a number, and zero is falsy, so it skipped the tolerance branch
+        and handed the reader an impossible budget in silence."""
+        self.assertTrue(any("[rule=read-time]" in w for w in self._warns("0 min", 3000)))
+
+    def test_warns_when_the_field_carries_no_number(self):
+        self.assertTrue(any("[rule=read-time]" in w for w in self._warns("browse", 3000)))
+
+    def test_silent_within_tolerance(self):
+        # ~870 words is about 4 minutes; a 5 minute claim is honest.
+        self.assertFalse(any("[rule=read-time]" in w for w in self._warns("5 min", 870)))
+
+    def test_silent_when_absent_on_a_scaffold_sized_artifact(self):
+        """A fresh scaffold is placeholder prose. Nagging there trains an author to ignore
+        the rule before they have written anything, so the nudge waits for real content."""
+        warns = hha.content_shape_violations(
+            Path("a.html"), _artifact("<p>x</p>"), "2026-07-26", REPO, "plan"
+        )[1]
+        self.assertFalse(any("[rule=read-time]" in w for w in warns))
+
+    def test_warns_when_absent_once_the_artifact_has_real_content(self):
+        body = "<p>" + ("word " * (hha._READ_TIME_MIN_WORDS + 100)) + "</p>"
+        warns = hha.content_shape_violations(
+            Path("a.html"), _artifact(body), "2026-07-26", REPO, "plan"
+        )[1]
+        self.assertTrue(any("[rule=read-time]" in w for w in warns), str(warns))
+
+    def test_scaffold_ships_no_read_time_and_says_so_in_the_ribbon(self):
+        page = hha.render_artifact("T", "plan", "2026-07-26", "local")
+        self.assertIn('<meta name="artifact-read-time" content="">', page)
+        self.assertIn("fill before publishing", page)
+
+
+class ReviewStateTest(unittest.TestCase):
+    """Three named states, because a live lane hand-rolled "pending" in nine distinct spellings."""
+
+    def _provenance(self, extra: str) -> list[str]:
+        body = (
+            '<section id="s"><h2>Context</h2><p>x</p></section>'
+            '<footer data-provenance="true">'
+            '<script type="application/ld+json" id="provenance">'
+            '{"@id":"urn:x","dateCreated":"2026-07-26",'
+            '"creator":{"name":"m"},"prompt":"p","reviewer":"Ana Silva"' + extra + "}"
+            "</script></footer>"
+        )
+        return hha.content_shape_violations(
+            Path("a.html"), _artifact(body), "2026-07-26", REPO, "plan"
+        )[1]
+
+    def test_known_state_is_accepted(self):
+        for state in hha._REVIEW_STATES:
+            with self.subTest(state=state):
+                warns = self._provenance(f',"reviewState":"{state}"')
+                self.assertFalse([w for w in warns if "reviewState" in w], str(warns))
+
+    def test_a_non_string_state_warns(self):
+        """The isinstance guard used to gate the whole check, so a truthy non-string
+        satisfied the missing-field test and was skipped by the value test: silent both
+        ways. A JSON type slip is in scope for a field that exists because free text
+        produced nine spellings of one state."""
+        for literal, label in (("123", "number"), ("true", "boolean"),
+                               ('["human-reviewed"]', "list"), ('{"v":"x"}', "object")):
+            with self.subTest(label):
+                warns = self._provenance(f',"reviewState":{literal}')
+                self.assertTrue(any("reviewState" in w for w in warns), f"{label}: {warns}")
+
+    def test_unknown_state_warns(self):
+        warns = self._provenance(',"reviewState":"pending"')
+        self.assertTrue(any("reviewState" in w for w in warns), str(warns))
+
+    def test_missing_state_is_reported_as_a_missing_field(self):
+        warns = self._provenance("")
+        self.assertTrue(any("reviewState" in w for w in warns), str(warns))
+
+    def test_scaffold_ships_unreviewed(self):
+        page = hha.render_artifact("T", "plan", "2026-07-26", "local")
+        self.assertIn('"reviewState": "unreviewed"', page)
+        self.assertIn("not yet reviewed by a human", page)
+
+
+class LayoutRegressionTest(unittest.TestCase):
+    """Two layout bugs found in real artifacts, guarded so they cannot quietly return.
+
+    Neither is reachable from a unit test in the usual sense, because both are CSS and
+    only a browser can prove them. What a test CAN do is hold the fix in place, which is
+    the actual risk: both rules look like tidy-up and would be easy to delete.
+    """
+
+    def test_keycard_does_not_depend_on_child_count(self):
+        """A third child used to wrap into column 1, whose `auto` width then grew to fit a
+        paragraph and starved the 1fr column to a one-word-per-line ribbon."""
+        css = hha._SCAFFOLD_STYLE + hha._EXTRA_SCAFFOLD_STYLE
+        self.assertIn(".keycard > * { grid-column:2;", css)
+        self.assertRegex(css, r"\.keycard > :first-child:is\([^)]*\.big[^)]*\)")
+        # the mobile single-column override must release the placement, or it conjures
+        # an implicit second column and puts the hero back beside the text
+        self.assertRegex(css, r"\.keycard > \*,[^\n]*grid-column:1; grid-row:auto")
+
+    def test_embedded_diagram_font_is_not_a_generic_keyword(self):
+        """`embed-svg` measures labels once and writes a fixed foreignObject height. A
+        generic keyword resolves to a different physical font per OS, so the reader's
+        re-flow overflows the baked box and the last line is clipped away."""
+        for generic in ("system-ui", "ui-sans-serif", "ui-rounded", "-apple-system"):
+            self.assertNotIn(generic, hha._DIAG_FONT)
+        self.assertIn("Arial", hha._DIAG_FONT)
+
+    def test_embedded_diagram_labels_overflow_rather_than_clip(self):
+        """The base scaffold carried this for live `.mermaid` blocks from the start;
+        `embed-svg` rewrites the wrapper and the rule did not follow it across."""
+        self.assertIn("foreignObject", hha._DIAG_STYLE)
+        self.assertIn("overflow: visible", hha._DIAG_STYLE)
+        for wrapper in (".diagram-light", ".diagram-dark"):
+            self.assertRegex(
+                hha._DIAG_STYLE,
+                rf"{re.escape(wrapper)} foreignObject[^}}]*\{{[^}}]*overflow: visible",
+            )
 
 
 class NoAudienceSegmentationTest(unittest.TestCase):

@@ -106,6 +106,42 @@ _VISUAL_PATTERNS = [
     re.compile(r"""\bdata-visual=['"]true['"]""", re.IGNORECASE),
 ]
 
+# Headings that mean "this section commits somebody", and therefore need to name who.
+# Ownership attaches to the claim rather than to the artifact, because the two kinds that
+# carry both description and judgment (`architecture`, `review`) split down the middle:
+# the Before/After is a report and the Recommendation is a person's call. Keying off a
+# heading rather than off `artifact-kind` means kind sensitivity falls out on its own -
+# a `research` artifact has no such heading and never trips this, a `decision` always does.
+# `status` is the deliberate gap: its headings name no judgment, and its accountability is
+# artifact-wide, which the metadata ribbon's Owner field already carries.
+JUDGMENT_HEADING_RE = re.compile(
+    r"\b("
+    r"recommendations?|"
+    r"verdict|"
+    r"decisions?|"
+    r"corrective\s+actions?|"
+    r"next\s+steps?"
+    r")\b",
+    re.IGNORECASE,
+)
+
+# Audience segmentation, which the spine bans outright: depth is offered, never assigned.
+# Two detectors at two severities, because the evidence differs.
+#   - the attribute is a machine-written marker with no legitimate reading, so it BLOCKS.
+#   - a reading guide labelled by job title is the same ban with judgment surface around
+#     it (a section may legitimately discuss "the product team"), so it WARNS. The regex
+#     is deliberately anchored to the read-map block rather than to the words alone.
+# Anchored to the start of a reading-guide label, so "Product launch" as a label trips it
+# and a sentence merely containing the word does not. Both detectors are driven from
+# parsed markup (see ArtifactHTMLParser), never from a regex over the source.
+_ROLE_LABEL_RE = re.compile(
+    r"^(?:Exec|Execs|Executive|PM|PMs|Product|Product\s+Manager|Engineer|Engineers|"
+    r"Engineering|Manager|Managers|Dev|Devs|Developer|Developers|Designer|Designers|"
+    r"Leadership|Stakeholder|Stakeholders|Technical|Non-?technical)\b",
+    re.IGNORECASE,
+)
+
+
 # Walks h2 and h3 headings, both feed comparison-section detection.
 _HEADING_RE = re.compile(r"<h([23])\b[^>]*>(.*?)</h\1>", re.IGNORECASE | re.DOTALL)
 # Strip HTML comments before scanning a section for a visual, so a commented-out
@@ -227,12 +263,39 @@ def _join_captured(chunks: list[str]) -> str:
     return _PUNCT_SPACE_RE.sub(r"\1", text).strip()
 
 
+def _first_wins_attrs(attrs) -> dict[str, str]:
+    """Attribute map with browser semantics: the FIRST duplicate wins.
+
+    A dict comprehension keeps the last, which disagrees with every browser and made
+    `data-owner="" data-owner="Ana"` read as owned (and the reverse invent a warning).
+    Both parsers share this so they cannot drift apart on the same question.
+    """
+    out: dict[str, str] = {}
+    for name, value in attrs:
+        name = name.lower()
+        if name not in out:
+            out[name] = value or ""
+    return out
+
+
 class ArtifactHTMLParser(HTMLParser):
     def __init__(self) -> None:
         super().__init__(convert_charrefs=False)
         self.meta: dict[str, str] = {}
         self.has_body_marker = False
         self.has_summary_block = False
+        # Parsed rather than grepped. A regex over the source cannot tell a real attribute
+        # from one quoted inside a comment or shown as escaped text in a <pre>, so an
+        # artifact documenting the retired marker failed the very rule it was explaining.
+        self.has_audience_attr = False
+        self.role_labelled_read_map = False
+        # An open-element stack rather than a counter. The counter incremented on every
+        # start tag including void ones, so a bare `<br>` inside a reading guide pushed the
+        # depth up with no end tag to bring it back down: the guide never closed and a
+        # role-looking label anywhere later in the document warned.
+        self._open_tags: list[str] = []
+        self._read_map_at: int | None = None
+        self._capture_role_label = False
         self.stray_mode_attrs: set[str] = set()
         self.has_meta_ribbon = False
         self.has_provenance = False
@@ -259,13 +322,13 @@ class ArtifactHTMLParser(HTMLParser):
         self.keywords_meta = ""
         self.h2_headings: list[str] = []
         self.pm_lead = ""
-        self._capture_pm_lead = False
-        self._pm_lead_done = False
+        self._capture_lead = False
+        self._lead_done = False
         self._capture_lead_tag: str | None = None
         self._lead_buffer: list[str] = []
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
-        attr_map = {name.lower(): value or "" for name, value in attrs}
+        attr_map = _first_wins_attrs(attrs)
         tag_name = tag.lower()
         if attr_map.get("id"):
             self.ids.add(html.unescape(attr_map["id"]))
@@ -279,22 +342,48 @@ class ArtifactHTMLParser(HTMLParser):
                 self.keywords_meta = html.unescape(attr_map.get("content", ""))
         if tag_name == "body" and attr_map.get("data-human-html-artifact") == "true":
             self.has_body_marker = True
-        # `data-summary="true"` marks the answer-first opener. `data-summary="true"` is
-        # the pre-rename spelling, still accepted so already-shipped artifacts keep
-        # validating; it is no longer documented because naming a job title in the
-        # markup segments the audience, which the contract bans in the prose.
-        if tag_name == "section" and (
-            attr_map.get("data-summary", "").lower() == "true"
-            or attr_map.get("data-audience", "").lower() == "pm"
-        ):
+        if "data-audience" in attr_map:
+            self.has_audience_attr = True
+        # A reading guide labelled by job title, found by walking the element rather than
+        # by a windowed regex. The old expression matched `read-map` anywhere and then any
+        # <strong> within 800 characters, so an ordinary paragraph mentioning a read map
+        # followed by "<strong>Product launch</strong>" warned.
+        classes = attr_map.get("class", "").split()
+        if "read-map" in classes or attr_map.get("aria-label", "").strip().lower() == "reading map":
+            is_read_map = True
+        else:
+            is_read_map = False
+        if tag_name not in _VOID_ELEMENTS:
+            self._open_tags.append(tag_name)
+            if is_read_map and self._read_map_at is None:
+                self._read_map_at = len(self._open_tags) - 1
+        if self._read_map_at is not None and tag_name in ("strong", "b", "dt"):
+            self._capture_role_label = True
+        # `data-summary="true"` marks the answer-first opener, and it is the only spelling.
+        #
+        # `data-audience="pm"` was the pre-rename marker and was kept as an accepted alias
+        # so already-shipped artifacts would keep validating. Measured on a live lane of 197
+        # artifacts, that kindness did the opposite of its purpose: 158 carried
+        # `data-audience`, 0 carried `data-summary`, and the newest of the 158 was written
+        # the same week the count was taken. The alias was not easing a migration, it was
+        # the reason no migration ever started, because nothing ever told an author (or the
+        # model copying the previous artifact) that the marker names a job title in the
+        # markup. Segmenting the reader is one of the spine's absolutes, so the alias is
+        # retired and `audience-segmentation` now says so in as many words.
+        #
+        # Note the deliberate asymmetry with `_RULE_ID_ALIASES`: a retired RULE ID keeps
+        # answering forever, because a suppression comment is an author's decision that
+        # should not silently invert. A retired CONTENT MARKER does not, because keeping it
+        # alive perpetuates the thing the rule exists to remove.
+        if tag_name == "section" and attr_map.get("data-summary", "").lower() == "true":
             self.has_summary_block = True
-            if not self._pm_lead_done:
-                self._capture_pm_lead = True
+            if not self._lead_done:
+                self._capture_lead = True
         # Capture the first li/p text inside the summary block as a fallback summary.
         if (
             tag_name in ("li", "p")
-            and self._capture_pm_lead
-            and not self._pm_lead_done
+            and self._capture_lead
+            and not self._lead_done
             and self._capture_lead_tag is None
         ):
             self._capture_lead_tag = tag_name
@@ -359,6 +448,18 @@ class ArtifactHTMLParser(HTMLParser):
             self._heading_buffer.append(data)
         if self._capture_lead_tag is not None:
             self._lead_buffer.append(data)
+        if self._capture_role_label:
+            if _ROLE_LABEL_RE.match(data.strip()):
+                self.role_labelled_read_map = True
+            self._capture_role_label = False
+
+    def handle_startendtag(self, tag: str, attrs) -> None:
+        """Only a void element self-closes; HTML ignores the slash on everything else.
+
+        The inherited default opens and immediately closes, so `<aside class="read-map"/>`
+        shut a guide a browser keeps open and the role labels inside it went unseen.
+        """
+        self.handle_starttag(tag, attrs)
 
     def handle_comment(self, data: str) -> None:
         match = _SUPPRESS_COMMENT_RE.match(data)
@@ -371,6 +472,14 @@ class ArtifactHTMLParser(HTMLParser):
 
     def handle_endtag(self, tag: str) -> None:
         tag_name = tag.lower()
+        for i in range(len(self._open_tags) - 1, -1, -1):
+            if self._open_tags[i] == tag_name:
+                del self._open_tags[i:]
+                break
+        if self._read_map_at is not None and len(self._open_tags) <= self._read_map_at:
+            self._read_map_at = None
+        if tag_name in ("strong", "b", "dt"):
+            self._capture_role_label = False
         if tag_name == "script" and self._capture_provenance_script:
             self.provenance_json_scripts.append("".join(self._script_buffer).strip())
             self._capture_provenance_script = False
@@ -395,13 +504,13 @@ class ArtifactHTMLParser(HTMLParser):
             self._lead_buffer = []
             if lead_text:
                 self.pm_lead = lead_text
-                self._pm_lead_done = True
-                self._capture_pm_lead = False
-        # PM block closed without capturing a lead: stop, so a later paragraph
+                self._lead_done = True
+                self._capture_lead = False
+        # summary block closed without capturing a lead: stop, so a later paragraph
         # outside the summary block is never grabbed.
-        if tag_name == "section" and self._capture_pm_lead and not self._pm_lead_done:
-            self._capture_pm_lead = False
-            self._pm_lead_done = True
+        if tag_name == "section" and self._capture_lead and not self._lead_done:
+            self._capture_lead = False
+            self._lead_done = True
 
 
 def slugify(value: str) -> str:
@@ -569,6 +678,240 @@ def find_comparison_violations(content: str) -> list[str]:
     return violations
 
 
+# Elements that never open a scope, so they must not be pushed onto the ancestor stack.
+_VOID_ELEMENTS = frozenset(
+    "area base br col embed hr img input link meta param source track wbr".split()
+)
+# Ownership is not inherited from the page itself: an owner declared on <body> or <main>
+# would silently satisfy every judgment section in the artifact.
+_NON_OWNING_ANCESTORS = frozenset(("html", "body", "main"))
+
+# HTML's optional end tags. An open element on the left is closed when any element on the
+# right opens, so the two are siblings rather than parent and child. Only the pairs that
+# can plausibly wrap or precede a heading are listed; this is a practical subset of the
+# spec, not the whole of it.
+# Keyed by the tag being OPENED, holding what that tag implicitly closes. The first cut
+# keyed it the other way, which cannot express a cascade: `<tbody>` has to close an open
+# `<td>`, then the `<tr>` around it, then the `<thead>` around that, and a pair-only table
+# reaches none of those. A `while` over this mapping unwinds the whole run.
+_HEADINGS = frozenset("h1 h2 h3 h4 h5 h6".split())
+_BLOCKS_CLOSING_P = frozenset(
+    "address article aside blockquote details div dl fieldset figcaption figure footer "
+    "form header hgroup hr main menu nav ol p pre section table ul".split()
+) | _HEADINGS
+_CELLS = frozenset(("td", "th"))
+_ROW_GROUPS = frozenset(("thead", "tbody", "tfoot"))
+_IMPLIED_CLOSES: dict[str, frozenset[str]] = {
+    **{block: frozenset(("p",)) for block in _BLOCKS_CLOSING_P},
+    # a heading closes an open heading: the spec calls it a parse error and pops
+    **{h: _HEADINGS | frozenset(("p",)) for h in _HEADINGS},
+    "li": frozenset(("li", "p")),
+    "dt": frozenset(("dt", "dd", "p")),
+    "dd": frozenset(("dt", "dd", "p")),
+    "td": _CELLS | frozenset(("p",)),
+    "th": _CELLS | frozenset(("p",)),
+    "tr": _CELLS | frozenset(("tr", "p")),
+    **{g: _CELLS | _ROW_GROUPS | frozenset(("tr", "p")) for g in _ROW_GROUPS},
+    "option": frozenset(("option",)),
+    "optgroup": frozenset(("option", "optgroup")),
+    "rt": frozenset(("rt", "rp")),
+    "rp": frozenset(("rt", "rp")),
+}
+
+
+class _JudgmentOwnerParser(HTMLParser):
+    """Find judgment headings whose enclosing section names no owner.
+
+    This is a real parse rather than a substring search, and the first version was the
+    substring search. Two independent reviews reproduced the same class of failure in it,
+    all of it traceable to `rfind` having no idea what an element is: a `<div>` closed
+    before the heading was mistaken for its container, so a genuinely owned section still
+    warned and an unrelated sibling's `data-owner` silently satisfied an unowned one; an
+    owner inside an HTML comment or shown as escaped text in a `<pre>` counted; and
+    `\\bdata-owner` matched the tail of `data-source-data-owner`.
+
+    The rule this implements: a heading is owned when the heading itself, or an element
+    enclosing it below `<main>`, carries a non-empty `data-owner`. Ancestors count so a
+    section owner covers a nested `<h3>` and so wrapping the heading in a `<header>`
+    changes nothing; `<body>` and `<main>` are excluded so one attribute cannot own the
+    whole page.
+    """
+
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.violations: list[str] = []
+        self._stack: list[tuple[str, bool, bool]] = []  # (tag, owns, opts_in)
+        self._heading: list[str] | None = None
+        self._heading_owned = False
+        self._heading_opted_in = False
+
+    @staticmethod
+    def _owns(attrs: dict[str, str]) -> bool:
+        return bool(html.unescape(attrs.get("data-owner", "")).strip())
+
+    @staticmethod
+    def _opts_in(attrs: dict[str, str]) -> bool:
+        return attrs.get("data-judgment", "").strip().lower() == "true"
+
+    def _close_implied(self, tag: str) -> None:
+        """Pop elements HTML closes implicitly when `tag` opens.
+
+        `<p data-owner="Ana"><h2>Decision</h2>` reads to a browser as a closed `<p>`
+        followed by a heading, so the `<p>` is a *sibling* and cannot own the heading.
+        Keeping it on the stack made the rule silently accept an unowned section, which is
+        the same sibling-ownership class the rewrite was supposed to end.
+        """
+        closes = _IMPLIED_CLOSES.get(tag)
+        if not closes:
+            return
+        while self._stack and self._stack[-1][0] in closes:
+            self._stack.pop()
+
+    def handle_starttag(self, tag: str, attrs) -> None:
+        tag = tag.lower()
+        attr_map = _first_wins_attrs(attrs)
+        if tag in ("h2", "h3"):
+            self._close_implied(tag)
+            # Snapshot at open: what encloses the heading is fixed by this point.
+            self._heading = []
+            self._heading_owned = self._owns(attr_map) or any(
+                owns for _t, owns, _o in self._stack
+            )
+            self._heading_opted_in = self._opts_in(attr_map) or any(
+                opt for _t, _owns, opt in self._stack
+            )
+            return
+        if tag not in _VOID_ELEMENTS:
+            self._close_implied(tag)
+            owns = self._owns(attr_map) and tag not in _NON_OWNING_ANCESTORS
+            self._stack.append((tag, owns, self._opts_in(attr_map)))
+
+    def handle_startendtag(self, tag: str, attrs) -> None:
+        """Only a void element actually self-closes.
+
+        HTML treats a trailing slash on a non-void element as a parse error and then
+        ignores it, so `<section data-owner="Ana"/>` opens a section that stays open and
+        owns what follows. Treating it as opened-and-closed made the rule disagree with
+        every browser and warn on an owned section. Void elements keep the no-op, since
+        they never become an ancestor either way.
+        """
+        if tag.lower() not in _VOID_ELEMENTS:
+            self.handle_starttag(tag, attrs)
+
+    def handle_endtag(self, tag: str) -> None:
+        tag = tag.lower()
+        if tag in ("h2", "h3"):
+            if self._heading is not None:
+                text = re.sub(r"\s+", " ", "".join(self._heading)).strip()
+                is_judgment = self._heading_opted_in or bool(
+                    JUDGMENT_HEADING_RE.search(text)
+                )
+                if text and is_judgment and not self._heading_owned:
+                    self.violations.append(text)
+                self._heading = None
+            return
+        # Unwind to the most recent matching open tag. Unbalanced markup pops nothing
+        # rather than corrupting the stack for everything that follows.
+        for i in range(len(self._stack) - 1, -1, -1):
+            if self._stack[i][0] == tag:
+                del self._stack[i:]
+                return
+
+    def handle_data(self, data: str) -> None:
+        if self._heading is not None:
+            self._heading.append(data)
+
+
+def find_unowned_judgment_headings(content: str) -> list[str]:
+    """Return the headings of judgment sections that name nobody."""
+    parser = _JudgmentOwnerParser()
+    try:
+        parser.feed(content)
+        parser.close()
+    except Exception:
+        # A malformed artifact is the file-contract layer's problem, not this rule's.
+        return parser.violations
+    return parser.violations
+
+
+class _ProseTextParser(HTMLParser):
+    """Collect the text a reader actually sees, skipping script, style and inline SVG.
+
+    Parsed rather than regexed. Stripping tags with `<[^>]+>` breaks on a `>` inside an
+    attribute value, so `<p title="one two > three four five">visible</p>` leaked the tail
+    of the attribute into the count and could invent `prose-budget` and `read-time`
+    warnings out of markup the reader never sees.
+    """
+
+    # `pre` joins the skip list because block-preformatted content is not read at prose
+    # speed and often is not read at all: a code sample, an ASCII diagram, or the mermaid
+    # source `embed-svg` parks in a collapsed <details> as the no-JS fallback. Counting
+    # that meant the skill's own tooling inflated the length it then measured. Inline
+    # `code` deliberately stays counted, because it sits inside a sentence and is read
+    # with it.
+    _SKIP = frozenset(("script", "style", "svg", "pre"))
+
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.parts: list[str] = []
+        self._skip_depth = 0
+
+    def handle_starttag(self, tag: str, attrs) -> None:
+        if tag.lower() in self._SKIP:
+            self._skip_depth += 1
+
+    def handle_endtag(self, tag: str) -> None:
+        if tag.lower() in self._SKIP and self._skip_depth:
+            self._skip_depth -= 1
+
+    def handle_data(self, data: str) -> None:
+        if not self._skip_depth:
+            self.parts.append(data)
+
+
+def prose_words(content: str) -> int:
+    """Words a human actually reads: markup, scripts, styles and inline SVG removed.
+
+    This is the unit for both the length ceiling and the read-time check, and it is
+    deliberately NOT bytes. `_SIZE_BUDGET_BYTES` measures the payload, which inline SVG
+    and CSS dominate, so it fires once in a corpus of two hundred artifacts and stays
+    silent on an eight-thousand-word wall of text. Bytes are a transport concern; words
+    are the reader's concern, and they are different numbers.
+    """
+    parser = _ProseTextParser()
+    try:
+        parser.feed(content)
+        parser.close()
+    except Exception:
+        pass
+    return len(" ".join(parser.parts).split())
+
+
+# Words per minute for a technical reader. Used only to sanity-check a declared
+# `artifact-read-time`, never to overwrite it, so the exact figure matters less than the
+# tolerance around it.
+_WORDS_PER_MINUTE = 230
+
+# The ceiling `required-section` never had. Calibrated against the shipped examples: the
+# longest is a little over 3,500 words, so this flags the tail and not the norm. WARN, per
+# the documented staged rollout for a new rule.
+_PROSE_BUDGET_WORDS = 4000
+
+# A declared read-time is allowed to be wrong by this factor before it is worth saying so.
+# Wide on purpose: diagrams, tables and code legitimately slow a reader down, so a short
+# artifact claiming several minutes is honest. What this catches is the field that tracks
+# nothing at all, which is what a model writes when nothing constrains it.
+_READ_TIME_TOLERANCE = 2.5
+
+# Below this the artifact is still a scaffold, so an absent read-time is not yet a gap.
+_READ_TIME_MIN_WORDS = 500
+
+# The three states a provenance block can honestly be in. `reviewer` says who or what;
+# this says what that amounts to. An agent name in `reviewer` is accurate reporting, and
+# before these values existed the schema had no way to record it as anything else.
+_REVIEW_STATES = ("unreviewed", "agent-reviewed", "human-reviewed")
+
+
 def _artifact_in_force(date_str: str) -> bool:
     """True if the artifact must satisfy the new content-shape rules."""
     try:
@@ -675,6 +1018,73 @@ def content_shape_violations(
             "not in effect, so the shape rules still apply",
         )
 
+    words = prose_words(content)
+    if words > _PROSE_BUDGET_WORDS:
+        _add(
+            warnings, parser, "prose-budget",
+            f"{rel}: {words:,} words of prose (budget {_PROSE_BUDGET_WORDS:,}). "
+            "required-section is a floor and this is the matching ceiling: sections "
+            "accrete because nothing opposes them. Cut, or split into linked artifacts",
+        )
+
+    declared = parser.meta.get("artifact-read-time", "").strip()
+    computed = max(1, round(words / _WORDS_PER_MINUTE))
+    if not declared:
+        # A fresh scaffold is a few hundred words of placeholder and has no honest
+        # read-time yet, so nagging there would train an author to ignore the rule before
+        # they had written anything. The nudge waits until the artifact has real content.
+        if words > _READ_TIME_MIN_WORDS:
+            _add(
+                warnings, parser, "read-time",
+                f"{rel}: no artifact-read-time, and the prose is now {words:,} words "
+                f"(about {computed} min at {_WORDS_PER_MINUTE} wpm). It is the one field "
+                "a reader uses to decide whether to commit",
+            )
+    else:
+        stated = re.search(r"\d+", declared)
+        if not stated:
+            _add(
+                warnings, parser, "read-time",
+                f'{rel}: artifact-read-time "{declared}" carries no number, so a reader '
+                f"cannot budget for it; ~{computed} min at {_WORDS_PER_MINUTE} wpm",
+            )
+        else:
+            claimed = int(stated.group(0))
+            if claimed <= 0:
+                # `0 min` carries a number and so skipped the tolerance branch entirely,
+                # because zero is falsy. A reader was handed an impossible budget in silence.
+                _add(
+                    warnings, parser, "read-time",
+                    f'{rel}: artifact-read-time "{declared}" is not a positive number of '
+                    f"minutes; the prose is {words:,} words, about {computed} min at "
+                    f"{_WORDS_PER_MINUTE} wpm",
+                )
+            elif not (
+                1 / _READ_TIME_TOLERANCE <= claimed / computed <= _READ_TIME_TOLERANCE
+            ):
+                _add(
+                    warnings, parser, "read-time",
+                    f'{rel}: artifact-read-time claims {claimed} min but the prose is '
+                    f"{words:,} words, about {computed} min at {_WORDS_PER_MINUTE} wpm. "
+                    "Diagrams and tables justify some of a gap, not this one",
+                )
+
+    if parser.has_audience_attr:
+        _add(
+            errors, parser, "audience-segmentation",
+            f"{rel}: data-audience names a job title in the markup, which segments the "
+            "reader; depth is offered, never assigned. It is also no longer accepted as "
+            'the answer-first marker: replace it with data-summary="true" (the summary '
+            "itself does not change, only the attribute)",
+        )
+    if parser.role_labelled_read_map:
+        _add(
+            warnings, parser, "role-labelled-guide",
+            f"{rel}: reading guide is labelled by job title; label it by depth instead "
+            "(Quick read / Full read), so a reader picks how far to go rather than being "
+            "told which reader they are",
+        )
+
     if not parser.has_summary_block:
         _add(
             errors, parser, "summary-first",
@@ -686,7 +1096,16 @@ def content_shape_violations(
         _add(
             errors, parser, "comparison-visual",
             f'{rel}: comparison section "{heading}" missing a visual '
-            "(mermaid / svg / table / img / side-by-side grid)",
+            "(mermaid / svg / table / img / side-by-side grid / diff in <pre class=\"diagram\">)",
+        )
+
+    # In force in dynamic mode too: who holds a call does not depend on which sections
+    # exist, so this is not one of the three shape rules that stand down.
+    for heading in find_unowned_judgment_headings(content):
+        _add(
+            warnings, parser, "claim-owner",
+            f'{rel}: judgment section "{heading}" names no owner; add data-owner to the '
+            "section and name the holder in prose beside one sentence of their own doubt",
         )
 
     # A long document still needs a way in, but a dynamic artifact may carry the
@@ -961,9 +1380,24 @@ def _provenance_field_warnings(rel: Path, parser: ArtifactHTMLParser) -> list[st
                 missing.append("dateCreated")
             if not obj.get("reviewer"):
                 missing.append("reviewer")
+            if not obj.get("reviewState"):
+                missing.append("reviewState")
             if missing:
                 warnings.append(
                     f"{rel}: provenance JSON-LD missing fields: {', '.join(missing)}"
+                )
+            state = obj.get("reviewState")
+            # The isinstance guard used to gate the whole check, so a truthy non-string
+            # (123, true, ["human-reviewed"]) satisfied the missing-field test and was
+            # skipped by the value test: silent in both directions. A JSON type slip is
+            # squarely in scope for a field that exists because free text produced nine
+            # spellings of one state.
+            if state and (not isinstance(state, str) or state not in _REVIEW_STATES):
+                warnings.append(
+                    f"{rel}: provenance reviewState {state!r} is not one of "
+                    f"{', '.join(_REVIEW_STATES)}. The field exists because a live lane "
+                    'hand-rolled "pending" in nine distinct spellings, so an unnamed '
+                    "fourth value is the problem it was added to solve"
                 )
             warnings.extend(_source_files_warnings(rel, obj))
     return warnings
@@ -1069,7 +1503,7 @@ _JARGON_ALLOWLIST_DEFAULT = frozenset({
 })
 
 # Number of distinct coined terms above which we warn (Federal PLG: "<= 3,
-# preferably 2"; we allow more headroom for engineering docs).
+# preferably 2"; we allow more headroom for technical docs).
 _TERM_COUNT_WARN = 8
 
 _DFN_RE = re.compile(r"<dfn\b[^>]*>(.*?)</dfn>", re.IGNORECASE | re.DOTALL)
@@ -2055,7 +2489,14 @@ _EXTRA_SCAFFOLD_STYLE = """
     .stripe::before { content:""; position:absolute; left:0; top:.35rem; bottom:.35rem; width:3px; border-radius:3px; background:var(--accent); }
     .stripe.crit::before{background:var(--crit);} .stripe.high::before{background:var(--high);} .stripe.warn::before{background:var(--warn);} .stripe.good::before{background:var(--good);}
     /* ---- keycard: big number + prose ---- */
-    .keycard { display:grid; grid-template-columns:auto 1fr; gap:var(--s-8); align-items:center; margin:var(--s-9) 0; padding:var(--s-8) var(--s-9); background:var(--surface); border:1px solid var(--line-strong); border-left:4px solid var(--sv,var(--accent)); border-radius:var(--radius); box-shadow:var(--shadow); }
+    .keycard { display:grid; grid-template-columns:auto minmax(0,1fr); gap:var(--s-8); align-items:center; margin:var(--s-9) 0; padding:var(--s-8) var(--s-9); background:var(--surface); border:1px solid var(--line-strong); border-left:4px solid var(--sv,var(--accent)); border-radius:var(--radius); box-shadow:var(--shadow); }
+    /* Robust to any child count. Two children happened to land correctly by auto-placement;
+       a THIRD wrapped back into column 1, whose `auto` width then grew to fit a paragraph of
+       prose and starved the 1fr column down to a one-word-per-line ribbon. Pin the hero to
+       column 1 for the full height and stack everything else in column 2, so adding a second
+       paragraph is not a silent layout break. */
+    .keycard > * { grid-column:2; min-width:0; }
+    .keycard > :first-child:is(.big,.kind,.sev,.chip) { grid-column:1; grid-row:1/-1; }
     .keycard .big { font-family:var(--display); font-size:clamp(2.4rem,7vw,3.4rem); font-weight:800; line-height:.95; color:var(--sv,var(--accent)); font-variant-numeric:tabular-nums; }
     .keycard .big small { display:block; margin-top:var(--s-2); font-family:var(--mono); font-size:var(--fs-sm); font-weight:600; letter-spacing:.04em; text-transform:uppercase; color:var(--muted); }
     .keycard p b { color:var(--ink); }
@@ -2081,6 +2522,9 @@ _EXTRA_SCAFFOLD_STYLE = """
     /* component responsive overrides live HERE (after the base rules, in the later-injected _EXTRA) so they win the cascade */
     @media (max-width:820px) {
       .keycard { grid-template-columns:1fr; gap:var(--s-5); }
+      /* single column now, so release the explicit placement or it would conjure an
+         implicit second column and put the hero back beside the text */
+      .keycard > *, .keycard > :first-child:is(.big,.kind,.sev,.chip) { grid-column:1; grid-row:auto; }
       .tiles, .metrics { grid-template-columns:1fr 1fr; }
     }
     @media (max-width:460px) { .tiles, .metrics { grid-template-columns:1fr; } }
@@ -2154,9 +2598,10 @@ def _lead_summary_block() -> str:
     return """    <section id="lead-summary" data-summary="true" class="lead-summary">
       <h2>In plain terms</h2>
       <ul>
-        <li><strong>What this does for the user:</strong> Replace with the one-sentence product impact that lands without engineering context.</li>
+        <li><strong>What this does for the user:</strong> Replace with the one-sentence impact that lands without needing the implementation.</li>
         <li><strong>Why it matters:</strong> Replace with the business / user constraint that makes this worth reading.</li>
         <li><strong>What's being asked:</strong> Replace with the decision, approval, or review action the reader should take.</li>
+        <li><strong>What would change this:</strong> Replace with the one thing that would overturn the conclusion and where it is examined, then say nothing else below changes it. Delete this bullet rather than write a hollow one.</li>
       </ul>
     </section>"""
 
@@ -2208,9 +2653,10 @@ flowchart LR
     </section>"""
     elif kind == "review":
         nav = [("verdict", "Verdict"), ("strengths", "Strengths"), ("concerns", "Concerns"), ("required", "Required changes"), ("optional", "Optional changes"), ("re-entry", "Re-entry context")]
-        body = """    <section id="verdict" class="section">
+        body = """    <section id="verdict" class="section" data-owner="&lt;name&gt;">
       <h2>Verdict</h2>
       <p>One-line summary: approve / request changes / block. Add the reasoning in the next sentence.</p>
+      <p>&lt;name&gt; holds this verdict, and is least sure about &lt;the part a reviewer should push on&gt;.</p>
     </section>
     <section id="strengths" class="section">
       <h2>Strengths</h2>
@@ -2263,9 +2709,10 @@ flowchart TB
         </div>
       </div>
     </section>
-    <section id="recommendation" class="section">
+    <section id="recommendation" class="section" data-owner="&lt;name&gt;">
       <h2>Recommendation</h2>
       <p>The proposed change and the seam it lives at.</p>
+      <p>&lt;name&gt; holds this call, and is least sure about &lt;the assumption it rests on&gt;.</p>
     </section>
     <section id="sequence" class="section">
       <h2>Sequence</h2>
@@ -2288,7 +2735,7 @@ flowchart TB
         nav = [("what-it-is", "What it is"), ("how-it-works", "How it works"), ("gotchas", "Gotchas"), ("where-to-dig", "Where to dig")]
         body = """    <section id="what-it-is" class="section">
       <h2>What this thing is</h2>
-      <p>Plain definition. One sentence a new hire could repeat.</p>
+      <p>Plain definition. One sentence someone new could repeat.</p>
     </section>
     <section id="how-it-works" class="section">
       <h2>How it works</h2>
@@ -2337,9 +2784,10 @@ flowchart LR
     </section>"""
     elif kind == "decision":
         nav = [("decision", "Decision"), ("context", "Context"), ("options", "Current vs proposed"), ("consequences", "Consequences"), ("reversibility", "Reversibility")]
-        body = """    <section id="decision" class="section">
+        body = """    <section id="decision" class="section" data-owner="&lt;name&gt;">
       <h2>Decision</h2>
       <p><strong>In the context of</strong> &lt;situation&gt;, <strong>facing</strong> &lt;forcing function&gt;, <strong>we decided</strong> &lt;option&gt; <strong>to achieve</strong> &lt;benefit&gt;, <strong>accepting</strong> &lt;trade-off&gt;.</p>
+      <p>&lt;name&gt; holds this call, and is least sure about &lt;the assumption it rests on&gt;.</p>
     </section>
     <section id="context" class="section">
       <h2>Context</h2>
@@ -2471,8 +2919,9 @@ flowchart LR
       <p>Systemic causes only. Avoid naming individuals. Use Five Whys or equivalent. Collapse deeper RCA below.</p>
       <details><summary>Deeper RCA (logs, dashboards)</summary><p>Link to the raw evidence rather than embedding it.</p></details>
     </section>
-    <section id="actions" class="section">
+    <section id="actions" class="section" data-owner="&lt;name&gt;">
       <h2>Corrective actions</h2>
+      <p>&lt;name&gt; holds this plan, and is least sure about &lt;the threshold or assumption set from this incident alone&gt;.</p>
       <div class="table-scroll" role="region" aria-label="Corrective actions" tabindex="0">
       <table>
         <thead><tr><th>#</th><th>Action</th><th>Type</th><th>Owner</th><th>Due</th><th>Status</th></tr></thead>
@@ -2505,14 +2954,14 @@ def _meta_ribbon(kind: str, date: str, escaped_source: str) -> str:
       <span><strong>Resolved</strong> &lt;time UTC&gt;</span>
       <span><strong>Owner</strong> &lt;name&gt;</span>
       <span><strong>Status</strong> Draft</span>
-      <span><strong>Read time</strong> ~6 min</span>
+      <span><strong>Read time</strong> &lt;fill before publishing&gt;</span>
     </div>"""
     return f"""    <div class="meta-ribbon" data-meta-ribbon="true" aria-label="Artifact metadata">
       <span><strong>Kind</strong> {kind}</span>
       <span><strong>Created</strong> {date}</span>
       <span><strong>Owner</strong> &lt;name&gt;</span>
       <span><strong>Status</strong> Draft</span>
-      <span><strong>Read time</strong> ~5 min</span>
+      <span><strong>Read time</strong> &lt;fill before publishing&gt;</span>
       <span><strong>Source</strong> {escaped_source}</span>
     </div>"""
 
@@ -2543,7 +2992,8 @@ def _provenance_footer(kind: str, date: str, escaped_source: str, source: str) -
             "softwareVersion": "<version>",
         },
         "promptHash": "<sha256 of prompt; or replace with full prompt if non-sensitive>",
-        "reviewer": "<human reviewer or role>",
+        "reviewer": "pending",
+        "reviewState": "unreviewed",
         "source": source,
     }
     provenance_json = "\n".join(
@@ -2553,7 +3003,7 @@ def _provenance_footer(kind: str, date: str, escaped_source: str, source: str) -
     return f"""    <footer class="provenance" data-provenance="true">
       <p class="provenance-line">
         Generated by <code>&lt;model&gt;</code> on {date} &middot;
-        reviewed by <code>&lt;reviewer&gt;</code> &middot;
+        <strong>not yet reviewed by a human</strong> &middot;
         source: {escaped_source}
       </p>
       <script type="application/ld+json" id="provenance">
@@ -2606,10 +3056,14 @@ def render_artifact(
         nav = _nav_block(nav_items)
         read_map = _read_map_block(nav_items)
         mode_meta = ""
-    pm = _lead_summary_block()
+    lead = _lead_summary_block()
     ribbon = _meta_ribbon(kind, date, escaped_source)
     provenance = _provenance_footer(kind, date, escaped_source, source)
-    read_time = "6 min" if kind == "incident" else "5 min"
+    # Left empty on purpose. A scaffold is placeholder prose, so any figure here would be
+    # a guess the `read-time` rule would immediately contradict, which teaches an author
+    # to ignore the rule before they have written anything. The rule stays quiet until the
+    # artifact has real content, then asks for it.
+    read_time = ""
     extra_style = _EXTRA_SCAFFOLD_STYLE
     if kind == "incident":
         extra_style = f"{extra_style}\n{_INCIDENT_SCAFFOLD_STYLE}"
@@ -2645,7 +3099,7 @@ def render_artifact(
       <h1>{escaped_title}</h1>
     </header>
 {ribbon}
-{pm}
+{lead}
 {read_map}
 {nav}
 {body}
@@ -2908,12 +3362,27 @@ _DIAG_LIGHT = {"primaryColor": "#eef5fb", "primaryBorderColor": "#b9d5ec",
                "primaryTextColor": "#172033", "lineColor": "#5a6577"}
 _DIAG_DARK = {"primaryColor": "#152740", "primaryBorderColor": "#2c4a6b",
               "primaryTextColor": "#e8edf5", "lineColor": "#96a2b5"}
-_DIAG_FONT = "ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif"
+# Deliberately concrete, and deliberately NOT `system-ui` / `ui-sans-serif`.
+# `embed-svg` bakes geometry: mmdc measures each label in headless Chrome on the machine
+# doing the embedding and writes a fixed <foreignObject height="...">, then the reader's
+# browser RE-FLOWS that HTML in whatever font the stack resolves to for them. A generic
+# keyword resolves to a different physical font on every operating system, which makes the
+# mismatch guaranteed rather than unlucky: a label measured at seven lines wraps to eight on
+# a machine with slightly wider glyphs, and foreignObject clips the overflow away silently.
+# Naming real families keeps measurement and display on the same metrics almost everywhere.
+_DIAG_FONT = '"Segoe UI", Roboto, "Helvetica Neue", Helvetica, Arial, sans-serif'
 _DIAG_KEYWORDS = (r'(?:flowchart|graph|sequenceDiagram|stateDiagram(?:-v2)?|erDiagram|classDiagram|'
                   r'gantt|pie|journey|gitGraph|mindmap|timeline)')
 _DIAG_STYLE_MARKER = "/* embed-svg: theme-toggled inline diagrams */"
 _DIAG_STYLE = """
     /* embed-svg: theme-toggled inline diagrams */
+    /* A foreignObject clips its overflow by default, which is how a node label loses its
+       last line with no warning: mmdc measured the text on the embedding machine and wrote a
+       fixed height, and any font difference on the reader's machine pushes one line past it.
+       `overflow: visible` turns a silent truncation into a visible overhang, which is the
+       failure a reader can actually see and the author can fix. Pinning _DIAG_FONT to real
+       families keeps the overhang rare; this keeps it non-destructive when it happens. */
+    .diagram-light foreignObject, .diagram-dark foreignObject { overflow: visible; }
     .diagram-dark { display: none; }
     :root[data-theme="dark"] .diagram-light { display: none; }
     :root[data-theme="dark"] .diagram-dark { display: block; }

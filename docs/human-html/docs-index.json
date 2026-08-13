@@ -1,0 +1,23 @@
+{
+  "count": 1,
+  "artifacts": [
+    {
+      "date": "2026-08-12",
+      "kind": "decision",
+      "slug": "ownership-per-claim-and-permission-to-stop-reading",
+      "title": "Ownership per claim, and permission to stop reading",
+      "summary": "Ownership attaches to individual claims rather than to whole artifacts, and every summary states what would change its own conclusion.",
+      "keywords": [
+        "ownership",
+        "provenance",
+        "reviewer",
+        "closure",
+        "stopping rule",
+        "ai writing policy",
+        "content contract"
+      ],
+      "source": "brainstorm on an external AI writing policy",
+      "href": "2026-08-12-decision-ownership-per-claim-and-permission-to-stop-reading.html"
+    }
+  ]
+}

@@ -50,7 +50,7 @@ Structure is the agent's, style is not. [Dynamic mode](https://rhnfzl.github.io/
 
 ## How it differs
 
-- **The shape is a contract, not an intention.** Style guidance evaporates the moment an agent regenerates a file. `check` runs offline, blocks on three rules, warns on the rest, and every rule is suppressible per artifact.
+- **The shape is a contract, not an intention.** Style guidance evaporates the moment an agent regenerates a file. `check` runs offline, blocks on four rules, warns on the rest, and every rule is suppressible per artifact.
 - **The checks are markers, not proofs.** [`artifact-spine.md`](skills/human-html/references/artifact-spine.md) says what each one does and does not establish, next to the standard no validator can reach.
 - **Local unless you say otherwise.** No telemetry, no phone-home, no postinstall scripts, no network calls in the core loop. Sharing is a menu: GitHub Pages, an optional bring-your-own-bucket S3 script, or any static host.
 - **An agent can see its own output.** `render` screenshots through headless Chrome, and `render --no-js` shows what an iOS Quick Look or email preview sees. First time it ran, it found a broken static floor in this repo's own prototype example, hidden behind a rule that reported clean.
@@ -91,7 +91,7 @@ Mermaid otherwise loads a CDN at view time, so use `embed-svg` for artifacts tha
 
 A standard [Agent Skill](https://agentskills.io), so it works anywhere that reads the format. Native, meaning `SKILL.md` auto-loads with no installer: Claude Code, Codex, Cursor, GitHub Copilot, Gemini CLI, OpenCode, Zed, Amp, Warp, Kiro, Crush, Qwen Code, Pi. Everything else is covered by the universal installers, which target 70+ agents including Windsurf, Cline and Aider.
 
-Inside: `SKILL.md` is the contract, `examples/` holds twelve warning-free artifacts (nine kinds plus three dynamic ones that share no structure on purpose), `references/` holds the spine, the patterns, the diagram decision tree and workflow integrations, and `tests/` holds 42 stdlib `unittest` tests (`python3 -m unittest discover -s tests`).
+Inside: `SKILL.md` is the contract, `examples/` holds twelve warning-free artifacts (nine kinds plus three dynamic ones that share no structure on purpose), `references/` holds the spine, the patterns, the diagram decision tree and workflow integrations, and `tests/` holds 95 stdlib `unittest` tests (`python3 -m unittest discover -s tests`).
 
 As with any skill, read `skills/human-html/SKILL.md` before installing.
 

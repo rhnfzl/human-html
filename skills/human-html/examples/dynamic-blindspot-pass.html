@@ -174,7 +174,12 @@
     .stripe::before { content:""; position:absolute; left:0; top:.35rem; bottom:.35rem; width:3px; border-radius:3px; background:var(--accent); }
     .stripe.crit::before{background:var(--crit);} .stripe.high::before{background:var(--high);} .stripe.warn::before{background:var(--warn);} .stripe.good::before{background:var(--good);}
     /* ---- keycard: big number + prose ---- */
-    .keycard { display:grid; grid-template-columns:auto 1fr; gap:var(--s-8); align-items:center; margin:var(--s-9) 0; padding:var(--s-8) var(--s-9); background:var(--surface); border:1px solid var(--line-strong); border-left:4px solid var(--sv,var(--accent)); border-radius:var(--radius); box-shadow:var(--shadow); }
+    .keycard { display:grid; grid-template-columns:auto minmax(0,1fr); gap:var(--s-8); align-items:center; margin:var(--s-9) 0; padding:var(--s-8) var(--s-9); background:var(--surface); border:1px solid var(--line-strong); border-left:4px solid var(--sv,var(--accent)); border-radius:var(--radius); box-shadow:var(--shadow); }
+    /* pinned so the component does not depend on having exactly two children: a third
+       used to wrap into column 1, whose `auto` width then grew to fit a paragraph and
+       starved the 1fr column to roughly one word per line. */
+    .keycard > * { grid-column:2; min-width:0; }
+    .keycard > :first-child:is(.big,.kind,.sev,.chip) { grid-column:1; grid-row:1/-1; }
     .keycard .big { font-family:var(--display); font-size:clamp(2.4rem,7vw,3.4rem); font-weight:800; line-height:.95; color:var(--sv,var(--accent)); font-variant-numeric:tabular-nums; }
     .keycard .big small { display:block; margin-top:var(--s-2); font-family:var(--mono); font-size:var(--fs-sm); font-weight:600; letter-spacing:.04em; text-transform:uppercase; color:var(--muted); }
     .keycard p b { color:var(--ink); }
@@ -200,6 +205,8 @@
     /* component responsive overrides live HERE (after the base rules, in the later-injected _EXTRA) so they win the cascade */
     @media (max-width:820px) {
       .keycard { grid-template-columns:1fr; gap:var(--s-5); }
+      /* single column now: release the placement or it conjures an implicit second one */
+      .keycard > *, .keycard > :first-child:is(.big,.kind,.sev,.chip) { grid-column:1; grid-row:auto; }
       .tiles, .metrics { grid-template-columns:1fr 1fr; }
     }
     @media (max-width:460px) { .tiles, .metrics { grid-template-columns:1fr; } }
@@ -342,6 +349,7 @@
         <li><strong>What this is:</strong> a blindspot pass over RFC 214 before anyone starts building it. A blindspot pass looks only for what the plan did not account for; it does not argue about whether the plan is a good idea.</li>
         <li><strong>What it found:</strong> seven gaps. Two of them make the search index wrong on the first day of incremental writes, and one of those two returns restricted documents to every search.</li>
         <li><strong>What is being asked:</strong> hold RFC 214 until findings one and two have an answer written into the document. The other five are build-order and alerting work, and they can be scheduled rather than argued about.</li>
+              <li><strong>What would change this:</strong> findings one and two rest on the ACL filter and the delete path being read correctly from RFC 214 rather than from the running system. If the RFC is out of date on either, those two drop a band. <a href="#limits">What this pass did not cover</a> lists what was not read.</li>
       </ul>
       <p>Nothing below argues against incremental indexing. The findings are all about the same thing: the nightly rebuild was quietly doing four jobs, and RFC 214 only replaces one of them.</p>
     </section>
@@ -583,6 +591,7 @@ $ psql -c "select count(*) from wiki_pages where archived"              # 1.4M a
           "creator": { "@type": "SoftwareApplication", "name": "claude-opus-4-7" },
           "promptHash": "<sha256 of prompt; canonical example, no real prompt>",
           "reviewer": "Ines Vargas",
+          "reviewState": "human-reviewed",
           "source": "canonical-example"
         }
       </script>

@@ -1,9 +1,9 @@
 ---
 name: human-html
 description: Use when creating a human review surface, such as a plan, review, architecture explainer, understanding doc, research synthesis, decision aid, prototype, status report, or incident postmortem. Put the artifact under docs/human-html/ as HTML instead of Markdown. Markdown stays for scratch notes, durable references, ticket notes, drafts, and meetings. Provides scaffolds, validation, index refresh, glossary support, and hooks for Claude Code and Codex.
-version: 1.3.0
+version: 2.0.0
 owner: rhnfzl
-last_reviewed: 2026-07-26
+last_reviewed: 2026-08-13
 license: MIT
 ---
 
@@ -11,7 +11,7 @@ license: MIT
 
 ## What this is, in plain terms
 
-Picture a tech lead, a product manager, or a teammate opening one of your documents for the first time. They have ten minutes. They want to know what the work is, whether the plan is sound, where the risk sits, and what they need to do next.
+Picture someone opening one of your documents for the first time: a person who will act on it and did not write it. They have ten minutes. They want to know what the work is, whether the plan is sound, where the risk sits, and what they need to do next.
 
 If the document is a long Markdown file, they skim. Skim turns into rubber-stamp. They miss the assumption that was buried in paragraph nine. They approve something they didn't really read.
 
@@ -19,7 +19,7 @@ If the document is a single HTML page with a plain-language summary at the top, 
 
 This skill enforces that switch as a workspace contract. When an agent (you, Claude, Codex, or anyone else) produces a *human review surface* (a plan, a code review, an architecture explainer, an understanding doc, a research synthesis, a decision aid, a prototype, a status report, or an incident postmortem) the artifact lands as HTML under `docs/human-html/` of the active workspace. Not as Markdown. Markdown is still the right format for scratch notes, ticket drafts, durable references, and meeting transcripts; it is the agent's memory layer. HTML is the human's review layer. The split is the point.
 
-The skill enforces two layers of contract: a **file contract** (naming, metadata, allowlist; unchanged since the original file-contract release) and a **content contract** (answer-first summary, diagram-in-comparison, nav-when-many-sections, required sections per kind, glossary linking, read-map, Q&A overlay schema, metadata ribbon, provenance footer, mobile responsiveness, and no-JS robustness; effective for artifacts created on or after `2026-05-25`). Earlier artifacts are grandfathered. The content rules are validated mechanically by `human_html_artifacts.py check`; three rules always block (summary-first, comparison-visual, viewport-meta), nav-anchors blocks in standard mode and warns in dynamic mode, required sections block for `incident` and warn for other kinds, and read-map / Q&A / glossary / ribbon / provenance / table-responsive / js-content-fallback warn when applicable. Each violation prints a `[rule=<id>]` suffix; per-artifact suppression is available via `<!-- human-html-disable: ... -->`.
+The skill enforces two layers of contract: a **file contract** (naming, metadata, allowlist; unchanged since the original file-contract release) and a **content contract** (answer-first summary, diagram-in-comparison, nav-when-many-sections, required sections per kind, glossary linking, read-map, Q&A overlay schema, metadata ribbon, provenance footer, mobile responsiveness, and no-JS robustness; effective for artifacts created on or after `2026-05-25`). Earlier artifacts are grandfathered. The content rules are validated mechanically by `human_html_artifacts.py check`; four rules always block (summary-first, comparison-visual, viewport-meta, audience-segmentation), nav-anchors blocks in standard mode and warns in dynamic mode, required sections block for `incident` and warn for other kinds (and stand down entirely in dynamic mode), and read-map / Q&A / glossary / ribbon / provenance / table-responsive / js-content-fallback warn when applicable. Each violation prints a `[rule=<id>]` suffix; per-artifact suppression is available via `<!-- human-html-disable: ... -->`.
 
 Adoption costs ten seconds per workspace. After that, two hooks keep the contract self-enforcing: one nudges an agent that is about to write a human-review Markdown file in the wrong place; the other regenerates the gallery `index.html` automatically whenever an artifact lands.
 
@@ -51,22 +51,29 @@ Every artifact whose `artifact-created` is on or after `2026-05-25` (the `RULES_
 
 ### Rule 1 - Answer-first summary block (BLOCKS)
 
-Every artifact opens with a top-level `<section data-summary="true">` containing a three-bullet plain-language block (product context before technical detail):
+Every artifact opens with a top-level `<section data-summary="true">` containing a four-bullet plain-language block (product context before technical detail):
 
 ```html
 <section id="lead-summary" data-summary="true" class="lead-summary">
   <h2>In plain terms</h2>
   <ul>
-    <li><strong>What this does for the user:</strong> One sentence that lands without engineering context.</li>
+    <li><strong>What this does for the user:</strong> One sentence that lands without needing the implementation.</li>
     <li><strong>Why it matters:</strong> One sentence on the constraint, deadline, or stakeholder ask driving this.</li>
     <li><strong>What's being asked:</strong> The decision, approval, or review action you want the reader to take.</li>
+    <li><strong>What would change this:</strong> The one thing that would overturn the conclusion, where it is examined, and that nothing else below changes it.</li>
   </ul>
 </section>
 ```
 
 The `data-summary="true"` attribute is what the validator checks. Class names and bullet wording can vary; only the attribute is load-bearing.
 
-Three bullets is the default, not the only compliant form. For a reader on a 30-second budget (an incident emailed to a director, a yes/no decision) the **BLUF** opener is an equally compliant alternative: the same `data-summary="true"` marker holding one sentence that states the decision or the ask, then one sentence of rationale. See "BLUF compact opener mode" in `references/patterns.md`. Both satisfy the contract in full; pick the one that fits the reader's time budget.
+**The fourth bullet is the stopping rule, and it is the one that lets a reader put the artifact down.** The first three orient; none of them concludes. Without a fourth, a reader who cannot tell whether the top is complete has one safe move, which is to audit to the bottom, and every navigation aid in this skill fails to prevent that because a table of contents says where things are and never says what may be skipped. Naming the load-bearing assumption does four jobs at once: it asserts closure, locates the one place a surprise could live, ranks the rest of the document as support, and grants permission to stop.
+
+The mechanic is the one the same-data control block already uses in `references/patterns.md` ("every number below comes from this file"), applied to the summary instead of to a comparison's inputs.
+
+**Deliberately not validated.** A rule here would be satisfied by "nothing below changes this", written to clear the check and testing nothing, which is worse than an absent bullet because it claims a closure nobody looked for. Write it when the conclusion genuinely rests on something, and delete it when it does not. This lives in the ship checklist, not in `check`.
+
+Four bullets is the default, not the only compliant form. For a reader on a 30-second budget (an incident sent onward, a yes/no decision) the **BLUF** opener is an equally compliant alternative: the same `data-summary="true"` marker holding one sentence that states the decision or the ask, one sentence of rationale, and one naming what would overturn it. See "BLUF compact opener mode" in `references/patterns.md`. Both satisfy the contract in full; pick the one that fits the reader's time budget. What neither may drop is the stopping claim, because that is the sentence that lets the reader leave.
 
 Per-section plain-language leads (a 1-sentence opener inside each `<h2>` section) are strongly recommended but not validated - that's a writer's judgment call the validator can't reliably enforce.
 
@@ -80,6 +87,7 @@ When an `<h2>` or `<h3>` heading contains an explicit comparison pair, the secti
 - A comparison `<table>`
 - An `<img>` (for custom-drawn diagrams)
 - A `<pre class="diagram">` (ASCII / CSS-box sketch, e.g. a C4-L1 diagram), or any element carrying `data-visual="true"` (an explicit escape hatch for a custom visual the above miss)
+- A `<pre class="diagram">` holding a **unified diff**, when the two states share most of their shape and only the delta is the point. Narrow trigger: side-by-side panels would render the unchanged nine tenths twice and leave the reader diffing two columns by eye. Works over a call tree, a component tree, a file layout, or pseudocode control flow, not only over source. This is not a general alternative to `grid-cols-2`, and a pasted `git diff` does not discharge the rule - see "When to use a diff block" in `references/diagram-types.md`.
 
 Prose alone is not enough. Which visual to pick depends on what the comparison shows - see `references/diagram-types.md` for the decision tree.
 
@@ -189,6 +197,90 @@ Plain-first `[plain] (<dfn>term</dfn>)` when readers likely don't know it; term-
 
 **The judgment lane (NOT mechanized - a script would false-positive):** whether a word *is* jargon for this audience, whether a gloss is actually *clear*, whether a section lead reads plainly, and readability scores. These live in the ship checklist below, not the validator. A necessary domain term is not jargon to be scrubbed - the rule flags a *missing gloss*, never the term's right to exist.
 
+### Rule 11 - Ownership on judgment sections (WARNS)
+
+The failure this rule targets: an artifact recommends, decides, or issues a verdict, and no human is attached to it. A recommendation nobody holds is a suggestion the document is making on its own behalf, and there is nothing for a reader to push back against.
+
+**Ownership attaches to the claim, not to the artifact.** That is not a stylistic preference, it is forced by the two kinds that carry both description and judgment. An `architecture` artifact reports Context and Before/After, then *recommends*; a `review` reports Strengths and Concerns, then issues a *Verdict*. Both split down the middle, and the seam is the same each time: the descriptive parts are reports, the judgment parts are held to. Attaching ownership below the level where they split dissolves the problem instead of assigning it by fiat.
+
+Mark the section, and name the holder in prose beside one sentence of their own doubt:
+
+```html
+<section id="recommendation" data-owner="Priya Nandakumar">
+  <h2>Recommendation</h2>
+  <p>Split the ingest path before the schema change, not after. Priya holds this call and
+  is least sure about the replay window: if the backfill runs past one night, the order flips.</p>
+</section>
+```
+
+A name on its own is bureaucracy. A name attached to a stated doubt tells a reviewer where to spend attention, which is the whole point.
+
+**No kind list.** The validator finds the judgment section by heading (`recommendation`, `verdict`, `decision`, `corrective actions`, `next steps`), exactly as `comparison-visual` finds a comparison. Kind sensitivity emerges rather than being declared: `research` and `understanding` carry no such heading and never trip it, `decision` always does, and the two straddling kinds fire on precisely the half that straddles. Dynamic mode inherits it, because who holds a call does not depend on which sections exist.
+
+`status` is the deliberate gap. Its headings name no judgment, and its accountability is artifact-wide, which the metadata ribbon's `Owner` already carries.
+
+**`data-judgment="true"` is the escape hatch**, and a well-written artifact needs it more often than a lazy one. A heading that *states* its judgment rather than naming it ("Lead with the narrow first stage", "The pick, and what it costs") reads better and matches no keyword, so the rule cannot see it. Mark the section and it counts:
+
+```html
+<section id="pick" data-judgment="true" data-owner="Priya Nandakumar">
+  <h2>The pick, and what it costs</h2>
+```
+
+Both shipped examples that do this carry the marker, which is the only reason the rule reaches them.
+
+**Four places a name can appear, and they mean different things.** Leaving this undefined is why the field gets filled with whatever is plausible:
+
+| Where | What it asserts |
+|---|---|
+| Ribbon `Owner` | Accountable for this artifact as a whole |
+| Provenance `reviewer` | A human read it before it was forwarded |
+| `data-owner` on a section | Holds this specific call, when that is not the artifact owner |
+| Owner column in an actions or open-questions table | Holds that one row |
+
+Like every rule in the mechanical floor, this is a marker check. It proves a name was written. It cannot prove the named person agreed, and it never will.
+
+### Rule 12 - No job titles in the markup (`audience-segmentation` BLOCKS, `role-labelled-guide` WARNS)
+
+`artifact-spine.md` bans naming, segmenting, flattering, or excluding a reader, and that ban is absolute rather than a preference. Depth is offered and never assigned: lead with the plain intuition, give the concrete detail after it, and let people stop where they want. Reading guides are labelled by depth (`Quick read`, `Full read`), never by who the reader is.
+
+This matters beyond taste. A skill that sorts readers into job titles only fits organisations that have those job titles, and most of the places these artifacts get read do not map cleanly onto them.
+
+**`data-audience` is retired, not aliased.** It was the pre-rename spelling of the answer-first marker and was kept as an accepted alias so already-shipped artifacts would keep validating. Measured on a live lane, that kindness did the opposite of its purpose.
+
+The population for this count and every other one quoted in these rules: **197 files** matching `YYYY-MM-DD-*.html` in a single private lane, searched recursively, temporary files excluded. It is one lane written by one author, so treat it as a strong signal about this failure mode and not as a survey. Every distribution below sums to 197.
+
+
+| Marker | Artifacts |
+|---|---|
+| `data-audience` only | 158 |
+| neither marker | 39 |
+| `data-summary` only | 0 |
+| both | 0 |
+
+Not one artifact migrated, and the newest of the 158 was written the same week the count was taken. The alias was not easing a transition, it was the reason none started, because nothing ever told an author (or the model copying the previous artifact) that the marker names a job title in the markup. So it now blocks, with a message that names the fix: replace `data-audience="pm"` with `data-summary="true"`. The summary itself does not change.
+
+Note the deliberate asymmetry with retired **rule IDs**, which keep answering to `<!-- human-html-disable: ... -->` forever. A suppression comment is an author's decision and must not silently invert. A retired content marker gets no such protection, because keeping it alive perpetuates the thing the rule exists to remove.
+
+### Rule 13 - Length has a ceiling, measured in words (WARNS)
+
+`required-section` says a plan must contain a rollback. Nothing said a plan contains *only* these, so sections accrete because nothing opposes them. Measured across 197 artifacts: the median carries 10 `<h2>` sections against a kind skeleton of about 5, only 18 of 197 sit at or under their skeleton, and the median length grew from 1,982 words in May to 4,359 in August.
+
+`prose-budget` WARNs past 4,000 words of prose, calibrated so every shipped example passes. Markup, script, style and inline SVG are excluded, because the unit is what a person reads.
+
+On the measured corpus it flags **45 of 197** artifacts, about a quarter. On the most recent month alone it flags **9 of 16**, and that is the point rather than a miscalibration: the recent trend is the thing the rule exists to oppose, so a threshold that stayed quiet on August would be measuring nothing. Expect it to be noisy on a lane that has been drifting, and expect that to settle as artifacts get cut.
+
+This is **not** `size-budget`, which is a separate WARN at 512 KiB of file. That one measures the payload, which inline SVG and CSS dominate; it fires roughly once in two hundred artifacts and stays silent on an eight-thousand-word wall of text. Bytes are a transport concern and words are the reader's concern, and they are different numbers.
+
+Past the budget, prefer cutting to splitting. If it genuinely will not cut, split into linked artifacts so each one still answers a question on its own.
+
+### Rule 14 - A read-time that is a real number (WARNS)
+
+`artifact-read-time` is the one field a reader uses to decide whether to commit, and it is the easiest in the artifact to fill with something plausible. Measured on the same lane: 194 words claimed 5 minutes, 4,701 words claimed 5 minutes, and the longest artifact gave up and said `browse`. The field tracked nothing.
+
+`check` computes the figure from prose words at 230 wpm and WARNs when the declared value is off by more than 2.5x, or carries no number at all. The tolerance is wide on purpose, because diagrams, tables and code legitimately slow a reader down, so a short artifact claiming several minutes is honest. What it catches is the field that correlates with nothing.
+
+**Deliberately not auto-filled.** `new` scaffolds an artifact with no content, so computing it there is meaningless, and having `index` rewrite artifacts as a side effect of building the gallery would mutate an author's file without being asked. The warning prints the computed number, so fixing it is a copy.
+
 ### Suppressing a rule on a single artifact
 
 Add an HTML comment naming the rule(s) to suppress anywhere in the artifact body:
@@ -206,7 +298,20 @@ Each violation prints its `[rule=<id>]` suffix; use that ID. The literal `all` s
 | `comparison-visual` | BLOCK | Comparison heading without a visual |
 | `nav-anchors` | BLOCK (WARN in dynamic mode) | More than 3 `<h2>` sections without valid `<nav>` anchors |
 | `required-section` | BLOCK/WARN (off in dynamic mode) | Kind-specific section missing |
+| `claim-owner` | WARN | A judgment heading (recommendation / verdict / decision / corrective actions / next steps) whose section carries no `data-owner` |
+| `audience-segmentation` | BLOCK | A `data-audience` attribute. Depth is offered, never assigned |
+| `role-labelled-guide` | WARN | A reading guide whose labels are job titles rather than depths |
+| `prose-budget` | WARN | More than 4,000 words of prose (markup, script, style and SVG excluded) |
+| `size-budget` | WARN | The file exceeds 512 KiB. A payload guard, not a reading-length one: inline SVG and CSS dominate the bytes, so this and `prose-budget` measure different things |
+| `read-time` | WARN | Declared `artifact-read-time` is off the computed figure by more than 2.5x, or carries no number |
 | `glossary-link` | WARN | Glossary term unwrapped |
+| `first-use-gloss` | WARN | A `<dfn>` term used bare before its definition |
+| `term-count` | WARN | More than ~8 coined terms: deletion beats definition |
+| `circular-gloss` | WARN | A definition that repeats its own term (ISO/IEC 16.5.6) |
+| `bare-gloss-ref` | WARN | A definition that is only "see X" |
+| `abbr-title` | WARN | An `<abbr>` with no `title` (WCAG H28) |
+| `heading-debut` | WARN | A coined term first appearing in a heading |
+| `key-terms-block` | WARN | An `architecture` / `decision` doc coining 3+ terms with no `<dl id="key-terms">` |
 | `read-map` | WARN (off in dynamic mode) | One of those kinds, 4+ `<h2>` sections, no reading guide |
 | `qa-overlay` | WARN | `data-meeting-qa="true"` with malformed JSON-LD |
 | `meta-ribbon` | WARN | No `data-meta-ribbon="true"` |
@@ -426,8 +531,10 @@ Fast self-checks before declaring an artifact done:
 - **Squint test** - blur your eyes: is the hierarchy still readable (one clear H1, scannable sections)?
 - **Swap test** - would a generic dark theme make this indistinguishable from any other AI output? If yes, it has no point of view.
 - **Both-themes / mobile** - check light (and dark if used) and a phone width; the runtime layout-audit banner flags horizontal overflow at the reader's actual width.
-- **Jargon test** (the judgment lane the validator can't do) - read each heading and opening sentence as a PM. For every coined term: (1) *Can it be deleted or renamed to a recognized word?* - deletion beats definition; (2) would an outsider to this project get it on first read?; (3) swap the gloss in for the term in a sentence - does it still parse with no new mystery words? (bad: "customer churn is when customers churn"); (4) how many novel terms is the reader asked to hold at once? Above ~5, cut or rename rather than define more. A *necessary* domain term is not jargon - keep the right technical noun, just gloss it on first use.
-- **Plain-prose test** (understandable, not just skimmable) - read your longest paragraph aloud. Does its first sentence carry the point? Any sentence you run out of breath on gets split. Any *utilize / in order to / it should be noted / basically* gets cut. Any "the X is done by Y" gets flipped to "Y does X". Could a PM restate the section in their own words after one read? If not, it isn't done - this is the lever the glossary can't pull.
+- **Jargon test** (the judgment lane the validator can't do) - read each heading and opening sentence as someone who works next to this system rather than inside it. For every coined term: (1) *Can it be deleted or renamed to a recognized word?* - deletion beats definition; (2) would an outsider to this project get it on first read?; (3) swap the gloss in for the term in a sentence - does it still parse with no new mystery words? (bad: "customer churn is when customers churn"); (4) how many novel terms is the reader asked to hold at once? Above ~5, cut or rename rather than define more. A *necessary* domain term is not jargon - keep the right technical noun, just gloss it on first use.
+- **Plain-prose test** (understandable, not just skimmable) - read your longest paragraph aloud. Does its first sentence carry the point? Any sentence you run out of breath on gets split. Any *utilize / in order to / it should be noted / basically* gets cut. Any "the X is done by Y" gets flipped to "Y does X". Could a reader who did not write this restate the section in their own words after one read? If not, it isn't done - this is the lever the glossary can't pull.
+- **Stopping test** (the one the validator deliberately can't do) - read only the summary block, then ask what you would still have to check. If the honest answer is "all of it", the fourth bullet is missing or hollow. A real one names something falsifiable and points at where it is examined; "nothing below changes this", written to fill the slot, fails the test and should be deleted rather than kept.
+- **Ownership test** - for every recommendation, verdict, decision, and action list: whose call is it, and would that person recognise the sentence as theirs? `claim-owner` only checks that a name was written. If nothing on the page could have come only from the person named on it, the page has no author.
 - **Completeness** - no TODOs, ellipses, or "repeat for the rest"; no invented data unless labelled `sample`; mark uncertain claims with <span class="needs-verification">needs verification</span>.
 
 ## Further references
@@ -439,7 +546,7 @@ Deep-dive material lives in on-demand `references/` files so this skill stays le
 - **`references/diagram-types.md`** - concept→diagram decision tree, Mermaid traps, inline-SVG craftsmanship, micro-chart recipes, and the progressive-enhancement **interactive charts** + **reactive inline values** recipes.
 - **`references/artifact-spine.md`** - the floor that holds whatever shape an artifact takes: the mechanical rules, the two floor requirements that cannot be linted (colour never alone, hover is also focusable), the **spine** an artifact never trades away (no coined framework names, never segment a reader, no engineered keystone, hedges stay, every claim earned, avoid the first person), and the prose discipline that makes it read as written rather than generated. **Required reading for dynamic mode**, and in force for standard artifacts too.
 
-## Developer reference
+## Tooling reference
 
 ### File contract
 

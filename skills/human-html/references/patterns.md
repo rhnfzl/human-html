@@ -106,7 +106,7 @@ For components, render a live contact sheet of each variant (button default, hov
 
 `examples/prototype-canonical.html` includes a worked swatch + component contact-sheet demo for a brand-system proposal.
 
-Best for: `prototype` artifacts that propose a visual system, `decision` artifacts where the choice is between two visual treatments, `understanding` artifacts that orient a new hire to the brand. If your workspace ships a brand-locked presentation or deck skill, use that for formal decks; the human-html design-system pattern is the right fit for ad-hoc design documentation that does not need the full deck format.
+Best for: `prototype` artifacts that propose a visual system, `decision` artifacts where the choice is between two visual treatments, `understanding` artifacts that orient someone new to the brand. If your workspace ships a brand-locked presentation or deck skill, use that for formal decks; the human-html design-system pattern is the right fit for ad-hoc design documentation that does not need the full deck format.
 
 Before adopting or overriding tokens, honor what's already there - the user's words, then the workspace's existing design system, then scaffold defaults; see SKILL.md, "Honor what's already there", for the precedence order and the brand-override `:root` recipe.
 
@@ -274,7 +274,7 @@ For `incident` artifacts, the ribbon follows the postmortem shape from `examples
 
 ## Reading guide
 
-A compact strip offering a **Quick read** (the summary + the recommendation/outcome) versus a **Full read** (all sections), so a reader can pick depth without guessing. Keep it depth-based, not role-based - do not label sections by job title (PM / engineer / exec).
+A compact strip offering a **Quick read** (the summary + the recommendation/outcome) versus a **Full read** (all sections), so a reader can pick depth without guessing. Keep it depth-based: label by how far a reader wants to go, never by who they are. A reader picks a depth; nobody should be told which reader they are.
 
 ```html
 <aside class="read-map" aria-label="Reading map">
@@ -303,13 +303,34 @@ Every artifact is AI-generated to some degree. A provenance footer captures the 
       "creator": { "@type": "SoftwareApplication", "name": "claude-opus-4-7" },
       "promptHash": "<sha256 of prompt; or replace with full prompt if non-sensitive>",
       "reviewer": "Jordan Ellis",
+      "reviewState": "human-reviewed",
       "source": "/improve-codebase-architecture"
     }
   </script>
 </footer>
 ```
 
-Required fields per the AI-BOM / model-card synthesis: `@id` or `id`, `creator` (model + version), `promptHash` or `prompt`, `dateCreated`, `reviewer`. Prompts containing PII should be hashed and archived externally rather than embedded.
+Required fields per the AI-BOM / model-card synthesis: `@id` or `id`, `creator` (model + version), `promptHash` or `prompt`, `dateCreated`, `reviewer`, and `reviewState`. Prompts containing PII should be hashed and archived externally rather than embedded.
+
+### The reviewer field starts empty, and says so
+
+**A scaffold ships `reviewer: "pending"` and renders "not yet reviewed by a human".** That is the honest default, and the reason it is the default is that the field is otherwise the easiest one in the artifact to fill with something plausible. Measured on a live lane of 197 artifacts: 89 carried a human name, 51 carried no reviewer field at all, 29 carried an *agent* name, 18 carried some spelling of "pending" across **nine** distinct spellings, and 10 shipped the unfilled placeholder, which is an author hand-rolling a state the schema never offered.
+
+Two things follow. First, replace it when a human has actually read the artifact, not when one is nominated: the field asserts that somebody read this before it was forwarded, and nothing else. Second, an agent name in this field is honest reporting rather than a mistake. A model did review it, and `reviewState: agent-reviewed` is the word for that.
+
+The examples under `examples/` carry real reviewer names on purpose. They show the end state of the lifecycle; the scaffold shows the start. An artifact that never gets the field replaced is telling the truth about itself.
+
+**`reviewState` names what the review amounts to**, in one of three values, while `reviewer` says who or what did it:
+
+| `reviewState` | `reviewer` | Means |
+|---|---|---|
+| `unreviewed` | `pending` | Generated, nobody has read it. The scaffold default |
+| `agent-reviewed` | the agent, e.g. `Codex` | A model reviewed it. Honest, and previously unsayable |
+| `human-reviewed` | the person | A person read it before it was forwarded |
+
+Three values rather than a free-text field, because free text is exactly what produced nine distinct spellings of "pending" in one lane. The validator warns on a fourth value: an unnamed state is the problem the field was added to solve.
+
+`reviewer` and `reviewState` are both artifact-wide. Ownership of a specific recommendation, verdict, or decision is `data-owner` on that section (Rule 11), which is a different claim and usually a different person.
 
 ### House rule: the prompt lives here, never in a card at the top
 
@@ -360,9 +381,11 @@ Keep it in `<details>`, collapsed. It is reference material for a reader who has
 
 Keep the visible list and the JSON-LD identical. They are the same fact written twice, one for a person and one for a script, and the failure mode is editing one and forgetting the other. `understanding-canonical.html` is the worked example, and a test asserts the two agree there.
 
-## BLUF compact opener mode (alternative to the 3-bullet answer-first opener)
+## BLUF compact opener mode (alternative to the four-bullet answer-first opener)
 
-The 3-bullet answer-first opener (Rule 1) is the default. For time-critical artifacts where 3 bullets is too much (an incident artifact emailed to a CTO; a yes/no decision needing a 30-second read), BLUF (Bottom Line Up Front) is the alternative. Same `data-summary="true"` marker, different body shape: one short sentence stating the decision or ask, then a one-sentence rationale.
+The four-bullet answer-first opener (Rule 1) is the default. For time-critical artifacts where four bullets is too much (an incident sent onward for a decision; a yes/no call needing a 30-second read), BLUF (Bottom Line Up Front) is the alternative. Same `data-summary="true"` marker, different body shape: one short sentence stating the decision or ask, one sentence of rationale, and one naming what would overturn it.
+
+BLUF may compress the opener. It may **not** drop the stopping claim, which is the sentence that lets a reader leave; a compact opener that never says what would change the conclusion buys brevity by making the reader audit the rest.
 
 ```html
 <section data-summary="true" class="lead-summary lead-bluf">

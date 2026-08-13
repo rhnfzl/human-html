@@ -1,6 +1,6 @@
 # The artifact spine
 
-The fifteen content rules say what an artifact must **contain**. This file says what an
+The twenty-nine content rules say what an artifact must **contain**. This file says what an
 artifact must never **do**, whatever shape it takes. That distinction is the whole reason
 the file exists: a rule about containing something can only be written for a known
 structure, and `artifact-mode="dynamic"` throws the structure away. Everything below
@@ -34,6 +34,10 @@ to WARN) and nothing here.
 | A comparison gets a real visual | `comparison-visual` (BLOCKS) | A comparison heading's section contains a visual element |
 | The words are gloss-able and plain | `glossary-link` and the plain-language registry | Known terms are wrapped or linked; coined terms are glossed on first use |
 | Where this came from is recorded | `provenance-footer`, `provenance-fields`, `meta-ribbon` | The markers and the documented JSON-LD fields are present |
+| A judgment has a holder | `claim-owner` | A non-empty `data-owner` sits on the judgment section. Not that the named person ever saw it |
+| No reader is sorted into a group | `audience-segmentation` (BLOCKS), `role-labelled-guide` | No `data-audience` attribute, and no reading guide labelled by job title. Not that the prose avoids it |
+| Length has a ceiling, not just a floor | `prose-budget` | The prose is under 4,000 words. Not that any of them earn their place |
+| The stated read-time is a real number | `read-time` | The claim tracks the word count within 2.5x. Not that the estimate is right for this reader |
 | House style holds | `em-dash`, `slop-signal` | No em/en dash in prose; no AI-default violet, emoji heading, or placeholder text |
 
 **Read the third column, not the first.** Every one of these is a marker check, and the gap
@@ -118,6 +122,20 @@ structure is wrong, not the rule.
 - **Every claim earned.** No population claims ("most teams do X", "everyone knows Y").
   State the mechanism, cite the artifact, or mark it as a view. An artifact that a reader
   will act on cannot afford a claim it cannot back.
+
+- **Every judgment has a holder, and the holder's own doubt is on the page.** A
+  recommendation, verdict, or decision with nobody attached is the artifact arguing on its
+  own behalf, and a reader has nothing to disagree with. `claim-owner` checks that a name
+  was written. The spine requires the harder half: something on the page could only have
+  come from the person named on it. If nothing could, the artifact has no author, whatever
+  the footer says.
+
+- **Never leave a reader unable to stop.** Say what would overturn the conclusion and
+  where that is examined, then say nothing else changes it. A reader who cannot tell
+  whether the opening is complete has one safe move, which is to read everything, and no
+  amount of navigation fixes that: a table of contents says where things are and never
+  says what may be skipped. The claim has to be real. "Nothing below changes this", written
+  to fill the slot, is worse than silence, because it asserts a closure nobody tested.
 
 - **Credibility comes from this artifact's own evidence.** A `file:line`, a log line, a
   config diff, a measured number, a named commit. Not from a borrowed name. Honest

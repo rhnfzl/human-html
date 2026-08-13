@@ -3,22 +3,22 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="artifact-kind" content="understanding">
+  <meta name="artifact-kind" content="decision">
   <meta name="artifact-audience" content="human">
-  <meta name="artifact-created" content="2026-05-25">
-  <meta name="artifact-source" content="canonical-example">
-  <meta name="artifact-read-time" content="5 min">
+  <meta name="artifact-created" content="2026-08-12">
+  <meta name="artifact-source" content="brainstorm on an external AI writing policy">
+  <meta name="artifact-read-time" content="6 min">
   <!-- Gallery card text. Leave empty to auto-derive from the summary block; fill for a sharper one-liner. -->
-  <meta name="artifact-summary" content="">
-  <meta name="artifact-keywords" content="">
-  <title>Understanding - Canonical Example</title>
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ctext y='13' font-size='13'%3E💡%3C/text%3E%3C/svg%3E">
-    <script>
+  <meta name="artifact-summary" content="Ownership attaches to individual claims rather than to whole artifacts, and every summary states what would change its own conclusion.">
+  <meta name="artifact-keywords" content="ownership, provenance, reviewer, closure, stopping rule, ai writing policy, content contract">
+  <title>Ownership per claim, and permission to stop reading</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ctext y='13' font-size='13'%3E⚖️%3C/text%3E%3C/svg%3E">
+  <script>
     (function(){try{var r=document.documentElement;r.classList.add('theme-js');var t=localStorage.getItem('hh-theme');if(t==='dark'||t==='light')r.dataset.theme=t;}catch(e){}})();
   </script>
   <style>
 :root {
-      color-scheme: light;                     /* light-only scaffold; NO dark media query anywhere */
+      color-scheme: light;                     /* base = light, renders on any engine; dark tokens live in the @media screen blocks appended after this constant */
       /* surfaces: cool off-white, slight blue-grey hue bias (never pure grey/white) */
       --bg: #f6f8fb; --surface: #ffffff; --surface-2: #f2f5f9; --surface-3: #e9eef4;
       /* ink: navy-biased grey ramp (never pure black) */
@@ -86,6 +86,9 @@
     section:target > h2 { color: var(--accent-2); }
     .grid-cols-2, .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s-6); }
     .grid-3 { display: grid; grid-template-columns: repeat(3,1fr); gap: var(--s-6); }
+    /* grid items default to min-width:auto and will not shrink below a wide child (a long <pre> or code
+       line), pushing the page past a phone viewport. min-width:0 lets the child's overflow-x:auto scroll. */
+    .grid-cols-2 > *, .grid-2 > *, .grid-3 > *, .compare-before, .compare-after { min-width: 0; }
     .compare-before { background: var(--high-bg); border-left: 4px solid var(--high); border-radius: var(--radius); padding: 16px; }
     .compare-after { background: var(--good-bg); border-left: 4px solid var(--good); border-radius: var(--radius); padding: 16px; }
     .compare-before > strong:first-child, .compare-after > strong:first-child { display: block; margin-bottom: 8px; font-family: var(--mono); font-size: var(--fs-cap); letter-spacing: .08em; text-transform: uppercase; }
@@ -97,8 +100,8 @@
     tr:last-child td { border-bottom: 0; }
     .table-scroll { overflow-x: auto; border-radius: var(--radius); }
     .table-scroll table { display: table; }
-    code { background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 2px 5px; font-family: var(--mono); font-size: .88em; }
-    pre { background: #0f172a; color: #e2e8f0; border-radius: var(--radius); padding: 14px; overflow: auto; }
+    code { background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 2px 5px; font-family: var(--mono); font-size: .88em; overflow-wrap: anywhere; }
+    pre { background: #0f172a; color: #e2e8f0; border-radius: var(--radius); padding: 14px; overflow: auto; border: 1px solid var(--line); }
     pre code { background: transparent; border: 0; color: inherit; }
     .mermaid svg { max-width: 100%; height: auto; }
     /* Mermaid node labels clip on the right when the page's kerning / ligatures / letter-spacing widen the
@@ -110,6 +113,14 @@
     }
     .mermaid foreignObject { overflow: visible; }
     .mermaid:not([data-processed]) { font-family: var(--mono); font-size: var(--fs-sm); white-space: pre; overflow-x: auto; background: var(--surface-2); border: 1px dashed var(--line-strong); border-radius: var(--radius); padding: var(--s-6); color: var(--muted); }
+    /* shipped diagram: inline SVG in a scroll wrapper, mermaid/source kept in an adjacent <details>.
+       The wrapper's overflow-x contains a too-wide diagram to its own scrollbar instead of the page. */
+    figure.diagram { margin: var(--s-7) 0; }
+    .diagram-scroll { overflow-x: auto; }
+    .diagram-scroll svg { max-width: 100%; height: auto; display: block; margin: 0 auto; }
+    .diagram-src { margin-top: var(--s-4); }
+    .diagram-src summary { cursor: pointer; color: var(--muted); font-size: var(--fs-sm); }
+    .diagram-src pre { white-space: pre; overflow-x: auto; }
     .needs-verification { display: inline-block; font-family: var(--mono); padding: 2px 8px; border-radius: var(--radius-sm); font-size: var(--fs-cap); font-weight: 700; background: var(--warn-bg); color: var(--warn); border: 1px solid var(--warn-line); }
     /* responsive overrides for components live next to the component (in _EXTRA_SCAFFOLD_STYLE) */
     @media (max-width: 820px) {
@@ -117,8 +128,50 @@
       nav.toc ol { columns: 1; }
       table { display: block; overflow-x: auto; }
     }
+    .theme-toggle { display:none; }
+    .theme-js .theme-toggle { position:fixed; top:16px; right:16px; z-index:100; width:40px; height:40px; padding:0; display:inline-flex; align-items:center; justify-content:center; font:inherit; font-size:18px; line-height:1; cursor:pointer; background:var(--surface-2, var(--soft)); color:var(--muted); border:1px solid var(--line); border-radius:999px; }
+    .theme-js .theme-toggle:hover { color:var(--ink); border-color:var(--line-strong, var(--line)); }
+    .theme-js .theme-toggle:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+    .theme-toggle::before { content:"\263E"; }
+    :root[data-theme="dark"] .theme-toggle::before { content:"\2600"; }
+    @media (prefers-color-scheme:dark){ :root:not([data-theme]) .theme-toggle::before{ content:"\2600"; } }
+    @media print { .theme-toggle { display:none; } }
+    @media screen {
+      :root[data-theme="dark"] {
+        color-scheme: dark;
+        --bg:#0f1522; --surface:#161e2e; --surface-2:#1c2536; --surface-3:#232e42;
+        --ink:#e8edf5; --ink-2:#c3ccdb; --muted:#96a2b5; --faint:#8593a8;
+        --line:#253145; --line-strong:#33415a;
+        --accent:#6aa8dd; --accent-2:#85bce6; --accent-bg:#152740; --accent-line:#2c4a6b;
+        --crit:#f19488; --crit-bg:#351d22; --crit-line:#6b3936;
+        --high:#eda06b; --high-bg:#33251a; --high-line:#6b4a30;
+        --warn:#d8b45c; --warn-bg:#312a16; --warn-line:#665626;
+        --good:#74c99b; --good-bg:#16301f; --good-line:#2e5c42;
+        --info:#6aa8dd; --info-bg:#152740; --info-line:#2c4a6b;
+        --neutral:#9aa6ba; --neutral-bg:#232c3c; --neutral-line:#3a465a;
+        --shadow-sm:0 1px 2px rgba(0,0,0,.35);
+        --shadow:0 4px 14px rgba(0,0,0,.45), 0 1px 3px rgba(0,0,0,.3);
+      }
+    }
+    @media screen and (prefers-color-scheme: dark) {
+      :root:not([data-theme]) {
+        color-scheme: dark;
+        --bg:#0f1522; --surface:#161e2e; --surface-2:#1c2536; --surface-3:#232e42;
+        --ink:#e8edf5; --ink-2:#c3ccdb; --muted:#96a2b5; --faint:#8593a8;
+        --line:#253145; --line-strong:#33415a;
+        --accent:#6aa8dd; --accent-2:#85bce6; --accent-bg:#152740; --accent-line:#2c4a6b;
+        --crit:#f19488; --crit-bg:#351d22; --crit-line:#6b3936;
+        --high:#eda06b; --high-bg:#33251a; --high-line:#6b4a30;
+        --warn:#d8b45c; --warn-bg:#312a16; --warn-line:#665626;
+        --good:#74c99b; --good-bg:#16301f; --good-line:#2e5c42;
+        --info:#6aa8dd; --info-bg:#152740; --info-line:#2c4a6b;
+        --neutral:#9aa6ba; --neutral-bg:#232c3c; --neutral-line:#3a465a;
+        --shadow-sm:0 1px 2px rgba(0,0,0,.35);
+        --shadow:0 4px 14px rgba(0,0,0,.45), 0 1px 3px rgba(0,0,0,.3);
+      }
+    }
 .meta-ribbon { display:flex; flex-wrap:wrap; gap:var(--s-4) var(--s-9); padding:var(--s-5) var(--s-7); margin:0 0 var(--s-9); background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); box-shadow:var(--shadow-sm); font-size:var(--fs-sm); color:var(--muted); }
-    .meta-ribbon span { white-space:nowrap; }
+    .meta-ribbon span { white-space:normal; overflow-wrap:anywhere; }
     .meta-ribbon strong { color:var(--faint); font-family:var(--mono); font-size:var(--fs-cap); letter-spacing:.1em; text-transform:uppercase; font-weight:600; margin-right:var(--s-2); }
     .read-map { background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:var(--s-5) var(--s-7); margin:0 0 var(--s-9); font-size:var(--fs-sm); color:var(--ink); box-shadow:var(--shadow-sm); }
     .read-map div { margin:var(--s-1) 0; }
@@ -219,11 +272,22 @@
     /* ---- bar rows / progress meter ---- */
     .bars { display:grid; grid-template-columns:max-content 1fr max-content; gap:var(--s-2) var(--s-4); align-items:center; margin:var(--s-6) 0; }
     .bars dt { font-family:var(--mono); font-size:var(--fs-sm); color:var(--muted); margin:0; }
-    .bars dd { margin:0; }
+    /* min-width:0 + wrap: if a plain <dd> paragraph is fed to this progress grid by mistake,
+       it wraps and degrades instead of forcing a max-content column and blowing out the page
+       (a chip + description definition list belongs in .deflist, not .bars). */
+    .bars dd { margin:0; min-width:0; overflow-wrap:anywhere; }
     .bars .val { font-variant-numeric:tabular-nums; font-size:var(--fs-sm); }
     .bars .track, .progress { background:var(--surface-2); border-radius:999px; overflow:hidden; min-width:60px; margin:0; }
     .bars .fill, .progress .fill { display:block; height:12px; border-radius:inherit; background:var(--sv,var(--accent)); width:var(--w,50%); }
     .fill.crit { --sv:var(--crit); } .fill.high { --sv:var(--high); } .fill.warn { --sv:var(--warn); } .fill.good { --sv:var(--good); }
+    /* ---- definition list: chip/label + wrapping description (risks, key terms, glossary rows) ----
+       Use this, NOT .bars, for a <dl> of label + prose. .bars is a 3-col progress grid whose
+       max-content columns never wrap a long <dd>; .deflist is a 2-col grid whose 1fr description
+       column wraps and caps at a readable measure. Collapses to one column on narrow screens. */
+    .deflist { display:grid; grid-template-columns:max-content 1fr; gap:var(--s-4) var(--s-6); align-items:baseline; margin:var(--s-6) 0; }
+    .deflist dt { margin:0; }
+    .deflist dd { margin:0; color:var(--ink-2); max-width:72ch; min-width:0; overflow-wrap:anywhere; }
+    @media (max-width:560px){ .deflist{ grid-template-columns:1fr; gap:var(--s-2); } .deflist dd{ margin:0 0 var(--s-5); } }
     /* ---- delta: direction glyph is AT-hidden; carry direction in the text (signed value) ---- */
     .delta { font-family:var(--mono); font-size:var(--fs-sm); font-weight:700; font-variant-numeric:tabular-nums; }
     .delta.good { color:var(--good); } .delta.bad { color:var(--crit); } .delta.flat { color:var(--muted); }
@@ -243,52 +307,6 @@
       .kind, .sev, .callout, .compare-before, .compare-after, .meta-ribbon, .needs-verification, .chip, .tile, .card, .keycard, .stripe, .confidence, .timeline .actor, .lead-summary, .spark, .bars, .progress, .delta { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
       details:not([open])::details-content { content-visibility: visible; display: block; }
     }
-      .theme-toggle { display:none; }
-    .theme-js .theme-toggle { position:fixed; top:16px; right:16px; z-index:100; width:40px; height:40px; padding:0; display:inline-flex; align-items:center; justify-content:center; font:inherit; font-size:18px; line-height:1; cursor:pointer; background:var(--surface-2, var(--soft)); color:var(--muted); border:1px solid var(--line); border-radius:999px; }
-    .theme-js .theme-toggle:hover { color:var(--ink); border-color:var(--line-strong, var(--line)); }
-    .theme-js .theme-toggle:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
-    .theme-toggle::before { content:"\263E"; }
-    :root[data-theme="dark"] .theme-toggle::before { content:"\2600"; }
-    @media (prefers-color-scheme:dark){ :root:not([data-theme]) .theme-toggle::before{ content:"\2600"; } }
-    @media print { .theme-toggle { display:none; } }
-    @media screen {
-      :root[data-theme="dark"] {
-        color-scheme: dark;
-        --bg:#0f1522; --surface:#161e2e; --surface-2:#1c2536; --surface-3:#232e42;
-        --ink:#e8edf5; --ink-2:#c3ccdb; --muted:#96a2b5; --faint:#8593a8;
-        --line:#253145; --line-strong:#33415a;
-        --accent:#6aa8dd; --accent-2:#85bce6; --accent-bg:#152740; --accent-line:#2c4a6b;
-        --crit:#f19488; --crit-bg:#351d22; --crit-line:#6b3936;
-        --high:#eda06b; --high-bg:#33251a; --high-line:#6b4a30;
-        --warn:#d8b45c; --warn-bg:#312a16; --warn-line:#665626;
-        --good:#74c99b; --good-bg:#16301f; --good-line:#2e5c42;
-        --info:#6aa8dd; --info-bg:#152740; --info-line:#2c4a6b;
-        --neutral:#9aa6ba; --neutral-bg:#232c3c; --neutral-line:#3a465a;
-        --shadow-sm:0 1px 2px rgba(0,0,0,.35);
-        --shadow:0 4px 14px rgba(0,0,0,.45), 0 1px 3px rgba(0,0,0,.3);
-      }
-    }
-    @media screen and (prefers-color-scheme: dark) {
-      :root:not([data-theme]) {
-        color-scheme: dark;
-        --bg:#0f1522; --surface:#161e2e; --surface-2:#1c2536; --surface-3:#232e42;
-        --ink:#e8edf5; --ink-2:#c3ccdb; --muted:#96a2b5; --faint:#8593a8;
-        --line:#253145; --line-strong:#33415a;
-        --accent:#6aa8dd; --accent-2:#85bce6; --accent-bg:#152740; --accent-line:#2c4a6b;
-        --crit:#f19488; --crit-bg:#351d22; --crit-line:#6b3936;
-        --high:#eda06b; --high-bg:#33251a; --high-line:#6b4a30;
-        --warn:#d8b45c; --warn-bg:#312a16; --warn-line:#665626;
-        --good:#74c99b; --good-bg:#16301f; --good-line:#2e5c42;
-        --info:#6aa8dd; --info-bg:#152740; --info-line:#2c4a6b;
-        --neutral:#9aa6ba; --neutral-bg:#232c3c; --neutral-line:#3a465a;
-        --shadow-sm:0 1px 2px rgba(0,0,0,.35);
-        --shadow:0 4px 14px rgba(0,0,0,.45), 0 1px 3px rgba(0,0,0,.3);
-      }
-    }
-      /* v1.2.1 overflow guards: wide content must scroll or wrap, never push the page */
-    @media (max-width: 820px) { table { display: block; overflow-x: auto; } }
-    .grid-cols-2 > *, .grid-2 > *, .grid-3 > *, .compare-before, .compare-after { min-width: 0; }
-    code { overflow-wrap: anywhere; }
   </style>
 <script type="module">
     /* Self-contained by default: fetch Mermaid from the CDN ONLY if this page actually has a
@@ -296,10 +314,17 @@
        a <div class="mermaid"> later and it still renders (the guard checks the DOM at load). */
     if (document.querySelector(".mermaid")) {
       const { default: mermaid } = await import("https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.esm.min.mjs");
+      /* Pick the palette at load from the resolved theme (data-theme, else the OS preference).
+         Diagrams render to static SVG, so this matches the page on load; a mid-session toggle
+         re-themes them on the next reload. Keep both sets in sync with the :root light/dark tokens. */
+      const _root = document.documentElement;
+      const _dark = _root.dataset.theme ? _root.dataset.theme === "dark"
+                                        : window.matchMedia("(prefers-color-scheme: dark)").matches;
+      const _lightVars = { primaryColor: "#eef5fb", primaryBorderColor: "#b9d5ec", primaryTextColor: "#172033", lineColor: "#5a6577", fontFamily: "inherit", fontSize: "14px" };
+      const _darkVars = { primaryColor: "#152740", primaryBorderColor: "#2c4a6b", primaryTextColor: "#e8edf5", lineColor: "#96a2b5", fontFamily: "inherit", fontSize: "14px" };
       mermaid.initialize({ startOnLoad: false, securityLevel: "loose", theme: "base",
         flowchart: { htmlLabels: true, padding: 12, useMaxWidth: true },
-        /* keep themeVariables in sync with the :root tokens above (single file, two spots) */
-        themeVariables: { primaryColor: "#eef5fb", primaryBorderColor: "#b9d5ec", primaryTextColor: "#172033", lineColor: "#5a6577", fontFamily: "inherit", fontSize: "14px" } });
+        themeVariables: _dark ? _darkVars : _lightVars });
       await mermaid.run();   /* module scripts defer, so the DOM is parsed; run() renders every .mermaid once */
     }
   </script>
@@ -308,225 +333,189 @@
   <button class="theme-toggle" type="button" aria-label="Switch theme" title="Toggle light / dark"></button>
   <main>
     <header>
-      <p class="eyebrow">understanding &middot; 2026-05-25 &middot; canonical example</p>
-      <h1>How a user chat message reaches the Platform API</h1>
+      <p class="eyebrow">decision &middot; 2026-08-12</p>
+      <h1>Ownership per claim, and permission to stop reading</h1>
     </header>
-
     <div class="meta-ribbon" data-meta-ribbon="true" aria-label="Artifact metadata">
-      <span><strong>Kind</strong> understanding</span>
-      <span><strong>Created</strong> 2026-05-25</span>
-      <span><strong>Owner</strong> Jordan Ellis</span>
-      <span><strong>Status</strong> Draft</span>
-      <span><strong>Read time</strong> ~5 min</span>
-      <span><strong>Source</strong> canonical-example</span>
+      <span><strong>Kind</strong> decision</span>
+      <span><strong>Created</strong> 2026-08-12</span>
+      <span><strong>Owner</strong> Rehan Fazal</span>
+      <span><strong>Status</strong> Draft, not yet reviewed</span>
+      <span><strong>Read time</strong> ~6 min</span>
+      <span><strong>Source</strong> brainstorm on an external AI writing policy</span>
     </div>
-
-    <section data-summary="true" class="lead-summary">
+    <section id="lead-summary" data-summary="true" class="lead-summary">
       <h2>In plain terms</h2>
       <ul>
-        <li><strong>What this does for the user:</strong> When a user types a question in the AI chat, four backend services hand the request to each other before the answer comes back. This doc shows that path so someone new to the system can understand why some failures live in one layer and not another.</li>
-        <li><strong>Why it matters:</strong> Bug reports like "chat is slow" or "approval didn't trigger" almost always originate in one specific layer. Knowing which layer owns what cuts triage time in half.</li>
-        <li><strong>What's being asked:</strong> Read this once. Use the layer map next time a user chat issue lands in your queue.</li>
-              <li><strong>What would change this:</strong> the layer map is accurate as of this artifact's date. The handoff between the last two services is the part most likely to move, so check it there before leaning on the map for triage. <a href="#gotchas">Gotchas</a>.</li>
+        <li><strong>What this does for the reader:</strong> An artifact says who is accountable for each judgment it makes, and says when you can stop reading it.</li>
+        <li><strong>Why it matters:</strong> In a live lane of 197 artifacts, the median length grew from 1,982 words in May to 4,359 in August, and every recent artifact carries a reading guide that does not stop the growth.</li>
+        <li><strong>What's being asked:</strong> Approve the two calls below. Three related questions stay open and are routed.</li>
+        <li><strong>What would change this:</strong> The claim that navigation is not the fix rests on one lane, written by one author. A second lane, different author, where readers demonstrably stop early would overturn it. Nothing else below changes the call.</li>
       </ul>
     </section>
-
     <aside class="read-map" aria-label="Reading map">
-      <div><strong>Quick read (2 min):</strong> <a href="#what-it-is">What it is</a> &middot; <a href="#where-to-dig">Where to dig</a></div>
-      <div><strong>Standard (5 min):</strong> <a href="#what-it-is">What it is</a> &middot; <a href="#how-it-works">How it works</a> &middot; <a href="#gotchas">Gotchas</a></div>
-      <div><strong>Full read (15 min):</strong> All sections</div>
+      <div><strong>Quick read:</strong> <a href="#decision">Decision</a> &middot; <a href="#reversibility">Reversibility</a></div>
+      <div><strong>Full read:</strong> All sections</div>
     </aside>
-
     <nav class="toc" aria-label="On this page">
       <strong>On this page</strong>
       <ol>
-        <li><a href="#what-it-is">What this is</a></li>
-        <li><a href="#how-it-works">How it works</a></li>
-        <li><a href="#gotchas">Gotchas</a></li>
-        <li><a href="#where-to-dig">Where to dig</a></li>
+        <li><a href="#decision">Decision</a></li>
+        <li><a href="#context">Context</a></li>
+        <li><a href="#options">Current vs proposed</a></li>
+        <li><a href="#consequences">Consequences</a></li>
+        <li><a href="#reversibility">Reversibility</a></li>
       </ol>
     </nav>
-
-    <section id="what-it-is" class="section">
-      <h2>What this thing is</h2>
-      <p>The "request chain" is the sequence of services a user chat message passes through, from the browser to the Platform API and back. Four services participate, each owning a distinct responsibility: routing, agent orchestration, tool dispatch, business API.</p>
+    <section id="decision" class="section" data-owner="Rehan Fazal">
+      <h2>Decision</h2>
+      <p><strong>In the context of</strong> a content contract that says what an artifact must contain and never who stands behind it, <strong>facing</strong> a live lane whose median artifact has roughly doubled in length while its validator sits red and unrun, <strong>we decided</strong> that ownership attaches to individual claims rather than to whole artifacts, and that every summary states what would change its own conclusion, <strong>to achieve</strong> an artifact a reader can act on and stop reading, <strong>accepting</strong> that both are judgment calls a validator can only nudge toward, never certify.</p>
+      <p>Rehan Fazal holds this call. The part least settled is the second half: the stopping rule is argued from one lane's evidence and one reader's experience of it.</p>
     </section>
-
-    <section id="how-it-works" class="section">
-      <h2>How it works</h2>
-      <p>The user types in the web UI. The Django frontend gateway authenticates the session and proxies the chat request to the Agent Service (FastAPI). The Agent Service runs the LLM agent loop, which calls tools on the MCP server. MCP translates each tool call into a Platform API request. Results flow back through the same chain.</p>
-      <div class="mermaid">
-flowchart LR
-  U[Browser] --> FE[Front End]
-  FE -->|SSO JWT| GW[Gateway Service<br/>Django proxy]
-  GW -->|forwards JWT| AGT[Agent Service<br/>FastAPI agent loop]
-  AGT -->|X-Acme-* headers| MCP[MCP Server<br/>tool dispatch]
-  MCP -->|basic auth| API[Platform API]
-  API -.JSON.-> MCP
-  MCP -.results.-> AGT
-  AGT -.SSE chunks.-> GW
-  GW -.SSE chunks.-> FE
-  FE -.rendered chat.-> U
+    <section id="context" class="section">
+      <h2>Context</h2>
+      <p>Clay publishes an internal AI writing policy for text that other people read. Six principles, and the two that bite here are that more time should go into authoring a document than into consuming it, and that writing is thinking, so a document generated from a short prompt is proof of nothing. The rest of it this skill already enforces, in some cases more strictly than the policy asks: the anti-slop checklist, the em dash rule, and the prose discipline in the spine all attack the padding the policy names.</p>
+      <p>Two of its principles have no counterpart here, and they turn out to be one gap seen twice. Nothing in the contract asks whether the artifact was earned, and nothing tells a reader they may stop.</p>
+      <p>The forcing function is measured rather than argued. A private lane of 197 artifacts, all standard mode, all one author, produced under successive versions of this skill:</p>
+      <div class="table-scroll" role="region" aria-label="Artifact length by month" tabindex="0">
+      <table>
+        <thead><tr><th>Month created</th><th>Artifacts</th><th>Median words</th><th>p90 words</th></tr></thead>
+        <tbody>
+          <tr><td data-label="Month">2026-05</td><td data-label="Artifacts">36</td><td data-label="Median">1,982</td><td data-label="p90">7,717</td></tr>
+          <tr><td data-label="Month">2026-06</td><td data-label="Artifacts">90</td><td data-label="Median">2,070</td><td data-label="p90">6,755</td></tr>
+          <tr><td data-label="Month">2026-07</td><td data-label="Artifacts">42</td><td data-label="Median">2,120</td><td data-label="p90">3,182</td></tr>
+          <tr><td data-label="Month">2026-08</td><td data-label="Artifacts">16</td><td data-label="Median">4,359</td><td data-label="p90">21,475</td></tr>
+        </tbody>
+      </table>
+      </div>
+      <p>The median artifact carries 10 <code>h2</code> sections against a kind skeleton of about 5, and only 18 of 197 sit at or under their skeleton. That is the mechanism: <code>required-section</code> is a floor with no ceiling, so each artifact accretes on the last. A reading guide is present on every recent artifact and does not interrupt it, which is the finding that matters, because it rules out navigation as the fix. A table of contents over seventeen sections says where everything is and never says what may be skipped.</p>
+      <p>Two supporting observations from the same corpus. The <code>reviewer</code> field holds a human name 89 times, no value at all 51 times, an agent name 29 times, some spelling of <em>pending</em> 18 times across nine distinct spellings, and an unfilled placeholder 10 times, which is an author hand-rolling a review state the schema does not offer. And <code>artifact-read-time</code> does not track length at all: 194 words claims five minutes, 4,701 words claims five minutes, and the longest artifact gives up and says <em>browse</em>.</p>
+    </section>
+    <section id="options" class="section">
+      <h2>Current vs proposed</h2>
+      <div class="table-scroll" role="region" aria-label="Current versus proposed treatment of ownership and closure" tabindex="0">
+      <table>
+        <thead><tr><th>Aspect</th><th>Current</th><th>Proposed</th></tr></thead>
+        <tbody>
+          <tr>
+            <td data-label="Aspect">Where ownership sits</td>
+            <td data-label="Current">Nowhere defined. A name may appear in the ribbon, in <code>reviewer</code>, against an open question, or against a corrective action, meaning four different things.</td>
+            <td data-label="Proposed">Per claim. A block that commits somebody carries <code>data-owner</code> and names the holder in prose, beside one sentence of their own doubt. The ribbon keeps artifact-wide accountability.</td>
+          </tr>
+          <tr>
+            <td data-label="Aspect">What <code>reviewer</code> asserts</td>
+            <td data-label="Current">Undefined, and checked only for being non-empty, so a plausible name satisfies it.</td>
+            <td data-label="Proposed">That a human read it before it was forwarded. Absent by default, and the footer says so rather than inventing a name.</td>
+          </tr>
+          <tr>
+            <td data-label="Aspect">What the summary closes</td>
+            <td data-label="Current">Nothing. Three bullets orient the reader; none concludes, so the reader audits to the bottom to find out whether the top was complete.</td>
+            <td data-label="Proposed">A fourth bullet naming what would change the conclusion and where that lives. Closure asserted, surprise located, permission to stop granted.</td>
+          </tr>
+          <tr>
+            <td data-label="Aspect">Which kinds this keys off</td>
+            <td data-label="Current">Kind decides section shape, and the two kinds that carry both description and judgment fit neither column.</td>
+            <td data-label="Proposed">No kind list. A heading regex finds the judgment section the way <code>comparison-visual</code> already finds a comparison, so kind sensitivity emerges instead of being declared.</td>
+          </tr>
+        </tbody>
+      </table>
+      </div>
+      <p>The rows are not independent. Each one replaces an unconstrained field with a claim a reader can hold somebody to, which is the single move this decision makes four times.</p>
+    </section>
+    <section id="consequences" class="section">
+      <h2>Consequences</h2>
+      <ul>
+        <li><strong>Positive:</strong> the two straddling kinds stop being anomalies, because ownership attaches below the level where they split. Dynamic mode inherits both rules with no special case, since neither depends on which sections exist. And most of the change is subtraction: the twelve shipped examples currently assert a reviewer who read nothing, and deleting a false claim costs the reader no space at all.</li>
+        <li><strong>Neutral:</strong> a new <code>data-owner</code> marker joins the existing family, and the judgment heading check reuses the section-scoped mechanic already implemented for comparisons.</li>
+        <li><strong>Negative:</strong> both calls are judgment. A marker check can catch the artifact that never tried and can never certify the one that did, which is the same ceiling every rule in the mechanical floor already has. The stopping rule also invites a formula: a fourth bullet written to satisfy a rule, saying nothing would change the conclusion, is worse than no bullet, because it claims a closure nobody tested.</li>
+      </ul>
+      <h3 id="still-open">Still open</h3>
+      <div class="table-scroll" role="region" aria-label="Open questions with owners" tabindex="0">
+      <table>
+        <thead><tr><th>Open question</th><th>Who decides</th><th>By</th><th>Where this lands without an answer</th></tr></thead>
+        <tbody>
+          <tr>
+            <td data-label="Question">Does <code>required-section</code> get a ceiling, and in what unit?</td>
+            <td data-label="Who">Rehan Fazal</td>
+            <td data-label="By">2026-09-01</td>
+            <td data-label="Lands"><strong>Leaning prose words, not bytes.</strong> The existing <code>size-budget</code> rule counts 512 KiB of file, which inline SVG and CSS dominate, so it fired once in 197 artifacts and misses everything a reader feels. Without a decision the growth continues, since nothing else opposes it.</td>
+          </tr>
+          <tr>
+            <td data-label="Question">Should <code>artifact-read-time</code> be computed rather than declared?</td>
+            <td data-label="Who">Rehan Fazal</td>
+            <td data-label="By">2026-09-01</td>
+            <td data-label="Lands"><strong>Leaning compute it.</strong> The script already parses the document, so <code>new</code> and <code>index</code> can fill it, or <code>check</code> can warn past a wide tolerance. Left alone the field stays decorative, and it understates by roughly half on the artifacts where a reader most needs the budget.</td>
+          </tr>
+          <tr>
+            <td data-label="Question">Does the review state get named values?</td>
+            <td data-label="Who">Rehan Fazal</td>
+            <td data-label="By">2026-09-01</td>
+            <td data-label="Lands"><strong>Leaning three values</strong>, covering unreviewed, agent-reviewed and human-reviewed. An agent name in <code>reviewer</code> is honest reporting the schema has no word for. Left alone, the nine spellings of <em>pending</em> keep multiplying.</td>
+          </tr>
+        </tbody>
+      </table>
       </div>
     </section>
-
-    <section id="gotchas" class="section">
-      <h2>Gotchas</h2>
-      <ul>
-        <li><strong>"Chat broken" tickets are usually Gateway Service:</strong> the proxy layer fails before the Agent Service ever sees the request, so Agent Service logs are empty when the user reports the issue.</li>
-        <li><strong>Auth headers don't pass through transparently:</strong> the SSO JWT from the FE is unpacked at Gateway Service; Agent Service sends MCP a different shape (<code>X-Acme-Token</code> + <code>X-Acme-Client-Id</code> + <code>X-Acme-Client-Secret</code>) extracted from the JWT's <code>service_tokens</code> claim.</li>
-        <li><strong>SSE buffering can hide errors:</strong> a network hiccup between GW and FE looks identical to AGT crashing mid-response. Check both before assuming one or the other.</li>
-      </ul>
-
-      <details>
-        <summary>Deep dive - JWT claim shape and how the extraction happens in each layer</summary>
-        <p>Gateway Service receives the SSO JWT in the <code>Authorization: Bearer &lt;jwt&gt;</code> header. Inside the JWT payload, the <code>service_tokens</code> claim is an object:</p>
-        <pre><code>{
-  "sub": "user-1234",
-  "service_tokens": {
-    "api_token": "&lt;opaque Platform bearer&gt;",
-    "client_id": "&lt;tenant client id&gt;",
-    "client_secret": "&lt;tenant secret&gt;"
-  },
-  "iat": ..., "exp": ...
-}</code></pre>
-        <p>Gateway Service extracts <code>service_tokens</code> on each chat call and forwards the three values as the three <code>X-Acme-*</code> headers when calling Agent Service's <code>/chat/completions</code> endpoint. Agent Service then re-presents them to MCP, which proxies to the Platform API as basic auth. This is why a "missing client_id" error in MCP almost always originates in Gateway Service's JWT extraction, not in Agent Service.</p>
-
-        <p><strong>Extract and forward, by language</strong> - same operation, three client perspectives. Use Tab to enter the tablist; arrow keys to switch.</p>
-        <style>
-          .tabs { display:flex; gap:4px; border-bottom:1px solid var(--line); margin-top:8px; }
-          .tabs [role="tab"] { background:transparent; border:0; padding:8px 14px; cursor:pointer; font-family:inherit; font-size:.9rem; color:var(--muted); border-bottom:2px solid transparent; }
-          .tabs [role="tab"][aria-selected="true"] { color:var(--accent); border-bottom-color:var(--accent); font-weight:600; }
-          .tabs [role="tab"]:focus { outline:2px solid var(--accent); outline-offset:2px; }
-          [role="tabpanel"] { padding-top:12px; }
-        </style>
-        <div role="tablist" aria-label="JWT extraction by language" class="tabs">
-          <button role="tab" id="jwt-tab-py"   aria-controls="jwt-panel-py"   aria-selected="true"  tabindex="0">Python (Gateway Service)</button>
-          <button role="tab" id="jwt-tab-ts"   aria-controls="jwt-panel-ts"   aria-selected="false" tabindex="-1">TypeScript (alt client)</button>
-          <button role="tab" id="jwt-tab-curl" aria-controls="jwt-panel-curl" aria-selected="false" tabindex="-1">cURL (debug probe)</button>
-        </div>
-        <div id="jwt-panel-py" role="tabpanel" aria-labelledby="jwt-tab-py">
-          <pre><code>import jwt
-from django.http import HttpRequest
-
-def forward_to_agent_service(request: HttpRequest):
-    raw = request.headers["Authorization"].removeprefix("Bearer ")
-    payload = jwt.decode(raw, key=settings.SSO_PUBLIC_KEY,
-                         algorithms=["RS256"])
-    ai = payload["service_tokens"]
-    return httpx.post(
-        f"{AGENT_SERVICE_URL}/chat/completions",
-        headers={
-            "X-Acme-Token": ai["api_token"],
-            "X-Acme-Client-Id": ai["client_id"],
-            "X-Acme-Client-Secret": ai["client_secret"],
-        },
-        json=request.json(),
-    )</code></pre>
-        </div>
-        <div id="jwt-panel-ts" role="tabpanel" aria-labelledby="jwt-tab-ts" hidden>
-          <pre><code>import { jwtVerify, importSPKI } from "jose";
-
-async function forwardToAgentService(req: Request): Promise&lt;Response&gt; {
-  const token = req.headers.get("authorization")?.replace("Bearer ", "");
-  const key = await importSPKI(SSO_PUBLIC_KEY_PEM, "RS256");
-  const { payload } = await jwtVerify(token!, key);
-  const ai = payload.service_tokens as { api_token: string; client_id: string; client_secret: string };
-  return fetch(`${AGENT_SERVICE_URL}/chat/completions`, {
-    method: "POST",
-    headers: {
-      "X-Acme-Token": ai.api_token,
-      "X-Acme-Client-Id": ai.client_id,
-      "X-Acme-Client-Secret": ai.client_secret,
-      "Content-Type": "application/json",
-    },
-    body: await req.text(),
-  });
-}</code></pre>
-        </div>
-        <div id="jwt-panel-curl" role="tabpanel" aria-labelledby="jwt-tab-curl" hidden>
-          <pre><code># Bypass Gateway Service to probe Agent Service directly with the three headers.
-# Useful when a chat ticket comes in and you want to isolate whether the bug is
-# in GW's JWT extraction or downstream.
-
-API_TOKEN=$(jq -r .service_tokens.api_token &lt; jwt-payload.json)
-CLIENT_ID=$(jq -r .service_tokens.client_id &lt; jwt-payload.json)
-CLIENT_SECRET=$(jq -r .service_tokens.client_secret &lt; jwt-payload.json)
-
-curl -sS "$AGENT_SERVICE_URL/chat/completions" \
-  -H "X-Acme-Token: $API_TOKEN" \
-  -H "X-Acme-Client-Id: $CLIENT_ID" \
-  -H "X-Acme-Client-Secret: $CLIENT_SECRET" \
-  -H "Content-Type: application/json" \
-  -d @chat-request.json</code></pre>
-        </div>
-        <script>
-          (() => {
-            const tabs = Array.from(document.querySelectorAll('[role="tablist"][aria-label="JWT extraction by language"] [role="tab"]'));
-            const panels = tabs.map((t) => document.getElementById(t.getAttribute("aria-controls")));
-            const select = (idx) => {
-              tabs.forEach((t, i) => {
-                const active = i === idx;
-                t.setAttribute("aria-selected", String(active));
-                t.setAttribute("tabindex", active ? "0" : "-1");
-                panels[i].hidden = !active;
-              });
-              tabs[idx].focus();
-            };
-            tabs.forEach((tab, idx) => {
-              tab.addEventListener("click", () => select(idx));
-              tab.addEventListener("keydown", (e) => {
-                if (e.key === "ArrowRight") { e.preventDefault(); select((idx + 1) % tabs.length); }
-                else if (e.key === "ArrowLeft") { e.preventDefault(); select((idx - 1 + tabs.length) % tabs.length); }
-                else if (e.key === "Home") { e.preventDefault(); select(0); }
-                else if (e.key === "End") { e.preventDefault(); select(tabs.length - 1); }
-              });
-            });
-          })();
-        </script>
-      </details>
+    <section id="reversibility" class="section">
+      <h2>Reversibility</h2>
+      <p>Cheap in both directions. <code>data-owner</code> is an attribute other artifacts ignore, and the judgment heading check would ship as a warning, which is the staged rollout the skill already documents for a new rule. The summary bullet is prose, so withdrawing it costs one scaffold edit and leaves every existing artifact valid.</p>
+      <p>The expensive half is not the rules. It is that the contract has to be running for either to matter, and in the lane that produced the evidence above, <code>check</code> exits 1 today on fourteen blocking violations. Both calls here are worth nothing until that is green.</p>
     </section>
-
-    <section id="where-to-dig" class="section">
-      <h2>Where to dig</h2>
-      <ul>
-        <li><code>gateway/app/views.py</code> - Gateway Service proxy entry point</li>
-        <li><code>acme-agent-service/agent_service/api/routers/chat.py</code> - Agent Service chat router</li>
-        <li><code>acme-mcp/server.py</code> - MCP tool dispatch surface</li>
-        <li><code>docs/references/full-request-chain.md</code> - deeper reference covering auth header extraction and error envelopes</li>
-      </ul>
-    </section>
-
     <footer class="provenance" data-provenance="true">
-      <p>Generated by <code>claude-opus-4-7</code> on 2026-05-25 &middot; reviewed by <code>Jordan Ellis</code> &middot; source: canonical-example.</p>
       <details class="files-read">
-        <summary>Files read (3) at <code>4e91c07</code></summary>
+        <summary>Files read (7) at <code>7e957d0</code></summary>
         <ul>
-          <li><code>gateway/app/views.py</code></li>
-          <li><code>acme-agent-service/agent_service/api/routers/chat.py</code></li>
-          <li><code>acme-mcp/server.py</code></li>
+          <li><code>skills/human-html/SKILL.md</code></li>
+          <li><code>skills/human-html/references/artifact-spine.md</code></li>
+          <li><code>skills/human-html/references/patterns.md</code></li>
+          <li><code>skills/human-html/human_html_artifacts.py</code></li>
+          <li><code>skills/human-html/examples/*.html</code></li>
+          <li><code>.github/scripts/check_examples.py</code></li>
+          <li><code>README.md</code></li>
         </ul>
-        <p>Still accurate? <code>git diff --stat 4e91c07 -- gateway/app/views.py acme-agent-service/agent_service/api/routers/chat.py acme-mcp/server.py</code>. Empty output means all three still match what this trace was written against, your uncommitted edits included. Note the missing <code>..HEAD</code>: that form compares two commits and would call an uncommitted edit clean.</p>
+        <p>Still accurate? <code>git diff --stat 7e957d0 -- skills/human-html/SKILL.md
+        skills/human-html/references/artifact-spine.md skills/human-html/references/patterns.md
+        skills/human-html/human_html_artifacts.py 'skills/human-html/examples/*.html'
+        .github/scripts/check_examples.py README.md</code>. Empty output means every file still
+        matches what this artifact read, uncommitted edits included.</p>
+        <p>The 197-artifact corpus behind the length figures is a private lane and is not listed
+        here. Its numbers are reproducible only by whoever holds it.</p>
       </details>
+      <p class="provenance-line">
+        Generated by <code>claude-opus-5</code> on 2026-08-12 &middot;
+        <strong>not yet reviewed by a human</strong> &middot;
+        source: a brainstorming conversation about Clay's AI writing policy
+      </p>
+      <p>Ideas taken with attribution: the two principles that forced this are Clay's, from an
+      internal AI writing policy quoted to me in full. The closure move is the same one already
+      used by the same-data control block in <code>references/patterns.md</code>, applied to the
+      summary instead of to a comparison's inputs.</p>
       <script type="application/ld+json" id="provenance">
         {
           "@context": "https://schema.org/",
           "@type": "CreativeWork",
-          "@id": "urn:human-html:2026-05-25:understanding:canonical-example",
+          "@id": "urn:human-html:2026-08-12:decision:ownership-per-claim",
           "additionalType": "ai-generated-artifact",
-          "artifactKind": "understanding",
-          "dateCreated": "2026-05-25",
-          "creator": { "@type": "SoftwareApplication", "name": "claude-opus-4-7" },
-          "promptHash": "<sha256 of prompt; canonical example, no real prompt>",
-          "reviewer": "Jordan Ellis",
-          "reviewState": "human-reviewed",
-          "source": "canonical-example",
+          "artifactKind": "decision",
+          "dateCreated": "2026-08-12",
+          "creator": {
+            "@type": "SoftwareApplication",
+            "name": "claude-opus-5"
+          },
+          "prompt": "Brainstorm whether Clay's AI writing policy should change human-html, then write the result up as a decision artifact.",
+          "reviewer": "pending",
+          "reviewState": "unreviewed",
+          "source": "brainstorming conversation",
           "sourceFiles": {
-            "readAtRevision": "4e91c07",
+            "readAtRevision": "7e957d0",
             "paths": [
-              "gateway/app/views.py",
-              "acme-agent-service/agent_service/api/routers/chat.py",
-              "acme-mcp/server.py"
+              "skills/human-html/SKILL.md",
+              "skills/human-html/references/artifact-spine.md",
+              "skills/human-html/references/patterns.md",
+              "skills/human-html/human_html_artifacts.py",
+              "skills/human-html/examples/*.html",
+              ".github/scripts/check_examples.py",
+              "README.md"
             ]
           }
         }

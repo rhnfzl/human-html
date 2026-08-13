@@ -103,6 +103,38 @@ Avoid side-by-side code when:
 
 ---
 
+## When to use a diff block
+
+**Trigger, and keep it this narrow: the two states share most of their shape, and the reader's job is to find the part that does not.** That is the one case where side-by-side panels actively hurt. They render the unchanged nine tenths twice and leave the reader to diff two columns by eye, which is the work the visual was supposed to do for them.
+
+A unified diff in a `<pre class="diagram">` already satisfies `comparison-visual`, so this needs no new rule. What it needs is discipline about when it applies.
+
+Four shapes carry a diff well, and only the first is source code:
+
+```diff
+ submitForm
+   createSession
+     persistPrompt
++    expandSkillMention
+     launchAgent
+-  navigateToSession
++  navigateToSession
++    subscribeToEvents
+```
+
+That is a call tree. The same notation works over a component tree, over a file layout, and over pseudocode control flow. Applying diff syntax to a *shape* rather than to source is the move worth having, and it is taken from HumanLayer's `show-me` skill, which enumerates all four.
+
+Two notation traps:
+
+- **The rail column shifts on a file-layout diff.** Adding `+` in front of `├── commands/` pushes the box-drawing rails one column right, so the tree stops lining up. Author the diff so the rails sit inside the changed line (`+│   └── show-me.ts`), not so the marker displaces them.
+- **A node that only gained children reads wrong as a bare context line.** Remove and re-add it (`-  navigateToSession` then `+  navigateToSession` with its new children beneath) so the reader sees which parent grew. A single unchanged context line hides the nesting change entirely.
+
+Three limits, all of which fall out of rules already in force:
+
+- **Not a general alternative to side-by-side panels.** Panels force an author to think about both states; a diff lets them think about neither. If the two states differ structurally rather than incrementally, the panels are doing real work and the diff is a shortcut.
+- **Not a pasted `git diff`.** A raw source diff dropped into a comparison section satisfies the marker and answers nothing. The diff has to be over the shape the section is arguing about, hand-trimmed to the lines that carry the point.
+- **The glyphs carry the meaning, never colour.** The spine requires that colour never be the only channel, and a diff is conventionally read by red and green. Plain `+` and `-` in a `<pre>` is compliant as it stands; the moment anyone adds syntax highlighting, the glyphs must survive greyscale and print. `<pre>` also does not wrap, so a deep tree needs the same `overflow-x` scroll container with `role="region"`, an `aria-label` and `tabindex="0"` that a wide table gets.
+
 ## When to use a comparison table
 
 Use a `<table>` when the change is an **enumeration of N items with attributes** - N rows of "thing X used to do A, now does B".
@@ -184,12 +216,15 @@ Mermaid stays the default for *mechanical* structure (flowchart / sequence / sta
 ```text
 What is changing in this comparison?
 
+  -> Same shape, small delta (reader hunts it)  → unified diff in <pre class="diagram">
   -> System shape / module graph / flow         → mermaid
   -> Function signature / JSON envelope / text  → side-by-side <pre>
   -> N items with shared attributes (N > 2)     → comparison <table>
   -> N = 2 with different per-item attributes   → side-by-side panels with prose
   -> None of the above (chart, timeline, UX)    → inline <svg> (or <img> as fallback)
 ```
+
+The first branch sits above the others because it asks a different question. The rest route on *what* is being compared; this one routes on *how much of it changes*.
 
 When in doubt, pick the smallest visual that does the job. A reader who scans your before / after section for three seconds and walks away with the right mental model is the test.
 
@@ -205,6 +240,10 @@ These fail *silently* (the diagram renders as raw text or mislays itself) and ar
 - **Arrow vocabulary carries meaning:** `-->` dependency, `-.->`  optional/async, `==>` emphasis, `--x` blocked.
 - **15+ elements** → don't cram one Mermaid graph; show a Mermaid overview + a CSS-grid of detail cards.
 - **Keep the generator's `themeVariables` block when hand-editing `_MERMAID_SCRIPT`.** It pins a `theme:"base"` palette to the `:root` tokens; delete it and nodes revert to stock lavender `#ECECFF` - off-palette and adjacent to the violet ramp the anti-slop checklist bans.
+
+- **`embed-svg` bakes geometry, so never give a diagram a font the reader resolves differently.** With `htmlLabels: true` mermaid writes each node label as HTML inside a `<foreignObject>` with a **fixed height measured on the embedding machine**. The reader's browser then re-flows that HTML in their own font. Any metric difference wraps one line further, and `foreignObject` clips its overflow by default, so the last line of a multi-line label silently disappears. Two things keep it honest, both already applied to `_DIAG_FONT` and `_DIAG_STYLE`: name **real font families** rather than `system-ui` or `ui-sans-serif`, which resolve to a different physical font on every operating system and so make the mismatch certain rather than unlucky; and set `overflow: visible` on the embedded `foreignObject`, which turns a silent truncation into a visible overhang an author can see and fix. The base scaffold had the overflow rule for live `.mermaid` blocks from the start; `embed-svg` rewrites the wrapper to `.diagram-light` / `.diagram-dark`, and for a while the rule did not follow it there. If you add another diagram wrapper class, carry the rule with it.
+
+  Practical consequence for authoring: a node label of four or more lines is close to the edge whatever you do. Prefer two or three short lines and push the detail into prose beside the diagram, which the spine asks for anyway.
 
 ## Inline-SVG craftsmanship (when SVG beats Mermaid)
 
