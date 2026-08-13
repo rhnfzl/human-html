@@ -357,6 +357,7 @@
         <li><strong>What changed:</strong> the token bucket that admits or throttles every request on the edge gateway now exists twice: <code>crates/quota/src/bucket.rs</code> (shipping) and <code>packages/quota/src/bucket.ts</code> (the port for the Node gateway). Nothing about the limits themselves moved: same capacity of 600 per key, same refill of 5 tokens per second.</li>
         <li><strong>Where it stands:</strong> eight regions of the file carry a behavioural trap. Four are preserved exactly, four are changed on purpose, and every one of the four changes replaces a compiler guarantee with a convention plus one test.</li>
         <li><strong>What the sign-off needs:</strong> a yes on the eight numbered notes, then a yes on the ledger and on the edge-case verdicts. The parity harness replayed 41,208 recorded (timestamp, cost) pairs from an hour of production traffic on 2026-07-24 and every admission decision and every <code>Retry-After</code> value matched, which is evidence for the four preserved regions and says nothing about the four changed ones.</li>
+              <li><strong>What would change this:</strong> sign-off rests on each of the four deliberate changes being covered by the one test named beside it. If a test turns out not to exercise the changed path, that note goes back to open. <a href="#gaps">What this does not cover</a>.</li>
       </ul>
       <p>The short version: the port is mergeable, and the part worth arguing about is note 4, where an over-capacity bucket stops crashing and starts being quietly repaired.</p>
     </section>
@@ -737,7 +738,7 @@ impl Bucket {
       harness and the right column has nothing left to check.</p>
     </section>
 
-    <section class="section" id="edge-cases">
+    <section class="section" id="edge-cases" data-owner="Jordan Ellis">
       <h2>Edge cases and the verdict on each</h2>
       <div class="table-scroll" role="region" aria-label="Edge cases and the verdict on each" tabindex="0">
         <table>

@@ -106,6 +106,32 @@ _VISUAL_PATTERNS = [
     re.compile(r"""\bdata-visual=['"]true['"]""", re.IGNORECASE),
 ]
 
+# Headings that mean "this section commits somebody", and therefore need to name who.
+# Ownership attaches to the claim rather than to the artifact, because the two kinds that
+# carry both description and judgment (`architecture`, `review`) split down the middle:
+# the Before/After is a report and the Recommendation is a person's call. Keying off a
+# heading rather than off `artifact-kind` means kind sensitivity falls out on its own -
+# a `research` artifact has no such heading and never trips this, a `decision` always does.
+# `status` is the deliberate gap: its headings name no judgment, and its accountability is
+# artifact-wide, which the metadata ribbon's Owner field already carries.
+JUDGMENT_HEADING_RE = re.compile(
+    r"\b("
+    r"recommendations?|"
+    r"verdict|"
+    r"decisions?|"
+    r"corrective\s+actions?|"
+    r"next\s+steps?"
+    r")\b",
+    re.IGNORECASE,
+)
+
+# A non-empty data-owner marks who holds the claim. Like every rule in the mechanical
+# floor this is a marker check: it proves a name was written, never that the named person
+# agreed. The visible prose beside it is what a reader actually acts on.
+# The (?!\1) is load-bearing: without it `\S` happily matches the *closing* quote, so
+# an empty data-owner="" would satisfy the rule.
+_OWNER_RE = re.compile(r"""\bdata-owner\s*=\s*(['"])\s*(?!\1)\S""", re.IGNORECASE)
+
 # Walks h2 and h3 headings, both feed comparison-section detection.
 _HEADING_RE = re.compile(r"<h([23])\b[^>]*>(.*?)</h\1>", re.IGNORECASE | re.DOTALL)
 # Strip HTML comments before scanning a section for a visual, so a commented-out
@@ -569,6 +595,41 @@ def find_comparison_violations(content: str) -> list[str]:
     return violations
 
 
+def find_unowned_judgment_headings(content: str) -> list[str]:
+    """Return headings of judgment sections that name nobody.
+
+    Same mechanic as `find_comparison_violations`: a heading regex selects the section,
+    then the section is searched for a marker. One difference, and it matters. An owner is
+    normally declared on the section's own opening tag, which sits *before* the heading, so
+    the search window starts at that tag instead of at the end of the heading. The window is
+    floored at the previous heading so a neighbouring section's owner cannot satisfy this one.
+    """
+    matches = list(_HEADING_RE.finditer(content))
+    if not matches:
+        return []
+    violations: list[str] = []
+    for i, match in enumerate(matches):
+        heading = _strip_tags(match.group(2)).strip()
+        if not JUDGMENT_HEADING_RE.search(heading):
+            continue
+        current_level = int(match.group(1))
+        section_end = len(content)
+        for next_match in matches[i + 1 :]:
+            if int(next_match.group(1)) <= current_level:
+                section_end = next_match.start()
+                break
+        floor = matches[i - 1].end() if i else 0
+        container = max(
+            content.rfind("<section", floor, match.start()),
+            content.rfind("<div", floor, match.start()),
+        )
+        window_start = container if container != -1 else match.start()
+        window = _HTML_COMMENT_RE.sub("", content[window_start:section_end])
+        if not _OWNER_RE.search(window):
+            violations.append(heading)
+    return violations
+
+
 def _artifact_in_force(date_str: str) -> bool:
     """True if the artifact must satisfy the new content-shape rules."""
     try:
@@ -686,7 +747,16 @@ def content_shape_violations(
         _add(
             errors, parser, "comparison-visual",
             f'{rel}: comparison section "{heading}" missing a visual '
-            "(mermaid / svg / table / img / side-by-side grid)",
+            "(mermaid / svg / table / img / side-by-side grid / diff in <pre class=\"diagram\">)",
+        )
+
+    # In force in dynamic mode too: who holds a call does not depend on which sections
+    # exist, so this is not one of the three shape rules that stand down.
+    for heading in find_unowned_judgment_headings(content):
+        _add(
+            warnings, parser, "claim-owner",
+            f'{rel}: judgment section "{heading}" names no owner; add data-owner to the '
+            "section and name the holder in prose beside one sentence of their own doubt",
         )
 
     # A long document still needs a way in, but a dynamic artifact may carry the
@@ -2055,7 +2125,14 @@ _EXTRA_SCAFFOLD_STYLE = """
     .stripe::before { content:""; position:absolute; left:0; top:.35rem; bottom:.35rem; width:3px; border-radius:3px; background:var(--accent); }
     .stripe.crit::before{background:var(--crit);} .stripe.high::before{background:var(--high);} .stripe.warn::before{background:var(--warn);} .stripe.good::before{background:var(--good);}
     /* ---- keycard: big number + prose ---- */
-    .keycard { display:grid; grid-template-columns:auto 1fr; gap:var(--s-8); align-items:center; margin:var(--s-9) 0; padding:var(--s-8) var(--s-9); background:var(--surface); border:1px solid var(--line-strong); border-left:4px solid var(--sv,var(--accent)); border-radius:var(--radius); box-shadow:var(--shadow); }
+    .keycard { display:grid; grid-template-columns:auto minmax(0,1fr); gap:var(--s-8); align-items:center; margin:var(--s-9) 0; padding:var(--s-8) var(--s-9); background:var(--surface); border:1px solid var(--line-strong); border-left:4px solid var(--sv,var(--accent)); border-radius:var(--radius); box-shadow:var(--shadow); }
+    /* Robust to any child count. Two children happened to land correctly by auto-placement;
+       a THIRD wrapped back into column 1, whose `auto` width then grew to fit a paragraph of
+       prose and starved the 1fr column down to a one-word-per-line ribbon. Pin the hero to
+       column 1 for the full height and stack everything else in column 2, so adding a second
+       paragraph is not a silent layout break. */
+    .keycard > * { grid-column:2; min-width:0; }
+    .keycard > :first-child:is(.big,.kind,.sev,.chip) { grid-column:1; grid-row:1/-1; }
     .keycard .big { font-family:var(--display); font-size:clamp(2.4rem,7vw,3.4rem); font-weight:800; line-height:.95; color:var(--sv,var(--accent)); font-variant-numeric:tabular-nums; }
     .keycard .big small { display:block; margin-top:var(--s-2); font-family:var(--mono); font-size:var(--fs-sm); font-weight:600; letter-spacing:.04em; text-transform:uppercase; color:var(--muted); }
     .keycard p b { color:var(--ink); }
@@ -2081,6 +2158,9 @@ _EXTRA_SCAFFOLD_STYLE = """
     /* component responsive overrides live HERE (after the base rules, in the later-injected _EXTRA) so they win the cascade */
     @media (max-width:820px) {
       .keycard { grid-template-columns:1fr; gap:var(--s-5); }
+      /* single column now, so release the explicit placement or it would conjure an
+         implicit second column and put the hero back beside the text */
+      .keycard > *, .keycard > :first-child:is(.big,.kind,.sev,.chip) { grid-column:1; grid-row:auto; }
       .tiles, .metrics { grid-template-columns:1fr 1fr; }
     }
     @media (max-width:460px) { .tiles, .metrics { grid-template-columns:1fr; } }
@@ -2157,6 +2237,7 @@ def _lead_summary_block() -> str:
         <li><strong>What this does for the user:</strong> Replace with the one-sentence product impact that lands without engineering context.</li>
         <li><strong>Why it matters:</strong> Replace with the business / user constraint that makes this worth reading.</li>
         <li><strong>What's being asked:</strong> Replace with the decision, approval, or review action the reader should take.</li>
+        <li><strong>What would change this:</strong> Replace with the one thing that would overturn the conclusion and where it is examined, then say nothing else below changes it. Delete this bullet rather than write a hollow one.</li>
       </ul>
     </section>"""
 
@@ -2208,9 +2289,10 @@ flowchart LR
     </section>"""
     elif kind == "review":
         nav = [("verdict", "Verdict"), ("strengths", "Strengths"), ("concerns", "Concerns"), ("required", "Required changes"), ("optional", "Optional changes"), ("re-entry", "Re-entry context")]
-        body = """    <section id="verdict" class="section">
+        body = """    <section id="verdict" class="section" data-owner="&lt;name&gt;">
       <h2>Verdict</h2>
       <p>One-line summary: approve / request changes / block. Add the reasoning in the next sentence.</p>
+      <p>&lt;name&gt; holds this verdict, and is least sure about &lt;the part a reviewer should push on&gt;.</p>
     </section>
     <section id="strengths" class="section">
       <h2>Strengths</h2>
@@ -2263,9 +2345,10 @@ flowchart TB
         </div>
       </div>
     </section>
-    <section id="recommendation" class="section">
+    <section id="recommendation" class="section" data-owner="&lt;name&gt;">
       <h2>Recommendation</h2>
       <p>The proposed change and the seam it lives at.</p>
+      <p>&lt;name&gt; holds this call, and is least sure about &lt;the assumption it rests on&gt;.</p>
     </section>
     <section id="sequence" class="section">
       <h2>Sequence</h2>
@@ -2337,9 +2420,10 @@ flowchart LR
     </section>"""
     elif kind == "decision":
         nav = [("decision", "Decision"), ("context", "Context"), ("options", "Current vs proposed"), ("consequences", "Consequences"), ("reversibility", "Reversibility")]
-        body = """    <section id="decision" class="section">
+        body = """    <section id="decision" class="section" data-owner="&lt;name&gt;">
       <h2>Decision</h2>
       <p><strong>In the context of</strong> &lt;situation&gt;, <strong>facing</strong> &lt;forcing function&gt;, <strong>we decided</strong> &lt;option&gt; <strong>to achieve</strong> &lt;benefit&gt;, <strong>accepting</strong> &lt;trade-off&gt;.</p>
+      <p>&lt;name&gt; holds this call, and is least sure about &lt;the assumption it rests on&gt;.</p>
     </section>
     <section id="context" class="section">
       <h2>Context</h2>
@@ -2471,7 +2555,7 @@ flowchart LR
       <p>Systemic causes only. Avoid naming individuals. Use Five Whys or equivalent. Collapse deeper RCA below.</p>
       <details><summary>Deeper RCA (logs, dashboards)</summary><p>Link to the raw evidence rather than embedding it.</p></details>
     </section>
-    <section id="actions" class="section">
+    <section id="actions" class="section" data-owner="&lt;name&gt;">
       <h2>Corrective actions</h2>
       <div class="table-scroll" role="region" aria-label="Corrective actions" tabindex="0">
       <table>
@@ -2543,7 +2627,7 @@ def _provenance_footer(kind: str, date: str, escaped_source: str, source: str) -
             "softwareVersion": "<version>",
         },
         "promptHash": "<sha256 of prompt; or replace with full prompt if non-sensitive>",
-        "reviewer": "<human reviewer or role>",
+        "reviewer": "pending",
         "source": source,
     }
     provenance_json = "\n".join(
@@ -2553,7 +2637,7 @@ def _provenance_footer(kind: str, date: str, escaped_source: str, source: str) -
     return f"""    <footer class="provenance" data-provenance="true">
       <p class="provenance-line">
         Generated by <code>&lt;model&gt;</code> on {date} &middot;
-        reviewed by <code>&lt;reviewer&gt;</code> &middot;
+        <strong>not yet reviewed by a human</strong> &middot;
         source: {escaped_source}
       </p>
       <script type="application/ld+json" id="provenance">
@@ -2908,12 +2992,27 @@ _DIAG_LIGHT = {"primaryColor": "#eef5fb", "primaryBorderColor": "#b9d5ec",
                "primaryTextColor": "#172033", "lineColor": "#5a6577"}
 _DIAG_DARK = {"primaryColor": "#152740", "primaryBorderColor": "#2c4a6b",
               "primaryTextColor": "#e8edf5", "lineColor": "#96a2b5"}
-_DIAG_FONT = "ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif"
+# Deliberately concrete, and deliberately NOT `system-ui` / `ui-sans-serif`.
+# `embed-svg` bakes geometry: mmdc measures each label in headless Chrome on the machine
+# doing the embedding and writes a fixed <foreignObject height="...">, then the reader's
+# browser RE-FLOWS that HTML in whatever font the stack resolves to for them. A generic
+# keyword resolves to a different physical font on every operating system, which makes the
+# mismatch guaranteed rather than unlucky: a label measured at seven lines wraps to eight on
+# a machine with slightly wider glyphs, and foreignObject clips the overflow away silently.
+# Naming real families keeps measurement and display on the same metrics almost everywhere.
+_DIAG_FONT = '"Segoe UI", Roboto, "Helvetica Neue", Helvetica, Arial, sans-serif'
 _DIAG_KEYWORDS = (r'(?:flowchart|graph|sequenceDiagram|stateDiagram(?:-v2)?|erDiagram|classDiagram|'
                   r'gantt|pie|journey|gitGraph|mindmap|timeline)')
 _DIAG_STYLE_MARKER = "/* embed-svg: theme-toggled inline diagrams */"
 _DIAG_STYLE = """
     /* embed-svg: theme-toggled inline diagrams */
+    /* A foreignObject clips its overflow by default, which is how a node label loses its
+       last line with no warning: mmdc measured the text on the embedding machine and wrote a
+       fixed height, and any font difference on the reader's machine pushes one line past it.
+       `overflow: visible` turns a silent truncation into a visible overhang, which is the
+       failure a reader can actually see and the author can fix. Pinning _DIAG_FONT to real
+       families keeps the overhang rare; this keeps it non-destructive when it happens. */
+    .diagram-light foreignObject, .diagram-dark foreignObject { overflow: visible; }
     .diagram-dark { display: none; }
     :root[data-theme="dark"] .diagram-light { display: none; }
     :root[data-theme="dark"] .diagram-dark { display: block; }

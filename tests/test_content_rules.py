@@ -30,7 +30,7 @@ _spec.loader.exec_module(hha)
 
 # Read maps must be depth-based ("Quick read" / "Full read"), never labelled by job
 # title. This lives in the test rather than the validator on purpose: the decision was
-# to fix the examples, not to add a 16th rule. It guards the shipped examples from
+# to fix the examples, not to add another rule. It guards the shipped examples from
 # drifting back without putting another string heuristic into the contract.
 _ROLE_READMAP_RE = re.compile(
     r"read-map.{0,800}?<strong>\s*(?:Exec|PM|Product|Engineer|Manager|Dev)\b",
@@ -263,6 +263,98 @@ class DynamicModeTest(unittest.TestCase):
             any("summary-first" in e for e in errors),
             'pre-rename data-audience="pm" must still count: ' + str(errors),
         )
+
+
+class ClaimOwnerTest(unittest.TestCase):
+    """A section that commits somebody has to name who.
+
+    The windowing is the part worth testing. An owner is normally declared on the
+    section's own opening tag, which sits BEFORE the heading, so the search window
+    cannot start where `comparison-visual`'s does. It also cannot run back
+    unbounded, or a neighbouring section's owner would satisfy an unowned one.
+    """
+
+    def _warn_rules(self, body: str, *, mode: str = "", kind: str = "decision") -> list[str]:
+        warnings = hha.content_shape_violations(
+            Path("a.html"), _artifact(body, mode=mode, kind=kind), "2026-07-26", REPO, kind
+        )[1]
+        return [w for w in warnings if "[rule=claim-owner]" in w]
+
+    def test_fires_on_unowned_judgment_heading(self):
+        for heading in ("Decision", "Verdict", "Recommendation", "Corrective actions", "Next steps"):
+            with self.subTest(heading=heading):
+                warns = self._warn_rules(f'<section id="j"><h2>{heading}</h2><p>x</p></section>')
+                self.assertEqual(len(warns), 1, f"{heading} should warn: {warns}")
+
+    def test_silent_when_owner_on_the_section_opening_tag(self):
+        # The tag precedes the heading, which is exactly why the window is widened.
+        body = '<section id="j" data-owner="Ana Silva"><h2>Decision</h2><p>x</p></section>'
+        self.assertEqual(self._warn_rules(body), [])
+
+    def test_silent_when_owner_appears_inside_the_section_body(self):
+        body = '<section id="j"><h2>Decision</h2><p data-owner="Ana Silva">x</p></section>'
+        self.assertEqual(self._warn_rules(body), [])
+
+    def test_neighbouring_owner_does_not_satisfy_an_unowned_section(self):
+        body = (
+            '<section id="a" data-owner="Ana Silva"><h2>Context</h2><p>x</p></section>'
+            '<section id="b"><h2>Decision</h2><p>x</p></section>'
+        )
+        self.assertEqual(len(self._warn_rules(body)), 1)
+
+    def test_empty_owner_does_not_count(self):
+        body = '<section id="j" data-owner=""><h2>Decision</h2><p>x</p></section>'
+        self.assertEqual(len(self._warn_rules(body)), 1)
+
+    def test_non_judgment_headings_never_fire(self):
+        for heading in ("Context", "Findings", "Where we are", "Next", "Open questions"):
+            with self.subTest(heading=heading):
+                body = f'<section id="j"><h2>{heading}</h2><p>x</p></section>'
+                self.assertEqual(self._warn_rules(body, kind="research"), [])
+
+    def test_in_force_in_dynamic_mode(self):
+        """Who holds a call does not depend on which sections exist, so this is not
+        one of the three shape rules that stand down."""
+        body = '<section id="j"><h2>Recommendation</h2><p>x</p></section>'
+        self.assertEqual(len(self._warn_rules(body, mode="dynamic")), 1)
+
+
+class LayoutRegressionTest(unittest.TestCase):
+    """Two layout bugs found in real artifacts, guarded so they cannot quietly return.
+
+    Neither is reachable from a unit test in the usual sense, because both are CSS and
+    only a browser can prove them. What a test CAN do is hold the fix in place, which is
+    the actual risk: both rules look like tidy-up and would be easy to delete.
+    """
+
+    def test_keycard_does_not_depend_on_child_count(self):
+        """A third child used to wrap into column 1, whose `auto` width then grew to fit a
+        paragraph and starved the 1fr column to a one-word-per-line ribbon."""
+        css = hha._SCAFFOLD_STYLE + hha._EXTRA_SCAFFOLD_STYLE
+        self.assertIn(".keycard > * { grid-column:2;", css)
+        self.assertRegex(css, r"\.keycard > :first-child:is\([^)]*\.big[^)]*\)")
+        # the mobile single-column override must release the placement, or it conjures
+        # an implicit second column and puts the hero back beside the text
+        self.assertRegex(css, r"\.keycard > \*,[^\n]*grid-column:1; grid-row:auto")
+
+    def test_embedded_diagram_font_is_not_a_generic_keyword(self):
+        """`embed-svg` measures labels once and writes a fixed foreignObject height. A
+        generic keyword resolves to a different physical font per OS, so the reader's
+        re-flow overflows the baked box and the last line is clipped away."""
+        for generic in ("system-ui", "ui-sans-serif", "ui-rounded", "-apple-system"):
+            self.assertNotIn(generic, hha._DIAG_FONT)
+        self.assertIn("Arial", hha._DIAG_FONT)
+
+    def test_embedded_diagram_labels_overflow_rather_than_clip(self):
+        """The base scaffold carried this for live `.mermaid` blocks from the start;
+        `embed-svg` rewrites the wrapper and the rule did not follow it across."""
+        self.assertIn("foreignObject", hha._DIAG_STYLE)
+        self.assertIn("overflow: visible", hha._DIAG_STYLE)
+        for wrapper in (".diagram-light", ".diagram-dark"):
+            self.assertRegex(
+                hha._DIAG_STYLE,
+                rf"{re.escape(wrapper)} foreignObject[^}}]*\{{[^}}]*overflow: visible",
+            )
 
 
 class NoAudienceSegmentationTest(unittest.TestCase):

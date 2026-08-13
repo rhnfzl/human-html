@@ -320,6 +320,7 @@
         <li><strong>What this does for the user:</strong> If a user retries a chat action (network glitch, double-click), the system no longer creates duplicate records.</li>
         <li><strong>Why it matters:</strong> Three production incidents in May involved duplicate records from network retries. This PR addresses the root cause and unblocks the mobile rollout.</li>
         <li><strong>What's being asked:</strong> Approve with required changes (cache TTL hardcoded to 5 minutes - needs config); optional improvements can land later.</li>
+              <li><strong>What would change this:</strong> the approval is conditional on the one required change. If the hardcoded TTL turns out to be load-bearing elsewhere, the verdict drops to request-changes. <a href="#required">Required changes</a> is the only section that can move it.</li>
       </ul>
     </section>
 
@@ -340,12 +341,14 @@
       </ol>
     </nav>
 
-    <section id="verdict" class="section">
+    <section id="verdict" class="section" data-owner="Jordan Ellis">
       <h2>Verdict</h2>
       <div class="keycard good">
         <div class="big">Approve<small>with required changes</small></div>
         <p>The core design is right; one config-shape change must land before merge.</p>
       </div>
+      <p>Jordan Ellis holds this verdict, and is least sure that the 5-minute TTL is safe for
+      the mobile client, which retries on a longer cycle than the web one.</p>
     </section>
 
     <section id="strengths" class="section">

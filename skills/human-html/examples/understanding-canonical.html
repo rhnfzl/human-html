@@ -320,6 +320,7 @@
         <li><strong>What this does for the user:</strong> When a user types a question in the AI chat, four backend services hand the request to each other before the answer comes back. This doc shows that path so PMs and new hires can understand why some failures live in one layer and not another.</li>
         <li><strong>Why it matters:</strong> Bug reports like "chat is slow" or "approval didn't trigger" almost always originate in one specific layer. Knowing which layer owns what cuts triage time in half.</li>
         <li><strong>What's being asked:</strong> Read this once. Use the layer map next time a user chat issue lands in your queue.</li>
+              <li><strong>What would change this:</strong> the layer map is accurate as of this artifact's date. The handoff between the last two services is the part most likely to move, so check it there before leaning on the map for triage. <a href="#gotchas">Gotchas</a>.</li>
       </ul>
     </section>
 

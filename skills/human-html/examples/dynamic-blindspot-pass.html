@@ -342,6 +342,7 @@
         <li><strong>What this is:</strong> a blindspot pass over RFC 214 before anyone starts building it. A blindspot pass looks only for what the plan did not account for; it does not argue about whether the plan is a good idea.</li>
         <li><strong>What it found:</strong> seven gaps. Two of them make the search index wrong on the first day of incremental writes, and one of those two returns restricted documents to every search.</li>
         <li><strong>What is being asked:</strong> hold RFC 214 until findings one and two have an answer written into the document. The other five are build-order and alerting work, and they can be scheduled rather than argued about.</li>
+              <li><strong>What would change this:</strong> findings one and two rest on the ACL filter and the delete path being read correctly from RFC 214 rather than from the running system. If the RFC is out of date on either, those two drop a band. <a href="#limits">What this pass did not cover</a> lists what was not read.</li>
       </ul>
       <p>Nothing below argues against incremental indexing. The findings are all about the same thing: the nightly rebuild was quietly doing four jobs, and RFC 214 only replaces one of them.</p>
     </section>

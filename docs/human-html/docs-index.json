@@ -1,0 +1,23 @@
+{
+  "count": 1,
+  "artifacts": [
+    {
+      "date": "2026-08-12",
+      "kind": "decision",
+      "slug": "ownership-per-claim-and-permission-to-stop-reading",
+      "title": "Ownership per claim, and permission to stop reading",
+      "summary": "Decision",
+      "keywords": [
+        "decision",
+        "ownership",
+        "per",
+        "claim",
+        "permission",
+        "stop",
+        "reading"
+      ],
+      "source": "local",
+      "href": "2026-08-12-decision-ownership-per-claim-and-permission-to-stop-reading.html"
+    }
+  ]
+}

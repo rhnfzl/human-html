@@ -51,7 +51,7 @@ Every artifact whose `artifact-created` is on or after `2026-05-25` (the `RULES_
 
 ### Rule 1 - Answer-first summary block (BLOCKS)
 
-Every artifact opens with a top-level `<section data-summary="true">` containing a three-bullet plain-language block (product context before technical detail):
+Every artifact opens with a top-level `<section data-summary="true">` containing a four-bullet plain-language block (product context before technical detail):
 
 ```html
 <section id="lead-summary" data-summary="true" class="lead-summary">
@@ -60,11 +60,18 @@ Every artifact opens with a top-level `<section data-summary="true">` containing
     <li><strong>What this does for the user:</strong> One sentence that lands without engineering context.</li>
     <li><strong>Why it matters:</strong> One sentence on the constraint, deadline, or stakeholder ask driving this.</li>
     <li><strong>What's being asked:</strong> The decision, approval, or review action you want the reader to take.</li>
+    <li><strong>What would change this:</strong> The one thing that would overturn the conclusion, where it is examined, and that nothing else below changes it.</li>
   </ul>
 </section>
 ```
 
 The `data-summary="true"` attribute is what the validator checks. Class names and bullet wording can vary; only the attribute is load-bearing.
+
+**The fourth bullet is the stopping rule, and it is the one that lets a reader put the artifact down.** The first three orient; none of them concludes. Without a fourth, a reader who cannot tell whether the top is complete has one safe move, which is to audit to the bottom, and every navigation aid in this skill fails to prevent that because a table of contents says where things are and never says what may be skipped. Naming the load-bearing assumption does four jobs at once: it asserts closure, locates the one place a surprise could live, ranks the rest of the document as support, and grants permission to stop.
+
+The mechanic is the one the same-data control block already uses in `references/patterns.md` ("every number below comes from this file"), applied to the summary instead of to a comparison's inputs.
+
+**Deliberately not validated.** A rule here would be satisfied by "nothing below changes this", written to clear the check and testing nothing, which is worse than an absent bullet because it claims a closure nobody looked for. Write it when the conclusion genuinely rests on something, and delete it when it does not. This lives in the ship checklist, not in `check`.
 
 Three bullets is the default, not the only compliant form. For a reader on a 30-second budget (an incident emailed to a director, a yes/no decision) the **BLUF** opener is an equally compliant alternative: the same `data-summary="true"` marker holding one sentence that states the decision or the ask, then one sentence of rationale. See "BLUF compact opener mode" in `references/patterns.md`. Both satisfy the contract in full; pick the one that fits the reader's time budget.
 
@@ -80,6 +87,7 @@ When an `<h2>` or `<h3>` heading contains an explicit comparison pair, the secti
 - A comparison `<table>`
 - An `<img>` (for custom-drawn diagrams)
 - A `<pre class="diagram">` (ASCII / CSS-box sketch, e.g. a C4-L1 diagram), or any element carrying `data-visual="true"` (an explicit escape hatch for a custom visual the above miss)
+- A `<pre class="diagram">` holding a **unified diff**, when the two states share most of their shape and only the delta is the point. Narrow trigger: side-by-side panels would render the unchanged nine tenths twice and leave the reader diffing two columns by eye. Works over a call tree, a component tree, a file layout, or pseudocode control flow, not only over source. This is not a general alternative to `grid-cols-2`, and a pasted `git diff` does not discharge the rule - see "When to use a diff block" in `references/diagram-types.md`.
 
 Prose alone is not enough. Which visual to pick depends on what the comparison shows - see `references/diagram-types.md` for the decision tree.
 
@@ -189,6 +197,39 @@ Plain-first `[plain] (<dfn>term</dfn>)` when readers likely don't know it; term-
 
 **The judgment lane (NOT mechanized - a script would false-positive):** whether a word *is* jargon for this audience, whether a gloss is actually *clear*, whether a section lead reads plainly, and readability scores. These live in the ship checklist below, not the validator. A necessary domain term is not jargon to be scrubbed - the rule flags a *missing gloss*, never the term's right to exist.
 
+### Rule 11 - Ownership on judgment sections (WARNS)
+
+The failure this rule targets: an artifact recommends, decides, or issues a verdict, and no human is attached to it. A recommendation nobody holds is a suggestion the document is making on its own behalf, and there is nothing for a reader to push back against.
+
+**Ownership attaches to the claim, not to the artifact.** That is not a stylistic preference, it is forced by the two kinds that carry both description and judgment. An `architecture` artifact reports Context and Before/After, then *recommends*; a `review` reports Strengths and Concerns, then issues a *Verdict*. Both split down the middle, and the seam is the same each time: the descriptive parts are reports, the judgment parts are held to. Attaching ownership below the level where they split dissolves the problem instead of assigning it by fiat.
+
+Mark the section, and name the holder in prose beside one sentence of their own doubt:
+
+```html
+<section id="recommendation" data-owner="Priya Nandakumar">
+  <h2>Recommendation</h2>
+  <p>Split the ingest path before the schema change, not after. Priya holds this call and
+  is least sure about the replay window: if the backfill runs past one night, the order flips.</p>
+</section>
+```
+
+A name on its own is bureaucracy. A name attached to a stated doubt tells a reviewer where to spend attention, which is the whole point.
+
+**No kind list.** The validator finds the judgment section by heading (`recommendation`, `verdict`, `decision`, `corrective actions`, `next steps`), exactly as `comparison-visual` finds a comparison. Kind sensitivity emerges rather than being declared: `research` and `understanding` carry no such heading and never trip it, `decision` always does, and the two straddling kinds fire on precisely the half that straddles. Dynamic mode inherits it, because who holds a call does not depend on which sections exist.
+
+`status` is the deliberate gap. Its headings name no judgment, and its accountability is artifact-wide, which the metadata ribbon's `Owner` already carries.
+
+**Four places a name can appear, and they mean different things.** Leaving this undefined is why the field gets filled with whatever is plausible:
+
+| Where | What it asserts |
+|---|---|
+| Ribbon `Owner` | Accountable for this artifact as a whole |
+| Provenance `reviewer` | A human read it before it was forwarded |
+| `data-owner` on a section | Holds this specific call, when that is not the artifact owner |
+| Owner column in an actions or open-questions table | Holds that one row |
+
+Like every rule in the mechanical floor, this is a marker check. It proves a name was written. It cannot prove the named person agreed, and it never will.
+
 ### Suppressing a rule on a single artifact
 
 Add an HTML comment naming the rule(s) to suppress anywhere in the artifact body:
@@ -206,6 +247,7 @@ Each violation prints its `[rule=<id>]` suffix; use that ID. The literal `all` s
 | `comparison-visual` | BLOCK | Comparison heading without a visual |
 | `nav-anchors` | BLOCK (WARN in dynamic mode) | More than 3 `<h2>` sections without valid `<nav>` anchors |
 | `required-section` | BLOCK/WARN (off in dynamic mode) | Kind-specific section missing |
+| `claim-owner` | WARN | A judgment heading (recommendation / verdict / decision / corrective actions / next steps) whose section carries no `data-owner` |
 | `glossary-link` | WARN | Glossary term unwrapped |
 | `read-map` | WARN (off in dynamic mode) | One of those kinds, 4+ `<h2>` sections, no reading guide |
 | `qa-overlay` | WARN | `data-meeting-qa="true"` with malformed JSON-LD |
@@ -428,6 +470,8 @@ Fast self-checks before declaring an artifact done:
 - **Both-themes / mobile** - check light (and dark if used) and a phone width; the runtime layout-audit banner flags horizontal overflow at the reader's actual width.
 - **Jargon test** (the judgment lane the validator can't do) - read each heading and opening sentence as a PM. For every coined term: (1) *Can it be deleted or renamed to a recognized word?* - deletion beats definition; (2) would an outsider to this project get it on first read?; (3) swap the gloss in for the term in a sentence - does it still parse with no new mystery words? (bad: "customer churn is when customers churn"); (4) how many novel terms is the reader asked to hold at once? Above ~5, cut or rename rather than define more. A *necessary* domain term is not jargon - keep the right technical noun, just gloss it on first use.
 - **Plain-prose test** (understandable, not just skimmable) - read your longest paragraph aloud. Does its first sentence carry the point? Any sentence you run out of breath on gets split. Any *utilize / in order to / it should be noted / basically* gets cut. Any "the X is done by Y" gets flipped to "Y does X". Could a PM restate the section in their own words after one read? If not, it isn't done - this is the lever the glossary can't pull.
+- **Stopping test** (the one the validator deliberately can't do) - read only the summary block, then ask what you would still have to check. If the honest answer is "all of it", the fourth bullet is missing or hollow. A real one names something falsifiable and points at where it is examined; "nothing below changes this", written to fill the slot, fails the test and should be deleted rather than kept.
+- **Ownership test** - for every recommendation, verdict, decision, and action list: whose call is it, and would that person recognise the sentence as theirs? `claim-owner` only checks that a name was written. If nothing on the page could have come only from the person named on it, the page has no author.
 - **Completeness** - no TODOs, ellipses, or "repeat for the rest"; no invented data unless labelled `sample`; mark uncertain claims with <span class="needs-verification">needs verification</span>.
 
 ## Further references

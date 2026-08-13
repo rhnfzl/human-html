@@ -311,6 +311,16 @@ Every artifact is AI-generated to some degree. A provenance footer captures the 
 
 Required fields per the AI-BOM / model-card synthesis: `@id` or `id`, `creator` (model + version), `promptHash` or `prompt`, `dateCreated`, `reviewer`. Prompts containing PII should be hashed and archived externally rather than embedded.
 
+### The reviewer field starts empty, and says so
+
+**A scaffold ships `reviewer: "pending"` and renders "not yet reviewed by a human".** That is the honest default, and the reason it is the default is that the field is otherwise the easiest one in the artifact to fill with something plausible. Measured on a live lane of 197 artifacts: 65 carried a human name, 29 carried an *agent* name, 10 shipped the unfilled placeholder, and 12 carried some spelling of "pending" across four different spellings, which is an author hand-rolling a state the schema never offered.
+
+Two things follow. First, replace it when a human has actually read the artifact, not when one is nominated: the field asserts that somebody read this before it was forwarded, and nothing else. Second, an agent name in this field is honest reporting rather than a mistake. A model did review it, and the schema has no word for that yet.
+
+The examples under `examples/` carry real reviewer names on purpose. They show the end state of the lifecycle; the scaffold shows the start. An artifact that never gets the field replaced is telling the truth about itself.
+
+`reviewer` is artifact-wide. Ownership of a specific recommendation, verdict, or decision is `data-owner` on that section (Rule 11), which is a different claim and usually a different person.
+
 ### House rule: the prompt lives here, never in a card at the top
 
 **Do not open an artifact with a visible "the prompt that made this" block.** The pattern shows up in the wild as a bordered card above the content holding the verbatim prompt with a copy button, and it is tempting because it looks like transparency. It is not the house style here, for one reason: `promptHash` in the footer already makes the artifact auditable, so a card spends the most valuable space on the page on something the reader did not come for. A reader opens a plan to find out whether the plan is sound. The prompt is provenance, and provenance belongs in the footer with the rest of it.

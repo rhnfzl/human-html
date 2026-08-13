@@ -3,22 +3,22 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="artifact-kind" content="incident">
+  <meta name="artifact-kind" content="decision">
   <meta name="artifact-audience" content="human">
-  <meta name="artifact-created" content="2026-05-25">
-  <meta name="artifact-source" content="canonical-example">
+  <meta name="artifact-created" content="2026-08-12">
+  <meta name="artifact-source" content="brainstorm on an external AI writing policy">
   <meta name="artifact-read-time" content="6 min">
   <!-- Gallery card text. Leave empty to auto-derive from the summary block; fill for a sharper one-liner. -->
-  <meta name="artifact-summary" content="">
-  <meta name="artifact-keywords" content="">
-  <title>Postmortem - User chat SSE silent-hang (SEV-2)</title>
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ctext y='13' font-size='13'%3E🚨%3C/text%3E%3C/svg%3E">
-    <script>
+  <meta name="artifact-summary" content="Ownership attaches to individual claims rather than to whole artifacts, and every summary states what would change its own conclusion.">
+  <meta name="artifact-keywords" content="ownership, provenance, reviewer, closure, stopping rule, ai writing policy, content contract">
+  <title>Ownership per claim, and permission to stop reading</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ctext y='13' font-size='13'%3E⚖️%3C/text%3E%3C/svg%3E">
+  <script>
     (function(){try{var r=document.documentElement;r.classList.add('theme-js');var t=localStorage.getItem('hh-theme');if(t==='dark'||t==='light')r.dataset.theme=t;}catch(e){}})();
   </script>
   <style>
 :root {
-      color-scheme: light;                     /* light-only scaffold; NO dark media query anywhere */
+      color-scheme: light;                     /* base = light, renders on any engine; dark tokens live in the @media screen blocks appended after this constant */
       /* surfaces: cool off-white, slight blue-grey hue bias (never pure grey/white) */
       --bg: #f6f8fb; --surface: #ffffff; --surface-2: #f2f5f9; --surface-3: #e9eef4;
       /* ink: navy-biased grey ramp (never pure black) */
@@ -86,6 +86,9 @@
     section:target > h2 { color: var(--accent-2); }
     .grid-cols-2, .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s-6); }
     .grid-3 { display: grid; grid-template-columns: repeat(3,1fr); gap: var(--s-6); }
+    /* grid items default to min-width:auto and will not shrink below a wide child (a long <pre> or code
+       line), pushing the page past a phone viewport. min-width:0 lets the child's overflow-x:auto scroll. */
+    .grid-cols-2 > *, .grid-2 > *, .grid-3 > *, .compare-before, .compare-after { min-width: 0; }
     .compare-before { background: var(--high-bg); border-left: 4px solid var(--high); border-radius: var(--radius); padding: 16px; }
     .compare-after { background: var(--good-bg); border-left: 4px solid var(--good); border-radius: var(--radius); padding: 16px; }
     .compare-before > strong:first-child, .compare-after > strong:first-child { display: block; margin-bottom: 8px; font-family: var(--mono); font-size: var(--fs-cap); letter-spacing: .08em; text-transform: uppercase; }
@@ -97,8 +100,8 @@
     tr:last-child td { border-bottom: 0; }
     .table-scroll { overflow-x: auto; border-radius: var(--radius); }
     .table-scroll table { display: table; }
-    code { background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 2px 5px; font-family: var(--mono); font-size: .88em; }
-    pre { background: #0f172a; color: #e2e8f0; border-radius: var(--radius); padding: 14px; overflow: auto; }
+    code { background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 2px 5px; font-family: var(--mono); font-size: .88em; overflow-wrap: anywhere; }
+    pre { background: #0f172a; color: #e2e8f0; border-radius: var(--radius); padding: 14px; overflow: auto; border: 1px solid var(--line); }
     pre code { background: transparent; border: 0; color: inherit; }
     .mermaid svg { max-width: 100%; height: auto; }
     /* Mermaid node labels clip on the right when the page's kerning / ligatures / letter-spacing widen the
@@ -110,6 +113,14 @@
     }
     .mermaid foreignObject { overflow: visible; }
     .mermaid:not([data-processed]) { font-family: var(--mono); font-size: var(--fs-sm); white-space: pre; overflow-x: auto; background: var(--surface-2); border: 1px dashed var(--line-strong); border-radius: var(--radius); padding: var(--s-6); color: var(--muted); }
+    /* shipped diagram: inline SVG in a scroll wrapper, mermaid/source kept in an adjacent <details>.
+       The wrapper's overflow-x contains a too-wide diagram to its own scrollbar instead of the page. */
+    figure.diagram { margin: var(--s-7) 0; }
+    .diagram-scroll { overflow-x: auto; }
+    .diagram-scroll svg { max-width: 100%; height: auto; display: block; margin: 0 auto; }
+    .diagram-src { margin-top: var(--s-4); }
+    .diagram-src summary { cursor: pointer; color: var(--muted); font-size: var(--fs-sm); }
+    .diagram-src pre { white-space: pre; overflow-x: auto; }
     .needs-verification { display: inline-block; font-family: var(--mono); padding: 2px 8px; border-radius: var(--radius-sm); font-size: var(--fs-cap); font-weight: 700; background: var(--warn-bg); color: var(--warn); border: 1px solid var(--warn-line); }
     /* responsive overrides for components live next to the component (in _EXTRA_SCAFFOLD_STYLE) */
     @media (max-width: 820px) {
@@ -117,8 +128,50 @@
       nav.toc ol { columns: 1; }
       table { display: block; overflow-x: auto; }
     }
+    .theme-toggle { display:none; }
+    .theme-js .theme-toggle { position:fixed; top:16px; right:16px; z-index:100; width:40px; height:40px; padding:0; display:inline-flex; align-items:center; justify-content:center; font:inherit; font-size:18px; line-height:1; cursor:pointer; background:var(--surface-2, var(--soft)); color:var(--muted); border:1px solid var(--line); border-radius:999px; }
+    .theme-js .theme-toggle:hover { color:var(--ink); border-color:var(--line-strong, var(--line)); }
+    .theme-js .theme-toggle:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+    .theme-toggle::before { content:"\263E"; }
+    :root[data-theme="dark"] .theme-toggle::before { content:"\2600"; }
+    @media (prefers-color-scheme:dark){ :root:not([data-theme]) .theme-toggle::before{ content:"\2600"; } }
+    @media print { .theme-toggle { display:none; } }
+    @media screen {
+      :root[data-theme="dark"] {
+        color-scheme: dark;
+        --bg:#0f1522; --surface:#161e2e; --surface-2:#1c2536; --surface-3:#232e42;
+        --ink:#e8edf5; --ink-2:#c3ccdb; --muted:#96a2b5; --faint:#8593a8;
+        --line:#253145; --line-strong:#33415a;
+        --accent:#6aa8dd; --accent-2:#85bce6; --accent-bg:#152740; --accent-line:#2c4a6b;
+        --crit:#f19488; --crit-bg:#351d22; --crit-line:#6b3936;
+        --high:#eda06b; --high-bg:#33251a; --high-line:#6b4a30;
+        --warn:#d8b45c; --warn-bg:#312a16; --warn-line:#665626;
+        --good:#74c99b; --good-bg:#16301f; --good-line:#2e5c42;
+        --info:#6aa8dd; --info-bg:#152740; --info-line:#2c4a6b;
+        --neutral:#9aa6ba; --neutral-bg:#232c3c; --neutral-line:#3a465a;
+        --shadow-sm:0 1px 2px rgba(0,0,0,.35);
+        --shadow:0 4px 14px rgba(0,0,0,.45), 0 1px 3px rgba(0,0,0,.3);
+      }
+    }
+    @media screen and (prefers-color-scheme: dark) {
+      :root:not([data-theme]) {
+        color-scheme: dark;
+        --bg:#0f1522; --surface:#161e2e; --surface-2:#1c2536; --surface-3:#232e42;
+        --ink:#e8edf5; --ink-2:#c3ccdb; --muted:#96a2b5; --faint:#8593a8;
+        --line:#253145; --line-strong:#33415a;
+        --accent:#6aa8dd; --accent-2:#85bce6; --accent-bg:#152740; --accent-line:#2c4a6b;
+        --crit:#f19488; --crit-bg:#351d22; --crit-line:#6b3936;
+        --high:#eda06b; --high-bg:#33251a; --high-line:#6b4a30;
+        --warn:#d8b45c; --warn-bg:#312a16; --warn-line:#665626;
+        --good:#74c99b; --good-bg:#16301f; --good-line:#2e5c42;
+        --info:#6aa8dd; --info-bg:#152740; --info-line:#2c4a6b;
+        --neutral:#9aa6ba; --neutral-bg:#232c3c; --neutral-line:#3a465a;
+        --shadow-sm:0 1px 2px rgba(0,0,0,.35);
+        --shadow:0 4px 14px rgba(0,0,0,.45), 0 1px 3px rgba(0,0,0,.3);
+      }
+    }
 .meta-ribbon { display:flex; flex-wrap:wrap; gap:var(--s-4) var(--s-9); padding:var(--s-5) var(--s-7); margin:0 0 var(--s-9); background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); box-shadow:var(--shadow-sm); font-size:var(--fs-sm); color:var(--muted); }
-    .meta-ribbon span { white-space:nowrap; }
+    .meta-ribbon span { white-space:normal; overflow-wrap:anywhere; }
     .meta-ribbon strong { color:var(--faint); font-family:var(--mono); font-size:var(--fs-cap); letter-spacing:.1em; text-transform:uppercase; font-weight:600; margin-right:var(--s-2); }
     .read-map { background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:var(--s-5) var(--s-7); margin:0 0 var(--s-9); font-size:var(--fs-sm); color:var(--ink); box-shadow:var(--shadow-sm); }
     .read-map div { margin:var(--s-1) 0; }
@@ -189,7 +242,7 @@
     /* ---- cross-links / chain caption / inline mono ---- */
     .chain { font-family:var(--mono); font-size:.8rem; color:var(--accent); font-weight:600; margin-top:var(--s-4); }
     .crosslink { font-weight:600; }
-    .crosslink::before { content:"→ "; color:var(--accent); }
+    .crosslink::before { content:"→ "; color:var(--accent); }
     code.m { font-family:var(--mono); color:var(--muted); background:var(--surface-2); padding:1px 6px; border-radius:var(--radius-sm); }
     /* ---- opt-in sticky nav rail: author wraps {nav}{body} in <div class="railed"> ---- */
     .railed { display:grid; grid-template-columns:220px minmax(0,1fr); gap:clamp(24px,4vw,48px); align-items:start; }
@@ -212,11 +265,22 @@
     /* ---- bar rows / progress meter ---- */
     .bars { display:grid; grid-template-columns:max-content 1fr max-content; gap:var(--s-2) var(--s-4); align-items:center; margin:var(--s-6) 0; }
     .bars dt { font-family:var(--mono); font-size:var(--fs-sm); color:var(--muted); margin:0; }
-    .bars dd { margin:0; }
+    /* min-width:0 + wrap: if a plain <dd> paragraph is fed to this progress grid by mistake,
+       it wraps and degrades instead of forcing a max-content column and blowing out the page
+       (a chip + description definition list belongs in .deflist, not .bars). */
+    .bars dd { margin:0; min-width:0; overflow-wrap:anywhere; }
     .bars .val { font-variant-numeric:tabular-nums; font-size:var(--fs-sm); }
     .bars .track, .progress { background:var(--surface-2); border-radius:999px; overflow:hidden; min-width:60px; margin:0; }
     .bars .fill, .progress .fill { display:block; height:12px; border-radius:inherit; background:var(--sv,var(--accent)); width:var(--w,50%); }
     .fill.crit { --sv:var(--crit); } .fill.high { --sv:var(--high); } .fill.warn { --sv:var(--warn); } .fill.good { --sv:var(--good); }
+    /* ---- definition list: chip/label + wrapping description (risks, key terms, glossary rows) ----
+       Use this, NOT .bars, for a <dl> of label + prose. .bars is a 3-col progress grid whose
+       max-content columns never wrap a long <dd>; .deflist is a 2-col grid whose 1fr description
+       column wraps and caps at a readable measure. Collapses to one column on narrow screens. */
+    .deflist { display:grid; grid-template-columns:max-content 1fr; gap:var(--s-4) var(--s-6); align-items:baseline; margin:var(--s-6) 0; }
+    .deflist dt { margin:0; }
+    .deflist dd { margin:0; color:var(--ink-2); max-width:72ch; min-width:0; overflow-wrap:anywhere; }
+    @media (max-width:560px){ .deflist{ grid-template-columns:1fr; gap:var(--s-2); } .deflist dd{ margin:0 0 var(--s-5); } }
     /* ---- delta: direction glyph is AT-hidden; carry direction in the text (signed value) ---- */
     .delta { font-family:var(--mono); font-size:var(--fs-sm); font-weight:700; font-variant-numeric:tabular-nums; }
     .delta.good { color:var(--good); } .delta.bad { color:var(--crit); } .delta.flat { color:var(--muted); }
@@ -236,63 +300,6 @@
       .kind, .sev, .callout, .compare-before, .compare-after, .meta-ribbon, .needs-verification, .chip, .tile, .card, .keycard, .stripe, .confidence, .timeline .actor, .lead-summary, .spark, .bars, .progress, .delta { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
       details:not([open])::details-content { content-visibility: visible; display: block; }
     }
-.sev { display:inline-block; font-family:var(--mono); padding:3px 10px; border-radius:999px; font-size:var(--fs-cap); font-weight:700; letter-spacing:.04em; font-variant-numeric:tabular-nums; border:1px solid transparent; }
-    .sev-1 { background:var(--crit-bg); color:var(--crit); border-color:var(--crit-line); }
-    .sev-2 { background:var(--warn-bg); color:var(--warn); border-color:var(--warn-line); }
-    .sev-3 { background:var(--accent-bg); color:var(--accent); border-color:var(--accent-line); }
-    .sev-4 { background:var(--neutral-bg); color:var(--neutral); border-color:var(--neutral-line); }
-    /* .metrics/.metric now inherited from the shared .tiles/.tile in _EXTRA_SCAFFOLD_STYLE */
-    .timeline { border-left:3px solid var(--line); padding-left:var(--s-7); margin:var(--s-8) 0; }
-    .timeline .event { position:relative; margin-bottom:var(--s-5); }
-    .timeline .event::before { content:""; position:absolute; left:calc(-1 * var(--s-7) - 7.5px); top:.4em; width:9px; height:9px; border-radius:50%; background:var(--surface); border:2px solid var(--accent); }
-    .timeline .event.crit::before { border-color:var(--crit); } .timeline .event.warn::before { border-color:var(--warn); } .timeline .event.good::before { border-color:var(--good); }
-    .timeline .gap { margin:var(--s-6) 0; padding:var(--s-1) 0; color:var(--faint); font-family:var(--mono); font-size:var(--fs-cap); border-top:1px dashed var(--line); }
-    .timeline .ts { font-family:var(--mono); color:var(--muted); font-size:var(--fs-sm); }
-    .timeline .elapsed { display:inline-block; min-width:42px; color:var(--accent); font-weight:600; font-variant-numeric:tabular-nums; }
-    .timeline .actor { display:inline-block; font-family:var(--mono); padding:1px 8px; background:var(--surface-2); border-radius:var(--radius-sm); font-size:var(--fs-cap); color:var(--muted); margin-right:var(--s-2); }
-    .timeline .estimated { color:var(--warn); font-size:var(--fs-cap); font-style:italic; }
-      .theme-toggle { display:none; }
-    .theme-js .theme-toggle { position:fixed; top:16px; right:16px; z-index:100; width:40px; height:40px; padding:0; display:inline-flex; align-items:center; justify-content:center; font:inherit; font-size:18px; line-height:1; cursor:pointer; background:var(--surface-2, var(--soft)); color:var(--muted); border:1px solid var(--line); border-radius:999px; }
-    .theme-js .theme-toggle:hover { color:var(--ink); border-color:var(--line-strong, var(--line)); }
-    .theme-js .theme-toggle:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
-    .theme-toggle::before { content:"\263E"; }
-    :root[data-theme="dark"] .theme-toggle::before { content:"\2600"; }
-    @media (prefers-color-scheme:dark){ :root:not([data-theme]) .theme-toggle::before{ content:"\2600"; } }
-    @media print { .theme-toggle { display:none; } }
-    @media screen {
-      :root[data-theme="dark"] {
-        color-scheme: dark;
-        --bg:#0f1522; --surface:#161e2e; --surface-2:#1c2536; --surface-3:#232e42;
-        --ink:#e8edf5; --ink-2:#c3ccdb; --muted:#96a2b5; --faint:#8593a8;
-        --line:#253145; --line-strong:#33415a;
-        --accent:#6aa8dd; --accent-2:#85bce6; --accent-bg:#152740; --accent-line:#2c4a6b;
-        --crit:#f19488; --crit-bg:#351d22; --crit-line:#6b3936;
-        --high:#eda06b; --high-bg:#33251a; --high-line:#6b4a30;
-        --warn:#d8b45c; --warn-bg:#312a16; --warn-line:#665626;
-        --good:#74c99b; --good-bg:#16301f; --good-line:#2e5c42;
-        --info:#6aa8dd; --info-bg:#152740; --info-line:#2c4a6b;
-        --neutral:#9aa6ba; --neutral-bg:#232c3c; --neutral-line:#3a465a;
-        --shadow-sm:0 1px 2px rgba(0,0,0,.35);
-        --shadow:0 4px 14px rgba(0,0,0,.45), 0 1px 3px rgba(0,0,0,.3);
-      }
-    }
-    @media screen and (prefers-color-scheme: dark) {
-      :root:not([data-theme]) {
-        color-scheme: dark;
-        --bg:#0f1522; --surface:#161e2e; --surface-2:#1c2536; --surface-3:#232e42;
-        --ink:#e8edf5; --ink-2:#c3ccdb; --muted:#96a2b5; --faint:#8593a8;
-        --line:#253145; --line-strong:#33415a;
-        --accent:#6aa8dd; --accent-2:#85bce6; --accent-bg:#152740; --accent-line:#2c4a6b;
-        --crit:#f19488; --crit-bg:#351d22; --crit-line:#6b3936;
-        --high:#eda06b; --high-bg:#33251a; --high-line:#6b4a30;
-        --warn:#d8b45c; --warn-bg:#312a16; --warn-line:#665626;
-        --good:#74c99b; --good-bg:#16301f; --good-line:#2e5c42;
-        --info:#6aa8dd; --info-bg:#152740; --info-line:#2c4a6b;
-        --neutral:#9aa6ba; --neutral-bg:#232c3c; --neutral-line:#3a465a;
-        --shadow-sm:0 1px 2px rgba(0,0,0,.35);
-        --shadow:0 4px 14px rgba(0,0,0,.45), 0 1px 3px rgba(0,0,0,.3);
-      }
-    }
   </style>
 <script type="module">
     /* Self-contained by default: fetch Mermaid from the CDN ONLY if this page actually has a
@@ -300,10 +307,17 @@
        a <div class="mermaid"> later and it still renders (the guard checks the DOM at load). */
     if (document.querySelector(".mermaid")) {
       const { default: mermaid } = await import("https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.esm.min.mjs");
+      /* Pick the palette at load from the resolved theme (data-theme, else the OS preference).
+         Diagrams render to static SVG, so this matches the page on load; a mid-session toggle
+         re-themes them on the next reload. Keep both sets in sync with the :root light/dark tokens. */
+      const _root = document.documentElement;
+      const _dark = _root.dataset.theme ? _root.dataset.theme === "dark"
+                                        : window.matchMedia("(prefers-color-scheme: dark)").matches;
+      const _lightVars = { primaryColor: "#eef5fb", primaryBorderColor: "#b9d5ec", primaryTextColor: "#172033", lineColor: "#5a6577", fontFamily: "inherit", fontSize: "14px" };
+      const _darkVars = { primaryColor: "#152740", primaryBorderColor: "#2c4a6b", primaryTextColor: "#e8edf5", lineColor: "#96a2b5", fontFamily: "inherit", fontSize: "14px" };
       mermaid.initialize({ startOnLoad: false, securityLevel: "loose", theme: "base",
         flowchart: { htmlLabels: true, padding: 12, useMaxWidth: true },
-        /* keep themeVariables in sync with the :root tokens above (single file, two spots) */
-        themeVariables: { primaryColor: "#eef5fb", primaryBorderColor: "#b9d5ec", primaryTextColor: "#172033", lineColor: "#5a6577", fontFamily: "inherit", fontSize: "14px" } });
+        themeVariables: _dark ? _darkVars : _lightVars });
       await mermaid.run();   /* module scripts defer, so the DOM is parsed; run() renders every .mermaid once */
     }
   </script>
@@ -312,160 +326,190 @@
   <button class="theme-toggle" type="button" aria-label="Switch theme" title="Toggle light / dark"></button>
   <main>
     <header>
-      <p class="eyebrow">incident &middot; postmortem &middot; canonical example</p>
-      <h1>User chat SSE silent-hang - SEV-2 (2026-05-21, 14:00-14:35 UTC)</h1>
+      <p class="eyebrow">decision &middot; 2026-08-12</p>
+      <h1>Ownership per claim, and permission to stop reading</h1>
     </header>
-
     <div class="meta-ribbon" data-meta-ribbon="true" aria-label="Artifact metadata">
-      <span><strong>Kind</strong> incident</span>
-      <span><strong>Severity</strong> <span class="sev sev-2">SEV-2</span></span>
-      <span><strong>Incident date</strong> 2026-05-21</span>
-      <span><strong>Resolved</strong> 14:35 UTC</span>
-      <span><strong>Owner</strong> Jordan Ellis</span>
-      <span><strong>Status</strong> Published</span>
+      <span><strong>Kind</strong> decision</span>
+      <span><strong>Created</strong> 2026-08-12</span>
+      <span><strong>Owner</strong> Rehan Fazal</span>
+      <span><strong>Status</strong> Draft, not yet reviewed</span>
       <span><strong>Read time</strong> ~6 min</span>
+      <span><strong>Source</strong> brainstorm on an external AI writing policy</span>
     </div>
-
-    <div class="keycard good">
-      <div class="big">35m<small>SEV-2 resolved</small></div>
-      <p><b>Between 14:00 and 14:35 UTC on 2026-05-21, roughly 8% of user chat sessions produced no answer.</b> A missing timeout in the SSE proxy let stalled upstream connections accumulate and starve the worker pool. Mitigation deployed at 14:18; full recovery confirmed at 14:35. No data was lost and every affected session can be retried.</p>
-    </div>
-
-    <section data-summary="true" class="lead-summary">
+    <section id="lead-summary" data-summary="true" class="lead-summary">
       <h2>In plain terms</h2>
       <ul>
-        <li><strong>What happened:</strong> Users sending a chat message between 14:00 and 14:35 UTC saw the response box hang silently with no answer.</li>
-        <li><strong>Why it matters:</strong> Roughly 8% of user chat sessions in that 35-minute window produced no answer. Mitigation deployed; full fix shipping in the next release.</li>
-        <li><strong>What's being asked:</strong> Approve the three corrective actions below; review the timeline for any missing context before the artifact is shared externally.</li>
-              <li><strong>What would change this:</strong> the three actions assume the deployed mitigation holds until the full fix ships. If the hang reappears before the next release, this stops being a postmortem and becomes a live incident again. <a href="#root-cause">Root cause</a> sets out the mechanism.</li>
+        <li><strong>What this does for the reader:</strong> An artifact says who is accountable for each judgment it makes, and says when you can stop reading it.</li>
+        <li><strong>Why it matters:</strong> In a live lane of 197 artifacts, the median length grew from 1,982 words in May to 4,359 in August, and every recent artifact carries a reading guide that does not stop the growth.</li>
+        <li><strong>What's being asked:</strong> Approve the two calls below. Three related questions stay open and are routed.</li>
+        <li><strong>What would change this:</strong> The claim that navigation is not the fix rests on one lane, written by one author. A second lane, different author, where readers demonstrably stop early would overturn it. Nothing else below changes the call.</li>
       </ul>
     </section>
-
     <aside class="read-map" aria-label="Reading map">
-      <div><strong>Quick read (2 min):</strong> <a href="#summary">Public summary</a> &middot; <a href="#impact">Impact</a> &middot; <a href="#actions">Corrective actions</a></div>
-      <div><strong>Standard (5 min):</strong> Above + <a href="#timeline">Timeline</a> &middot; <a href="#lessons">Lessons</a></div>
-      <div><strong>Full read (15 min):</strong> All sections, including the deeper RCA collapsible inside Root cause</div>
+      <div><strong>Quick read:</strong> <a href="#decision">Decision</a> &middot; <a href="#reversibility">Reversibility</a></div>
+      <div><strong>Full read:</strong> All sections</div>
     </aside>
-
     <nav class="toc" aria-label="On this page">
       <strong>On this page</strong>
       <ol>
-        <li><a href="#summary">Public summary</a></li>
-        <li><a href="#impact">Impact &amp; metrics</a></li>
-        <li><a href="#timeline">Timeline</a></li>
-        <li><a href="#root-cause">Root cause &amp; contributing factors</a></li>
-        <li><a href="#actions">Corrective actions</a></li>
-        <li><a href="#lessons">Lessons learned</a></li>
+        <li><a href="#decision">Decision</a></li>
+        <li><a href="#context">Context</a></li>
+        <li><a href="#options">Current vs proposed</a></li>
+        <li><a href="#consequences">Consequences</a></li>
+        <li><a href="#reversibility">Reversibility</a></li>
       </ol>
     </nav>
-
-    <section id="summary" class="section">
-      <h2>Public summary</h2>
-      <p>Between 14:00 and 14:35 UTC on 2026-05-21, a subset of user chat sessions silently failed to produce a response. The chat front end displayed the "thinking" indicator but no message arrived. The on-call team identified an unhandled timeout in the SSE proxy layer, deployed a mitigation at 14:18, and confirmed full recovery at 14:35. No data was lost; all affected sessions can be retried.</p>
+    <section id="decision" class="section" data-owner="Rehan Fazal">
+      <h2>Decision</h2>
+      <p><strong>In the context of</strong> a content contract that says what an artifact must contain and never who stands behind it, <strong>facing</strong> a live lane whose median artifact has roughly doubled in length while its validator sits red and unrun, <strong>we decided</strong> that ownership attaches to individual claims rather than to whole artifacts, and that every summary states what would change its own conclusion, <strong>to achieve</strong> an artifact a reader can act on and stop reading, <strong>accepting</strong> that both are judgment calls a validator can only nudge toward, never certify.</p>
+      <p>Rehan Fazal holds this call. The part least settled is the second half: the stopping rule is argued from one lane's evidence and one reader's experience of it.</p>
     </section>
-
-    <section id="impact" class="section">
-      <h2>Impact &amp; metrics</h2>
-      <div class="metrics">
-        <div class="metric"><strong>SEV-2</strong><span>Severity</span></div>
-        <div class="metric"><strong>4m</strong><span>MTTD</span></div>
-        <div class="metric"><strong>18m</strong><span>MTTC (mitigation)</span></div>
-        <div class="metric"><strong>35m</strong><span>MTTR (full recovery)</span></div>
-        <div class="metric"><strong>~8%</strong><span>Sessions affected</span></div>
-        <div class="metric"><strong>0</strong><span>Data loss</span></div>
-      </div>
-      <p>Affected: ~120 user chat sessions during the window; affected sessions returned no response. Not affected: record creation, record search via the non-chat surfaces, the public API.</p>
-    </section>
-
-    <section id="timeline" class="section">
-      <h2>Timeline</h2>
-      <p>Fact-only chronology. Timestamps in UTC; elapsed offset from first detected impact at 14:00 UTC.</p>
-      <div class="timeline">
-        <div class="event warn">
-          <p class="ts"><strong>14:00:12</strong> &middot; <span class="elapsed">+0m</span> <span class="actor">monitoring</span> First impact: chat response timeout rate climbs from baseline 0.3% to 6.4% within the next minute.</p>
-        </div>
-        <div class="event warn">
-          <p class="ts"><strong>14:00:42</strong> &middot; <span class="elapsed">+0m</span> <span class="actor">monitoring</span> SSE backpressure alert fires (rule <code>chat_sse_p95_ms &gt; 8000</code>).</p>
-        </div>
-        <div class="event">
-          <p class="ts"><strong>14:04:08</strong> &middot; <span class="elapsed">+4m</span> <span class="actor">on-call</span> First responder pages; begins investigation in the Agent Service + Gateway Service layers.</p>
-        </div>
-        <div class="event">
-          <p class="ts"><strong>14:09:22</strong> &middot; <span class="elapsed">+9m</span> <span class="actor">on-call</span> Ruled out: front end, public API. Suspected: SSE proxy layer in Gateway Service.</p>
-        </div>
-        <div class="event">
-          <p class="ts"><strong>14:14:33</strong> &middot; <span class="elapsed">+14m</span> <span class="actor">responder</span> Root cause hypothesis: missing <code>asyncio.wait_for</code> on a streaming generator allows hanging connections to accumulate.</p>
-        </div>
-        <div class="event good">
-          <p class="ts"><strong>14:18:01</strong> &middot; <span class="elapsed">+18m</span> <span class="actor">responder</span> Mitigation deployed: hard 30-second timeout added to the SSE generator. Error rate begins falling.</p>
-        </div>
-        <div class="event good">
-          <p class="ts"><strong>14:24:50</strong> &middot; <span class="elapsed">+24m</span> <span class="actor">monitoring</span> Timeout rate returns to baseline. Stragglers continue draining.</p>
-        </div>
-        <div class="gap">~10 min quiet: stragglers draining, no new failures observed.</div>
-        <div class="event good">
-          <p class="ts"><strong>14:35:00</strong> &middot; <span class="elapsed">+35m</span> <span class="actor">incident-commander</span> Incident closed. No further regressions observed; communication sent to user channel.</p>
-        </div>
-      </div>
-    </section>
-
-    <section id="root-cause" class="section">
-      <h2>Root cause &amp; contributing factors</h2>
-      <p>The streaming SSE proxy in Gateway Service wraps the Agent Service's response stream. The wrapper had no per-message timeout, relying on the upstream Agent Service to close the connection. When the Agent Service hit a transient burst of load and stalled (rather than erroring), the SSE proxy held connections open indefinitely, starving the worker pool. Three contributing factors:</p>
-      <ol>
-        <li><strong>Missing timeout:</strong> the SSE generator used <code>async for chunk in upstream:</code> without an outer <code>asyncio.wait_for</code>.</li>
-        <li><strong>Upstream stall behavior:</strong> Agent Service's agent loop, under transient load, paused rather than failing fast.</li>
-        <li><strong>Detection blind spot:</strong> our existing alerts watched p95 latency but not connection accumulation; the worker-pool exhaustion was caught only after user-facing degradation.</li>
-      </ol>
-      <details>
-        <summary>Deeper RCA: logs and dashboard links</summary>
-        <p>Sentry issue: <code>SAMPLE-SSE-TIMEOUT</code>. Grafana dashboard: <code>sample/sse-health</code>. Sampled stalled-connection logs are in the on-call channel; links omitted in this canonical example.</p>
-      </details>
-    </section>
-
-    <section id="actions" class="section" data-owner="Ines Vargas">
-      <h2>Corrective actions</h2>
-      <div class="table-scroll" role="region" aria-label="Corrective actions" tabindex="0">
+    <section id="context" class="section">
+      <h2>Context</h2>
+      <p>Clay publishes an internal AI writing policy for text that other people read. Six principles, and the two that bite here are that more time should go into authoring a document than into consuming it, and that writing is thinking, so a document generated from a short prompt is proof of nothing. The rest of it this skill already enforces, in some cases more strictly than the policy asks: the anti-slop checklist, the em dash rule, and the prose discipline in the spine all attack the padding the policy names.</p>
+      <p>Two of its principles have no counterpart here, and they turn out to be one gap seen twice. Nothing in the contract asks whether the artifact was earned, and nothing tells a reader they may stop.</p>
+      <p>The forcing function is measured rather than argued. A private lane of 197 artifacts, all standard mode, all one author, produced under successive versions of this skill:</p>
+      <div class="table-scroll" role="region" aria-label="Artifact length by month" tabindex="0">
       <table>
-        <thead><tr><th>#</th><th>Action</th><th>Type</th><th>Owner</th><th>Due</th><th>Status</th></tr></thead>
+        <thead><tr><th>Month created</th><th>Artifacts</th><th>Median words</th><th>p90 words</th></tr></thead>
         <tbody>
-          <tr><td>1</td><td>Promote the in-incident hotfix into a proper bounded SSE generator with explicit timeout config</td><td>prevent</td><td>Jordan</td><td>2026-05-28</td><td><span class="chip warn">IN PROGRESS</span></td></tr>
-          <tr><td>2</td><td>Add a connection-accumulation alert to Gateway Service's SSE proxy (rule: open-connection count &gt; 2&times; baseline for &gt; 60s)</td><td>prepare</td><td>Priya</td><td>2026-06-03</td><td><span class="chip neutral">TODO</span></td></tr>
-          <tr><td>3</td><td>Add a fast-fail path in Agent Service's agent loop so upstream stalls become explicit errors rather than silent pauses</td><td>prevent</td><td>Sam</td><td>2026-06-10</td><td><span class="chip neutral">TODO</span></td></tr>
+          <tr><td data-label="Month">2026-05</td><td data-label="Artifacts">36</td><td data-label="Median">1,982</td><td data-label="p90">7,717</td></tr>
+          <tr><td data-label="Month">2026-06</td><td data-label="Artifacts">90</td><td data-label="Median">2,070</td><td data-label="p90">6,755</td></tr>
+          <tr><td data-label="Month">2026-07</td><td data-label="Artifacts">42</td><td data-label="Median">2,120</td><td data-label="p90">3,182</td></tr>
+          <tr><td data-label="Month">2026-08</td><td data-label="Artifacts">16</td><td data-label="Median">4,359</td><td data-label="p90">21,475</td></tr>
+        </tbody>
+      </table>
+      </div>
+      <p>The median artifact carries 10 <code>h2</code> sections against a kind skeleton of about 5, and only 18 of 197 sit at or under their skeleton. That is the mechanism: <code>required-section</code> is a floor with no ceiling, so each artifact accretes on the last. A reading guide is present on every recent artifact and does not interrupt it, which is the finding that matters, because it rules out navigation as the fix. A table of contents over seventeen sections says where everything is and never says what may be skipped.</p>
+      <p>Two supporting observations from the same corpus. The <code>reviewer</code> field holds a human name 65 times, an agent name 29 times, an unfilled placeholder 10 times, and some spelling of <em>pending</em> 12 times across four different spellings, which is an author hand-rolling a review state the schema does not offer. And <code>artifact-read-time</code> does not track length at all: 194 words claims five minutes, 4,701 words claims five minutes, and the longest artifact gives up and says <em>browse</em>.</p>
+    </section>
+    <section id="options" class="section">
+      <h2>Current vs proposed</h2>
+      <div class="table-scroll" role="region" aria-label="Current versus proposed treatment of ownership and closure" tabindex="0">
+      <table>
+        <thead><tr><th>Aspect</th><th>Current</th><th>Proposed</th></tr></thead>
+        <tbody>
+          <tr>
+            <td data-label="Aspect">Where ownership sits</td>
+            <td data-label="Current">Nowhere defined. A name may appear in the ribbon, in <code>reviewer</code>, against an open question, or against a corrective action, meaning four different things.</td>
+            <td data-label="Proposed">Per claim. A block that commits somebody carries <code>data-owner</code> and names the holder in prose, beside one sentence of their own doubt. The ribbon keeps artifact-wide accountability.</td>
+          </tr>
+          <tr>
+            <td data-label="Aspect">What <code>reviewer</code> asserts</td>
+            <td data-label="Current">Undefined, and checked only for being non-empty, so a plausible name satisfies it.</td>
+            <td data-label="Proposed">That a human read it before it was forwarded. Absent by default, and the footer says so rather than inventing a name.</td>
+          </tr>
+          <tr>
+            <td data-label="Aspect">What the summary closes</td>
+            <td data-label="Current">Nothing. Three bullets orient the reader; none concludes, so the reader audits to the bottom to find out whether the top was complete.</td>
+            <td data-label="Proposed">A fourth bullet naming what would change the conclusion and where that lives. Closure asserted, surprise located, permission to stop granted.</td>
+          </tr>
+          <tr>
+            <td data-label="Aspect">Which kinds this keys off</td>
+            <td data-label="Current">Kind decides section shape, and the two kinds that carry both description and judgment fit neither column.</td>
+            <td data-label="Proposed">No kind list. A heading regex finds the judgment section the way <code>comparison-visual</code> already finds a comparison, so kind sensitivity emerges instead of being declared.</td>
+          </tr>
+        </tbody>
+      </table>
+      </div>
+      <p>The rows are not independent. Each one replaces an unconstrained field with a claim a reader can hold somebody to, which is the single move this decision makes four times.</p>
+    </section>
+    <section id="consequences" class="section">
+      <h2>Consequences</h2>
+      <ul>
+        <li><strong>Positive:</strong> the two straddling kinds stop being anomalies, because ownership attaches below the level where they split. Dynamic mode inherits both rules with no special case, since neither depends on which sections exist. And most of the change is subtraction: the twelve shipped examples currently assert a reviewer who read nothing, and deleting a false claim costs the reader no space at all.</li>
+        <li><strong>Neutral:</strong> a new <code>data-owner</code> marker joins the existing family, and the judgment heading check reuses the section-scoped mechanic already implemented for comparisons.</li>
+        <li><strong>Negative:</strong> both calls are judgment. A marker check can catch the artifact that never tried and can never certify the one that did, which is the same ceiling every rule in the mechanical floor already has. The stopping rule also invites a formula: a fourth bullet written to satisfy a rule, saying nothing would change the conclusion, is worse than no bullet, because it claims a closure nobody tested.</li>
+      </ul>
+      <h3 id="still-open">Still open</h3>
+      <div class="table-scroll" role="region" aria-label="Open questions with owners" tabindex="0">
+      <table>
+        <thead><tr><th>Open question</th><th>Who decides</th><th>By</th><th>Where this lands without an answer</th></tr></thead>
+        <tbody>
+          <tr>
+            <td data-label="Question">Does <code>required-section</code> get a ceiling, and in what unit?</td>
+            <td data-label="Who">Rehan Fazal</td>
+            <td data-label="By">2026-09-01</td>
+            <td data-label="Lands"><strong>Leaning prose words, not bytes.</strong> The existing <code>size-budget</code> rule counts 512 KiB of file, which inline SVG and CSS dominate, so it fired once in 197 artifacts and misses everything a reader feels. Without a decision the growth continues, since nothing else opposes it.</td>
+          </tr>
+          <tr>
+            <td data-label="Question">Should <code>artifact-read-time</code> be computed rather than declared?</td>
+            <td data-label="Who">Rehan Fazal</td>
+            <td data-label="By">2026-09-01</td>
+            <td data-label="Lands"><strong>Leaning compute it.</strong> The script already parses the document, so <code>new</code> and <code>index</code> can fill it, or <code>check</code> can warn past a wide tolerance. Left alone the field stays decorative, and it understates by roughly half on the artifacts where a reader most needs the budget.</td>
+          </tr>
+          <tr>
+            <td data-label="Question">Does the review state get named values?</td>
+            <td data-label="Who">Rehan Fazal</td>
+            <td data-label="By">2026-09-01</td>
+            <td data-label="Lands"><strong>Leaning three values</strong>, covering unreviewed, agent-reviewed and human-reviewed. An agent name in <code>reviewer</code> is honest reporting the schema has no word for. Left alone, the four spellings of <em>pending</em> keep multiplying.</td>
+          </tr>
         </tbody>
       </table>
       </div>
     </section>
-
-    <section id="lessons" class="section">
-      <h2>Lessons learned</h2>
-      <ul>
-        <li><strong>What went well:</strong> mitigation in 18 minutes; clear ownership; runbook for SSE proxy was current.</li>
-        <li><strong>What did not:</strong> detection delayed by 4 minutes because the alert watched latency rather than connection accumulation.</li>
-        <li><strong>What we'd do differently:</strong> include connection-pool saturation in the chat-resilience scenario suite so similar gaps surface in CI rather than in production.</li>
-      </ul>
+    <section id="reversibility" class="section">
+      <h2>Reversibility</h2>
+      <p>Cheap in both directions. <code>data-owner</code> is an attribute other artifacts ignore, and the judgment heading check would ship as a warning, which is the staged rollout the skill already documents for a new rule. The summary bullet is prose, so withdrawing it costs one scaffold edit and leaves every existing artifact valid.</p>
+      <p>The expensive half is not the rules. It is that the contract has to be running for either to matter, and in the lane that produced the evidence above, <code>check</code> exits 1 today on fourteen blocking violations. Both calls here are worth nothing until that is green.</p>
     </section>
-
     <footer class="provenance" data-provenance="true">
+      <details class="files-read">
+        <summary>Files read (7) at <code>7e957d0</code></summary>
+        <ul>
+          <li><code>skills/human-html/SKILL.md</code></li>
+          <li><code>skills/human-html/references/artifact-spine.md</code></li>
+          <li><code>skills/human-html/references/patterns.md</code></li>
+          <li><code>skills/human-html/human_html_artifacts.py</code></li>
+          <li><code>skills/human-html/examples/*.html</code></li>
+          <li><code>.github/scripts/check_examples.py</code></li>
+          <li><code>README.md</code></li>
+        </ul>
+        <p>Still accurate? <code>git diff --stat 7e957d0 -- skills/human-html/SKILL.md
+        skills/human-html/references/artifact-spine.md skills/human-html/references/patterns.md
+        skills/human-html/human_html_artifacts.py 'skills/human-html/examples/*.html'
+        .github/scripts/check_examples.py README.md</code>. Empty output means every file still
+        matches what this artifact read, uncommitted edits included.</p>
+        <p>The 197-artifact corpus behind the length figures is a private lane and is not listed
+        here. Its numbers are reproducible only by whoever holds it.</p>
+      </details>
       <p class="provenance-line">
-        Generated by <code>claude-opus-4-7</code> on 2026-05-25 &middot;
-        reviewed by <code>Jordan Ellis</code> &middot;
-        source: canonical-example &middot;
-        fictional scenario assembled for this canonical example
+        Generated by <code>claude-opus-5</code> on 2026-08-12 &middot;
+        <strong>not yet reviewed by a human</strong> &middot;
+        source: a brainstorming conversation about Clay's AI writing policy
       </p>
-      <p>Canonical example for the <code>human-html</code> skill: demonstrates the incident postmortem layout, the severity ribbon, the verdict keycard, a timeline with quiet-gap marking, impact tiles, root cause with a collapsible deeper RCA, and a corrective-actions table.</p>
+      <p>Ideas taken with attribution: the two principles that forced this are Clay's, from an
+      internal AI writing policy quoted to me in full. The closure move is the same one already
+      used by the same-data control block in <code>references/patterns.md</code>, applied to the
+      summary instead of to a comparison's inputs.</p>
       <script type="application/ld+json" id="provenance">
         {
           "@context": "https://schema.org/",
           "@type": "CreativeWork",
-          "@id": "urn:human-html:2026-05-25:incident:canonical-example",
+          "@id": "urn:human-html:2026-08-12:decision:ownership-per-claim",
           "additionalType": "ai-generated-artifact",
-          "artifactKind": "incident",
-          "dateCreated": "2026-05-25",
-          "creator": { "@type": "SoftwareApplication", "name": "claude-opus-4-7", "softwareVersion": "sample" },
-          "promptHash": "<sha256 of prompt; canonical example, no real prompt>",
-          "reviewer": "Jordan Ellis",
-          "source": "canonical-example"
+          "artifactKind": "decision",
+          "dateCreated": "2026-08-12",
+          "creator": {
+            "@type": "SoftwareApplication",
+            "name": "claude-opus-5"
+          },
+          "prompt": "Brainstorm whether Clay's AI writing policy should change human-html, then write the result up as a decision artifact.",
+          "reviewer": "pending",
+          "source": "brainstorming conversation",
+          "sourceFiles": {
+            "readAtRevision": "7e957d0",
+            "paths": [
+              "skills/human-html/SKILL.md",
+              "skills/human-html/references/artifact-spine.md",
+              "skills/human-html/references/patterns.md",
+              "skills/human-html/human_html_artifacts.py",
+              "skills/human-html/examples/*.html",
+              ".github/scripts/check_examples.py",
+              "README.md"
+            ]
+          }
         }
       </script>
     </footer>

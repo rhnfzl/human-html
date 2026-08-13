@@ -328,6 +328,7 @@
         <li><strong>What this does for the user:</strong> Users get a faster, more reliable AI chat because the MCP service becomes simpler to change, test, and extend.</li>
         <li><strong>Why it matters:</strong> Today, adding a new tool means copy-pasting 50-150 lines from another wrapper; bug fixes have to be replayed across 50 nearly-identical wrappers. That slows the team and creates inconsistent behavior the chat surfaces as flakiness.</li>
         <li><strong>What's being asked:</strong> Approve the sequenced 4-stage refactor (Candidate 2 stage 1 first; Candidates 1, 3, 4 to follow). Each lands as a separate PR with verifiable improvement.</li>
+              <li><strong>What would change this:</strong> the sequence rests on Candidate 2 stage 1 landing on its own. If it cannot ship without dragging the other three candidates with it, the order changes and Candidate 1 goes first. <a href="#recommendation">The recommendation</a> is where that is examined; nothing else below moves the call.</li>
       </ul>
     </section>
 
@@ -500,7 +501,7 @@ ctx = ApiContext.from_server(server_ctx)</code></pre>
       </ul>
     </section>
 
-    <section id="recommendation" class="section">
+    <section id="recommendation" class="section" data-owner="Jordan Ellis">
       <p class="eyebrow">Top recommendation: sequenced plan</p>
       <h2>Lead with the narrow first stage of Candidate&nbsp;2, then unfurl the rest.</h2>
       <div class="card tint-good">

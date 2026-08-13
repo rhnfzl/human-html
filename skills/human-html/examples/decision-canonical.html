@@ -322,6 +322,7 @@
         <li><strong>What this does for the user:</strong> Faster chat responses and consistent reference data (currency codes, location names) across every AI feature.</li>
         <li><strong>Why it matters:</strong> Three services duplicate the same caching code today; bugs in one don't get the fix the other already shipped. A shared cache also lets us cut the Redis bill by ~40%.</li>
         <li><strong>What's being asked:</strong> Approve consolidation onto a single shared <code>LazyRedisCache</code> module, accepting a one-sprint migration window.</li>
+              <li><strong>What would change this:</strong> the call rests on the migration fitting the one-sprint window. If it does not, the phased path becomes the better trade and this reopens. <a href="#reversibility">Reversibility</a> is where that is examined; nothing else below changes it.</li>
       </ul>
     </section>
 
@@ -342,7 +343,7 @@
       </ol>
     </nav>
 
-    <section id="decision" class="section">
+    <section id="decision" class="section" data-owner="Priya Raman">
       <h2>Decision</h2>
       <div class="card tint-info">
         <p>
@@ -353,6 +354,9 @@
           <strong>accepting</strong> <em>a one-sprint migration window and one new shared module to govern.</em>
         </p>
       </div>
+      <p>Priya Raman holds this call, and is least sure about the one-sprint window: the third
+      service's keys are not namespaced yet, and if that migration slips, the phased path
+      becomes the better trade.</p>
     </section>
 
     <section id="context" class="section">
@@ -389,7 +393,7 @@
       <p><span class="chip good">Mostly reversible</span> If the shared cache proves to be wrong, each service can re-add its own lazy client by re-vendoring the file. The blocker would be data shape changes (cache keys we share that would diverge again); none planned. Decision can be revisited at the end of Q3 based on incident frequency.</p>
     </section>
 
-    <section id="decisions" class="section" data-decisions="true" style="border-top:2px dashed var(--line); margin-top:42px; padding-top:24px;">
+    <section id="decisions" class="section" data-decisions="true" style="border-top:2px dashed var(--line); margin-top:42px; padding-top:24px;" data-owner="Priya Raman">
       <h2>Decisions captured (for coding-agent handoff)</h2>
       <div class="callout callout-note">
         <strong>Coding-agent handoff</strong>
