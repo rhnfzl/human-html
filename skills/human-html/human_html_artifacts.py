@@ -289,7 +289,12 @@ class ArtifactHTMLParser(HTMLParser):
         # artifact documenting the retired marker failed the very rule it was explaining.
         self.has_audience_attr = False
         self.role_labelled_read_map = False
-        self._read_map_depth = 0
+        # An open-element stack rather than a counter. The counter incremented on every
+        # start tag including void ones, so a bare `<br>` inside a reading guide pushed the
+        # depth up with no end tag to bring it back down: the guide never closed and a
+        # role-looking label anywhere later in the document warned.
+        self._open_tags: list[str] = []
+        self._read_map_at: int | None = None
         self._capture_role_label = False
         self.stray_mode_attrs: set[str] = set()
         self.has_meta_ribbon = False
@@ -345,10 +350,14 @@ class ArtifactHTMLParser(HTMLParser):
         # followed by "<strong>Product launch</strong>" warned.
         classes = attr_map.get("class", "").split()
         if "read-map" in classes or attr_map.get("aria-label", "").strip().lower() == "reading map":
-            self._read_map_depth = 1
-        elif self._read_map_depth:
-            self._read_map_depth += 1
-        if self._read_map_depth and tag_name in ("strong", "b", "dt"):
+            is_read_map = True
+        else:
+            is_read_map = False
+        if tag_name not in _VOID_ELEMENTS:
+            self._open_tags.append(tag_name)
+            if is_read_map and self._read_map_at is None:
+                self._read_map_at = len(self._open_tags) - 1
+        if self._read_map_at is not None and tag_name in ("strong", "b", "dt"):
             self._capture_role_label = True
         # `data-summary="true"` marks the answer-first opener, and it is the only spelling.
         #
@@ -444,6 +453,14 @@ class ArtifactHTMLParser(HTMLParser):
                 self.role_labelled_read_map = True
             self._capture_role_label = False
 
+    def handle_startendtag(self, tag: str, attrs) -> None:
+        """Only a void element self-closes; HTML ignores the slash on everything else.
+
+        The inherited default opens and immediately closes, so `<aside class="read-map"/>`
+        shut a guide a browser keeps open and the role labels inside it went unseen.
+        """
+        self.handle_starttag(tag, attrs)
+
     def handle_comment(self, data: str) -> None:
         match = _SUPPRESS_COMMENT_RE.match(data)
         if not match:
@@ -455,8 +472,12 @@ class ArtifactHTMLParser(HTMLParser):
 
     def handle_endtag(self, tag: str) -> None:
         tag_name = tag.lower()
-        if self._read_map_depth:
-            self._read_map_depth -= 1
+        for i in range(len(self._open_tags) - 1, -1, -1):
+            if self._open_tags[i] == tag_name:
+                del self._open_tags[i:]
+                break
+        if self._read_map_at is not None and len(self._open_tags) <= self._read_map_at:
+            self._read_map_at = None
         if tag_name in ("strong", "b", "dt"):
             self._capture_role_label = False
         if tag_name == "script" and self._capture_provenance_script:
@@ -669,22 +690,30 @@ _NON_OWNING_ANCESTORS = frozenset(("html", "body", "main"))
 # right opens, so the two are siblings rather than parent and child. Only the pairs that
 # can plausibly wrap or precede a heading are listed; this is a practical subset of the
 # spec, not the whole of it.
-_BLOCK_CLOSERS_OF_P = frozenset(
+# Keyed by the tag being OPENED, holding what that tag implicitly closes. The first cut
+# keyed it the other way, which cannot express a cascade: `<tbody>` has to close an open
+# `<td>`, then the `<tr>` around it, then the `<thead>` around that, and a pair-only table
+# reaches none of those. A `while` over this mapping unwinds the whole run.
+_HEADINGS = frozenset("h1 h2 h3 h4 h5 h6".split())
+_BLOCKS_CLOSING_P = frozenset(
     "address article aside blockquote details div dl fieldset figcaption figure footer "
-    "form h1 h2 h3 h4 h5 h6 header hgroup hr main menu nav ol p pre section table ul".split()
-)
-_IMPLIED_END_TAGS: dict[str, frozenset[str]] = {
-    "p": _BLOCK_CLOSERS_OF_P,
-    "li": frozenset(("li",)),
-    "dt": frozenset(("dt", "dd")),
-    "dd": frozenset(("dt", "dd")),
-    "td": frozenset(("td", "th", "tr")),
-    "th": frozenset(("td", "th", "tr")),
-    "tr": frozenset(("tr",)),
-    "thead": frozenset(("tbody", "tfoot")),
-    "tbody": frozenset(("tbody", "tfoot")),
-    "option": frozenset(("option", "optgroup")),
-    "optgroup": frozenset(("optgroup",)),
+    "form header hgroup hr main menu nav ol p pre section table ul".split()
+) | _HEADINGS
+_CELLS = frozenset(("td", "th"))
+_ROW_GROUPS = frozenset(("thead", "tbody", "tfoot"))
+_IMPLIED_CLOSES: dict[str, frozenset[str]] = {
+    **{block: frozenset(("p",)) for block in _BLOCKS_CLOSING_P},
+    # a heading closes an open heading: the spec calls it a parse error and pops
+    **{h: _HEADINGS | frozenset(("p",)) for h in _HEADINGS},
+    "li": frozenset(("li", "p")),
+    "dt": frozenset(("dt", "dd", "p")),
+    "dd": frozenset(("dt", "dd", "p")),
+    "td": _CELLS | frozenset(("p",)),
+    "th": _CELLS | frozenset(("p",)),
+    "tr": _CELLS | frozenset(("tr", "p")),
+    **{g: _CELLS | _ROW_GROUPS | frozenset(("tr", "p")) for g in _ROW_GROUPS},
+    "option": frozenset(("option",)),
+    "optgroup": frozenset(("option", "optgroup")),
     "rt": frozenset(("rt", "rp")),
     "rp": frozenset(("rt", "rp")),
 }
@@ -732,12 +761,11 @@ class _JudgmentOwnerParser(HTMLParser):
         Keeping it on the stack made the rule silently accept an unowned section, which is
         the same sibling-ownership class the rewrite was supposed to end.
         """
-        while self._stack:
-            top = self._stack[-1][0]
-            if tag in _IMPLIED_END_TAGS.get(top, frozenset()):
-                self._stack.pop()
-            else:
-                return
+        closes = _IMPLIED_CLOSES.get(tag)
+        if not closes:
+            return
+        while self._stack and self._stack[-1][0] in closes:
+            self._stack.pop()
 
     def handle_starttag(self, tag: str, attrs) -> None:
         tag = tag.lower()

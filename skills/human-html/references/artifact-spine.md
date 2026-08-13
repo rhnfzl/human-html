@@ -1,6 +1,6 @@
 # The artifact spine
 
-The twenty-two content rules say what an artifact must **contain**. This file says what an
+The twenty-nine content rules say what an artifact must **contain**. This file says what an
 artifact must never **do**, whatever shape it takes. That distinction is the whole reason
 the file exists: a rule about containing something can only be written for a known
 structure, and `artifact-mode="dynamic"` throws the structure away. Everything below

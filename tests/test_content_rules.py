@@ -521,9 +521,14 @@ class DocsMatchTheCodeTest(unittest.TestCase):
 
     SKILL = REPO / "skills/human-html/SKILL.md"
     _EMITTED_RE = re.compile(r'_add\(\s*\w+,\s*parser,\s*"([a-z-]+)"')
+    # plain_language_findings yields (rule_id, message) pairs and they reach `_add` through
+    # a variable, so a literal-only scan missed all seven and both set-equality assertions
+    # stayed green whichever way that family drifted.
+    _APPENDED_RE = re.compile(r'out\.append\(\(\s*\n?\s*"([a-z-]+)",')
 
     def _emitted_rule_ids(self) -> set[str]:
-        return set(self._EMITTED_RE.findall(SCRIPT.read_text(encoding="utf-8")))
+        source = SCRIPT.read_text(encoding="utf-8")
+        return set(self._EMITTED_RE.findall(source)) | set(self._APPENDED_RE.findall(source))
 
     def _documented_rule_ids(self) -> set[str]:
         text = self.SKILL.read_text(encoding="utf-8")
@@ -552,6 +557,8 @@ class DocsMatchTheCodeTest(unittest.TestCase):
         words = {
             15: "fifteen", 16: "sixteen", 17: "seventeen", 18: "eighteen", 19: "nineteen",
             20: "twenty", 21: "twenty-one", 22: "twenty-two", 23: "twenty-three",
+            24: "twenty-four", 25: "twenty-five", 26: "twenty-six", 27: "twenty-seven",
+            28: "twenty-eight", 29: "twenty-nine", 30: "thirty", 31: "thirty-one",
         }
         expected = words.get(len(self._documented_rule_ids()))
         self.assertIsNotNone(expected, "extend the number words in this test")
@@ -613,14 +620,20 @@ class ExamplesDoNotContradictThemselvesTest(unittest.TestCase):
         text = (self.EXAMPLES / "status-canonical.html").read_text(encoding="utf-8")
         summary = re.search(r'<section[^>]*data-summary="true".*?</section>', text, re.S)
         assert summary is not None
-        asked = set(re.findall(r"\b(Priya|Marcus|Jordan)\b", summary.group(0)))
+        asked = set(re.findall(r"\b([A-Z][a-z]+)\b(?=[,)])", summary.group(0)))
         blockers = re.search(r'<section[^>]*id="blockers".*?</section>', text, re.S)
         assert blockers is not None
-        owners = set(re.findall(r"\b(Priya|Marcus|Jordan)\b", blockers.group(0)))
+        # Only an explicit ownership statement counts. Matching any name that merely
+        # appears in the section made "escalate to Marcus" read as ownership, which is
+        # the exact confusion this guard exists to catch.
+        owners = set(re.findall(r"\b([A-Z][a-z]+)\s+owns\b", blockers.group(0)))
+        self.assertTrue(asked, "no names parsed out of the summary; update this guard")
+        self.assertTrue(owners, "no explicit 'X owns' statement in #blockers")
         self.assertTrue(
             asked <= owners,
-            f"the summary asks {sorted(asked - owners)} to confirm a blocker they do not "
-            "own; an escalation path is not an owner",
+            f"the summary asks {sorted(asked - owners)} to confirm a blocker, but the only "
+            f"names #blockers says own one are {sorted(owners)}. An escalation path is not "
+            "an owner",
         )
 
 

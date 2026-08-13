@@ -305,6 +305,13 @@ Each violation prints its `[rule=<id>]` suffix; use that ID. The literal `all` s
 | `size-budget` | WARN | The file exceeds 512 KiB. A payload guard, not a reading-length one: inline SVG and CSS dominate the bytes, so this and `prose-budget` measure different things |
 | `read-time` | WARN | Declared `artifact-read-time` is off the computed figure by more than 2.5x, or carries no number |
 | `glossary-link` | WARN | Glossary term unwrapped |
+| `first-use-gloss` | WARN | A `<dfn>` term used bare before its definition |
+| `term-count` | WARN | More than ~8 coined terms: deletion beats definition |
+| `circular-gloss` | WARN | A definition that repeats its own term (ISO/IEC 16.5.6) |
+| `bare-gloss-ref` | WARN | A definition that is only "see X" |
+| `abbr-title` | WARN | An `<abbr>` with no `title` (WCAG H28) |
+| `heading-debut` | WARN | A coined term first appearing in a heading |
+| `key-terms-block` | WARN | An `architecture` / `decision` doc coining 3+ terms with no `<dl id="key-terms">` |
 | `read-map` | WARN (off in dynamic mode) | One of those kinds, 4+ `<h2>` sections, no reading guide |
 | `qa-overlay` | WARN | `data-meeting-qa="true"` with malformed JSON-LD |
 | `meta-ribbon` | WARN | No `data-meta-ribbon="true"` |
