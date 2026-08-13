@@ -131,10 +131,14 @@ JUDGMENT_HEADING_RE = re.compile(
 #   - a reading guide labelled by job title is the same ban with judgment surface around
 #     it (a section may legitimately discuss "the product team"), so it WARNS. The regex
 #     is deliberately anchored to the read-map block rather than to the words alone.
-_AUDIENCE_ATTR_RE = re.compile(r"""\bdata-audience\s*=\s*['"]?[^\s'">]+""", re.IGNORECASE)
-_ROLE_READMAP_RE = re.compile(
-    r"read-map.{0,800}?<strong>\s*(?:Exec|PM|Product|Engineer|Manager|Dev)\b",
-    re.IGNORECASE | re.DOTALL,
+# Anchored to the start of a reading-guide label, so "Product launch" as a label trips it
+# and a sentence merely containing the word does not. Both detectors are driven from
+# parsed markup (see ArtifactHTMLParser), never from a regex over the source.
+_ROLE_LABEL_RE = re.compile(
+    r"^(?:Exec|Execs|Executive|PM|PMs|Product|Product\s+Manager|Engineer|Engineers|"
+    r"Engineering|Manager|Managers|Dev|Devs|Developer|Developers|Designer|Designers|"
+    r"Leadership|Stakeholder|Stakeholders|Technical|Non-?technical)\b",
+    re.IGNORECASE,
 )
 
 
@@ -265,6 +269,13 @@ class ArtifactHTMLParser(HTMLParser):
         self.meta: dict[str, str] = {}
         self.has_body_marker = False
         self.has_summary_block = False
+        # Parsed rather than grepped. A regex over the source cannot tell a real attribute
+        # from one quoted inside a comment or shown as escaped text in a <pre>, so an
+        # artifact documenting the retired marker failed the very rule it was explaining.
+        self.has_audience_attr = False
+        self.role_labelled_read_map = False
+        self._read_map_depth = 0
+        self._capture_role_label = False
         self.stray_mode_attrs: set[str] = set()
         self.has_meta_ribbon = False
         self.has_provenance = False
@@ -311,6 +322,19 @@ class ArtifactHTMLParser(HTMLParser):
                 self.keywords_meta = html.unescape(attr_map.get("content", ""))
         if tag_name == "body" and attr_map.get("data-human-html-artifact") == "true":
             self.has_body_marker = True
+        if "data-audience" in attr_map:
+            self.has_audience_attr = True
+        # A reading guide labelled by job title, found by walking the element rather than
+        # by a windowed regex. The old expression matched `read-map` anywhere and then any
+        # <strong> within 800 characters, so an ordinary paragraph mentioning a read map
+        # followed by "<strong>Product launch</strong>" warned.
+        classes = attr_map.get("class", "").split()
+        if "read-map" in classes or attr_map.get("aria-label", "").strip().lower() == "reading map":
+            self._read_map_depth = 1
+        elif self._read_map_depth:
+            self._read_map_depth += 1
+        if self._read_map_depth and tag_name in ("strong", "b", "dt"):
+            self._capture_role_label = True
         # `data-summary="true"` marks the answer-first opener, and it is the only spelling.
         #
         # `data-audience="pm"` was the pre-rename marker and was kept as an accepted alias
@@ -400,6 +424,10 @@ class ArtifactHTMLParser(HTMLParser):
             self._heading_buffer.append(data)
         if self._capture_lead_tag is not None:
             self._lead_buffer.append(data)
+        if self._capture_role_label:
+            if _ROLE_LABEL_RE.match(data.strip()):
+                self.role_labelled_read_map = True
+            self._capture_role_label = False
 
     def handle_comment(self, data: str) -> None:
         match = _SUPPRESS_COMMENT_RE.match(data)
@@ -412,6 +440,10 @@ class ArtifactHTMLParser(HTMLParser):
 
     def handle_endtag(self, tag: str) -> None:
         tag_name = tag.lower()
+        if self._read_map_depth:
+            self._read_map_depth -= 1
+        if tag_name in ("strong", "b", "dt"):
+            self._capture_role_label = False
         if tag_name == "script" and self._capture_provenance_script:
             self.provenance_json_scripts.append("".join(self._script_buffer).strip())
             self._capture_provenance_script = False
@@ -618,6 +650,30 @@ _VOID_ELEMENTS = frozenset(
 # would silently satisfy every judgment section in the artifact.
 _NON_OWNING_ANCESTORS = frozenset(("html", "body", "main"))
 
+# HTML's optional end tags. An open element on the left is closed when any element on the
+# right opens, so the two are siblings rather than parent and child. Only the pairs that
+# can plausibly wrap or precede a heading are listed; this is a practical subset of the
+# spec, not the whole of it.
+_BLOCK_CLOSERS_OF_P = frozenset(
+    "address article aside blockquote details div dl fieldset figcaption figure footer "
+    "form h1 h2 h3 h4 h5 h6 header hgroup hr main menu nav ol p pre section table ul".split()
+)
+_IMPLIED_END_TAGS: dict[str, frozenset[str]] = {
+    "p": _BLOCK_CLOSERS_OF_P,
+    "li": frozenset(("li",)),
+    "dt": frozenset(("dt", "dd")),
+    "dd": frozenset(("dt", "dd")),
+    "td": frozenset(("td", "th", "tr")),
+    "th": frozenset(("td", "th", "tr")),
+    "tr": frozenset(("tr",)),
+    "thead": frozenset(("tbody", "tfoot")),
+    "tbody": frozenset(("tbody", "tfoot")),
+    "option": frozenset(("option", "optgroup")),
+    "optgroup": frozenset(("optgroup",)),
+    "rt": frozenset(("rt", "rp")),
+    "rp": frozenset(("rt", "rp")),
+}
+
 
 class _JudgmentOwnerParser(HTMLParser):
     """Find judgment headings whose enclosing section names no owner.
@@ -646,6 +702,21 @@ class _JudgmentOwnerParser(HTMLParser):
         self._heading_opted_in = False
 
     @staticmethod
+    def _attr_map(attrs) -> dict[str, str]:
+        """First occurrence wins, which is what a browser does.
+
+        A dict comprehension keeps the LAST, so `data-owner="" data-owner="Ana"` read as
+        owned while a browser reads it as empty, and reversing the values produced the
+        inverse false warning.
+        """
+        out: dict[str, str] = {}
+        for key, value in attrs:
+            key = key.lower()
+            if key not in out:
+                out[key] = value or ""
+        return out
+
+    @staticmethod
     def _owns(attrs: dict[str, str]) -> bool:
         return bool(html.unescape(attrs.get("data-owner", "")).strip())
 
@@ -653,10 +724,26 @@ class _JudgmentOwnerParser(HTMLParser):
     def _opts_in(attrs: dict[str, str]) -> bool:
         return attrs.get("data-judgment", "").strip().lower() == "true"
 
+    def _close_implied(self, tag: str) -> None:
+        """Pop elements HTML closes implicitly when `tag` opens.
+
+        `<p data-owner="Ana"><h2>Decision</h2>` reads to a browser as a closed `<p>`
+        followed by a heading, so the `<p>` is a *sibling* and cannot own the heading.
+        Keeping it on the stack made the rule silently accept an unowned section, which is
+        the same sibling-ownership class the rewrite was supposed to end.
+        """
+        while self._stack:
+            top = self._stack[-1][0]
+            if tag in _IMPLIED_END_TAGS.get(top, frozenset()):
+                self._stack.pop()
+            else:
+                return
+
     def handle_starttag(self, tag: str, attrs) -> None:
         tag = tag.lower()
-        attr_map = {k.lower(): (v or "") for k, v in attrs}
+        attr_map = self._attr_map(attrs)
         if tag in ("h2", "h3"):
+            self._close_implied(tag)
             # Snapshot at open: what encloses the heading is fixed by this point.
             self._heading = []
             self._heading_owned = self._owns(attr_map) or any(
@@ -667,6 +754,7 @@ class _JudgmentOwnerParser(HTMLParser):
             )
             return
         if tag not in _VOID_ELEMENTS:
+            self._close_implied(tag)
             owns = self._owns(attr_map) and tag not in _NON_OWNING_ANCESTORS
             self._stack.append((tag, owns, self._opts_in(attr_map)))
 
@@ -709,7 +797,33 @@ def find_unowned_judgment_headings(content: str) -> list[str]:
     return parser.violations
 
 
-_NON_PROSE_RE = re.compile(r"(?is)<(script|style|svg)\b.*?</\1\s*>")
+class _ProseTextParser(HTMLParser):
+    """Collect the text a reader actually sees, skipping script, style and inline SVG.
+
+    Parsed rather than regexed. Stripping tags with `<[^>]+>` breaks on a `>` inside an
+    attribute value, so `<p title="one two > three four five">visible</p>` leaked the tail
+    of the attribute into the count and could invent `prose-budget` and `read-time`
+    warnings out of markup the reader never sees.
+    """
+
+    _SKIP = frozenset(("script", "style", "svg"))
+
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.parts: list[str] = []
+        self._skip_depth = 0
+
+    def handle_starttag(self, tag: str, attrs) -> None:
+        if tag.lower() in self._SKIP:
+            self._skip_depth += 1
+
+    def handle_endtag(self, tag: str) -> None:
+        if tag.lower() in self._SKIP and self._skip_depth:
+            self._skip_depth -= 1
+
+    def handle_data(self, data: str) -> None:
+        if not self._skip_depth:
+            self.parts.append(data)
 
 
 def prose_words(content: str) -> int:
@@ -721,11 +835,13 @@ def prose_words(content: str) -> int:
     silent on an eight-thousand-word wall of text. Bytes are a transport concern; words
     are the reader's concern, and they are different numbers.
     """
-    text = _NON_PROSE_RE.sub(" ", content)
-    text = _HTML_COMMENT_RE.sub(" ", text)
-    text = re.sub(r"(?s)<[^>]+>", " ", text)
-    text = re.sub(r"&[a-zA-Z#0-9]+;", " ", text)
-    return len(text.split())
+    parser = _ProseTextParser()
+    try:
+        parser.feed(content)
+        parser.close()
+    except Exception:
+        pass
+    return len(" ".join(parser.parts).split())
 
 
 # Words per minute for a technical reader. Used only to sanity-check a declared
@@ -891,7 +1007,16 @@ def content_shape_violations(
             )
         else:
             claimed = int(stated.group(0))
-            if claimed and not (
+            if claimed <= 0:
+                # `0 min` carries a number and so skipped the tolerance branch entirely,
+                # because zero is falsy. A reader was handed an impossible budget in silence.
+                _add(
+                    warnings, parser, "read-time",
+                    f'{rel}: artifact-read-time "{declared}" is not a positive number of '
+                    f"minutes; the prose is {words:,} words, about {computed} min at "
+                    f"{_WORDS_PER_MINUTE} wpm",
+                )
+            elif not (
                 1 / _READ_TIME_TOLERANCE <= claimed / computed <= _READ_TIME_TOLERANCE
             ):
                 _add(
@@ -901,7 +1026,7 @@ def content_shape_violations(
                     "Diagrams and tables justify some of a gap, not this one",
                 )
 
-    if _AUDIENCE_ATTR_RE.search(content):
+    if parser.has_audience_attr:
         _add(
             errors, parser, "audience-segmentation",
             f"{rel}: data-audience names a job title in the markup, which segments the "
@@ -909,9 +1034,9 @@ def content_shape_violations(
             'the answer-first marker: replace it with data-summary="true" (the summary '
             "itself does not change, only the attribute)",
         )
-    if _ROLE_READMAP_RE.search(content):
+    if parser.role_labelled_read_map:
         _add(
-            warnings, parser, "audience-segmentation",
+            warnings, parser, "role-labelled-guide",
             f"{rel}: reading guide is labelled by job title; label it by depth instead "
             "(Quick read / Full read), so a reader picks how far to go rather than being "
             "told which reader they are",

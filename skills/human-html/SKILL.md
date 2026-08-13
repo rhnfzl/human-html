@@ -239,7 +239,7 @@ Both shipped examples that do this carry the marker, which is the only reason th
 
 Like every rule in the mechanical floor, this is a marker check. It proves a name was written. It cannot prove the named person agreed, and it never will.
 
-### Rule 12 - No job titles in the markup (BLOCKS on `data-audience`, WARNS on a role-labelled reading guide)
+### Rule 12 - No job titles in the markup (`audience-segmentation` BLOCKS, `role-labelled-guide` WARNS)
 
 `artifact-spine.md` bans naming, segmenting, flattering, or excluding a reader, and that ban is absolute rather than a preference. Depth is offered and never assigned: lead with the plain intuition, give the concrete detail after it, and let people stop where they want. Reading guides are labelled by depth (`Quick read`, `Full read`), never by who the reader is.
 
@@ -253,6 +253,7 @@ The population for this count and every other one quoted in these rules: **197 f
 | Marker | Artifacts |
 |---|---|
 | `data-audience` only | 158 |
+| neither marker | 39 |
 | `data-summary` only | 0 |
 | both | 0 |
 
@@ -264,7 +265,9 @@ Note the deliberate asymmetry with retired **rule IDs**, which keep answering to
 
 `required-section` says a plan must contain a rollback. Nothing said a plan contains *only* these, so sections accrete because nothing opposes them. Measured across 197 artifacts: the median carries 10 `<h2>` sections against a kind skeleton of about 5, only 18 of 197 sit at or under their skeleton, and the median length grew from 1,982 words in May to 4,359 in August.
 
-`prose-budget` WARNs past 4,000 words of prose, calibrated so every shipped example passes: it flags the tail, not the norm. Markup, script, style and inline SVG are excluded, because the unit is what a person reads.
+`prose-budget` WARNs past 4,000 words of prose, calibrated so every shipped example passes. Markup, script, style and inline SVG are excluded, because the unit is what a person reads.
+
+On the measured corpus it flags **45 of 197** artifacts, about a quarter. On the most recent month alone it flags **9 of 16**, and that is the point rather than a miscalibration: the recent trend is the thing the rule exists to oppose, so a threshold that stayed quiet on August would be measuring nothing. Expect it to be noisy on a lane that has been drifting, and expect that to settle as artifacts get cut.
 
 This is **not** `size-budget`, which is a separate WARN at 512 KiB of file. That one measures the payload, which inline SVG and CSS dominate; it fires roughly once in two hundred artifacts and stays silent on an eight-thousand-word wall of text. Bytes are a transport concern and words are the reader's concern, and they are different numbers.
 
@@ -296,8 +299,10 @@ Each violation prints its `[rule=<id>]` suffix; use that ID. The literal `all` s
 | `nav-anchors` | BLOCK (WARN in dynamic mode) | More than 3 `<h2>` sections without valid `<nav>` anchors |
 | `required-section` | BLOCK/WARN (off in dynamic mode) | Kind-specific section missing |
 | `claim-owner` | WARN | A judgment heading (recommendation / verdict / decision / corrective actions / next steps) whose section carries no `data-owner` |
-| `audience-segmentation` | BLOCK on `data-audience`, WARN on a role-labelled reading guide | The markup names a job title. Depth is offered, never assigned |
+| `audience-segmentation` | BLOCK | A `data-audience` attribute. Depth is offered, never assigned |
+| `role-labelled-guide` | WARN | A reading guide whose labels are job titles rather than depths |
 | `prose-budget` | WARN | More than 4,000 words of prose (markup, script, style and SVG excluded) |
+| `size-budget` | WARN | The file exceeds 512 KiB. A payload guard, not a reading-length one: inline SVG and CSS dominate the bytes, so this and `prose-budget` measure different things |
 | `read-time` | WARN | Declared `artifact-read-time` is off the computed figure by more than 2.5x, or carries no number |
 | `glossary-link` | WARN | Glossary term unwrapped |
 | `read-map` | WARN (off in dynamic mode) | One of those kinds, 4+ `<h2>` sections, no reading guide |

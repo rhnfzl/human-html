@@ -287,6 +287,49 @@ class DynamicModeTest(unittest.TestCase):
         the rule exists to remove."""
         self.assertIn("pm-summary", hha._RULE_ID_ALIASES["summary-first"])
 
+    def test_the_retired_marker_can_be_documented_without_failing(self):
+        """A regex over the source cannot tell an attribute from one quoted in a comment
+        or shown as escaped text, so an artifact explaining the migration failed the very
+        rule it was explaining."""
+        for body, label in (
+            ('<!-- <section data-audience="pm"> --><p>x</p>', "in a comment"),
+            ('<pre>&lt;section data-audience="pm"&gt;</pre>', "escaped in a pre"),
+        ):
+            with self.subTest(label):
+                errors = hha.content_shape_violations(
+                    Path("a.html"), _artifact(body), "2026-07-26", REPO, "plan"
+                )[0]
+                self.assertFalse(
+                    any("[rule=audience-segmentation]" in e for e in errors), label
+                )
+
+    def test_a_real_audience_attribute_still_blocks(self):
+        errors = hha.content_shape_violations(
+            Path("a.html"), _artifact('<section data-audience="pm"><p>x</p></section>'),
+            "2026-07-26", REPO, "plan",
+        )[0]
+        self.assertTrue(any("[rule=audience-segmentation]" in e for e in errors))
+
+    def test_prose_near_a_read_map_mention_does_not_warn(self):
+        """The windowed regex matched `read-map` anywhere and then any `<strong>` within
+        800 characters, so an ordinary paragraph tripped it."""
+        body = (
+            "<p>The read-map goes above the first section.</p>"
+            "<p><strong>Product launch</strong> is in June.</p>"
+            '<section id="s"><h2>Context</h2><p>x</p></section>'
+        )
+        warnings = hha.content_shape_violations(
+            Path("a.html"), _artifact(body), "2026-07-26", REPO, "plan"
+        )[1]
+        self.assertFalse(any("[rule=role-labelled-guide]" in w for w in warnings))
+
+    def test_a_depth_labelled_reading_guide_does_not_warn(self):
+        body = '<aside class="read-map"><div><strong>Quick read:</strong> summary</div></aside>'
+        warnings = hha.content_shape_violations(
+            Path("a.html"), _artifact(body), "2026-07-26", REPO, "plan"
+        )[1]
+        self.assertFalse(any("[rule=role-labelled-guide]" in w for w in warnings))
+
     def test_role_labelled_reading_guide_warns(self):
         body = (
             '<aside class="read-map"><div><strong>Exec:</strong> summary only</div></aside>'
@@ -296,7 +339,7 @@ class DynamicModeTest(unittest.TestCase):
             Path("a.html"), _artifact(body), "2026-07-26", REPO, "plan"
         )[1]
         self.assertTrue(
-            any("[rule=audience-segmentation]" in w for w in warnings),
+            any("[rule=role-labelled-guide]" in w for w in warnings),
             "a reading guide labelled by job title should warn: " + str(warnings),
         )
 
@@ -394,6 +437,32 @@ class ClaimOwnerTest(unittest.TestCase):
         )[1]
         self.assertTrue(any("[rule=claim-owner]" in w for w in warnings))
 
+    def test_implicitly_closed_elements_are_not_ancestors(self):
+        """HTML closes some elements for you. `<p data-owner>` before an `<h2>` is a
+        sibling to a browser, so it cannot own the heading; keeping it on the stack made
+        the rule silently accept an unowned section."""
+        for body, label in (
+            ('<p data-owner="Ana Silva"><h2>Decision</h2>', "p closed by h2"),
+            ('<ul><li data-owner="Ana Silva"><li><h2>Decision</h2></ul>', "li closed by li"),
+            ('<table><tr><td data-owner="Ana"><tr><td><h2>Decision</h2></table>', "td/tr"),
+        ):
+            with self.subTest(label):
+                self.assertEqual(len(self._warn_rules(body)), 1)
+
+    def test_a_genuine_ancestor_still_owns_after_an_implicit_close(self):
+        body = '<section data-owner="Ana Silva"><p>lead</p><h2>Decision</h2></section>'
+        self.assertEqual(self._warn_rules(body), [])
+
+    def test_duplicate_owner_attributes_take_the_first(self):
+        """A browser keeps the first; a dict comprehension keeps the last, which read an
+        empty owner as owned and, reversed, invented a warning on a real one."""
+        self.assertEqual(
+            len(self._warn_rules('<section data-owner="" data-owner="Ana"><h2>Decision</h2></section>')), 1
+        )
+        self.assertEqual(
+            self._warn_rules('<section data-owner="Ana" data-owner=""><h2>Decision</h2></section>'), []
+        )
+
     def test_data_judgment_opts_a_non_matching_heading_in(self):
         """The escape hatch for a section whose heading states the judgment rather than
         naming it, e.g. "Lead with the narrow first stage" as a recommendation."""
@@ -418,6 +487,77 @@ class ClaimOwnerTest(unittest.TestCase):
         self.assertEqual(len(self._warn_rules(body, mode="dynamic")), 1)
 
 
+class DocsMatchTheCodeTest(unittest.TestCase):
+    """The documentation and the checker must agree about what the checker does.
+
+    Asked for by a reviewer after finding that the references still described the
+    pre-change contract. It earned its place immediately: the first run found
+    `size-budget`, a rule the checker had been emitting for releases with no row in the
+    documented table at all, so nobody reading the contract knew it existed.
+    """
+
+    SKILL = REPO / "skills/human-html/SKILL.md"
+    _EMITTED_RE = re.compile(r'_add\(\s*\w+,\s*parser,\s*"([a-z-]+)"')
+
+    def _emitted_rule_ids(self) -> set[str]:
+        return set(self._EMITTED_RE.findall(SCRIPT.read_text(encoding="utf-8")))
+
+    def _documented_rule_ids(self) -> set[str]:
+        text = self.SKILL.read_text(encoding="utf-8")
+        table = re.search(r"\| Rule ID \| Severity.*?\n\n", text, re.S)
+        assert table is not None, "the rule ID table is missing from SKILL.md"
+        return set(re.findall(r"^\| `([a-z-]+)`", table.group(0), re.M))
+
+    def test_every_emitted_rule_is_documented(self):
+        undocumented = self._emitted_rule_ids() - self._documented_rule_ids()
+        self.assertEqual(
+            undocumented, set(),
+            "these rules can fire but are not in the SKILL.md table, so a reader of the "
+            f"contract cannot know they exist: {sorted(undocumented)}",
+        )
+
+    def test_every_documented_rule_can_actually_fire(self):
+        phantom = self._documented_rule_ids() - self._emitted_rule_ids()
+        self.assertEqual(
+            phantom, set(),
+            f"documented but never emitted, so the table promises what the checker does "
+            f"not do: {sorted(phantom)}",
+        )
+
+    def test_the_spine_states_the_right_rule_count(self):
+        spine = (REPO / "skills/human-html/references/artifact-spine.md").read_text(encoding="utf-8")
+        words = {
+            15: "fifteen", 16: "sixteen", 17: "seventeen", 18: "eighteen", 19: "nineteen",
+            20: "twenty", 21: "twenty-one", 22: "twenty-two", 23: "twenty-three",
+        }
+        expected = words.get(len(self._documented_rule_ids()))
+        self.assertIsNotNone(expected, "extend the number words in this test")
+        self.assertIn(
+            f"The {expected} content rules", spine,
+            "artifact-spine.md opens by counting the rules; that count has drifted",
+        )
+
+    def test_the_readme_states_the_right_blocker_count(self):
+        text = self.SKILL.read_text(encoding="utf-8")
+        found = re.search(r"\| Rule ID \| Severity.*?\n\n", text, re.S)
+        assert found is not None
+        table = found.group(0)
+        blockers = [
+            row for row in table.splitlines()
+            if row.startswith("| `") and re.search(r"\bBLOCK\b", row)
+        ]
+        words = {2: "two", 3: "three", 4: "four", 5: "five", 6: "six"}
+        # nav-anchors and required-section are conditional, so the README counts the
+        # rules that block unconditionally rather than every row mentioning BLOCK.
+        unconditional = [r for r in blockers if "WARN" not in r]
+        readme = (REPO / "README.md").read_text(encoding="utf-8")
+        self.assertIn(
+            f"blocks on {words[len(unconditional)]} rules", readme,
+            f"README blocker count has drifted; unconditional blockers are "
+            f"{[re.findall(r'`([a-z-]+)`', r)[0] for r in unconditional]}",
+        )
+
+
 class ProseBudgetTest(unittest.TestCase):
     """The ceiling `required-section` never had, measured in words rather than bytes."""
 
@@ -425,6 +565,11 @@ class ProseBudgetTest(unittest.TestCase):
         return hha.content_shape_violations(
             Path("a.html"), _artifact(body), "2026-07-26", REPO, "plan"
         )[1]
+
+    def test_a_gt_inside_an_attribute_does_not_leak_into_the_count(self):
+        """Stripping tags with `<[^>]+>` ends the tag at the first `>`, so the tail of an
+        attribute value became prose the reader never sees."""
+        self.assertEqual(hha.prose_words('<p title="one two > three four five">visible</p>'), 1)
 
     def test_prose_words_ignores_markup_script_and_style(self):
         content = (
@@ -470,6 +615,11 @@ class ReadTimeTest(unittest.TestCase):
 
     def test_warns_when_the_claim_does_not_track_the_prose(self):
         self.assertTrue(any("[rule=read-time]" in w for w in self._warns("5 min", 3000)))
+
+    def test_a_zero_minute_claim_warns(self):
+        """`0 min` carries a number, and zero is falsy, so it skipped the tolerance branch
+        and handed the reader an impossible budget in silence."""
+        self.assertTrue(any("[rule=read-time]" in w for w in self._warns("0 min", 3000)))
 
     def test_warns_when_the_field_carries_no_number(self):
         self.assertTrue(any("[rule=read-time]" in w for w in self._warns("browse", 3000)))

@@ -50,7 +50,7 @@ Structure is the agent's, style is not. [Dynamic mode](https://rhnfzl.github.io/
 
 ## How it differs
 
-- **The shape is a contract, not an intention.** Style guidance evaporates the moment an agent regenerates a file. `check` runs offline, blocks on three rules, warns on the rest, and every rule is suppressible per artifact.
+- **The shape is a contract, not an intention.** Style guidance evaporates the moment an agent regenerates a file. `check` runs offline, blocks on four rules, warns on the rest, and every rule is suppressible per artifact.
 - **The checks are markers, not proofs.** [`artifact-spine.md`](skills/human-html/references/artifact-spine.md) says what each one does and does not establish, next to the standard no validator can reach.
 - **Local unless you say otherwise.** No telemetry, no phone-home, no postinstall scripts, no network calls in the core loop. Sharing is a menu: GitHub Pages, an optional bring-your-own-bucket S3 script, or any static host.
 - **An agent can see its own output.** `render` screenshots through headless Chrome, and `render --no-js` shows what an iOS Quick Look or email preview sees. First time it ran, it found a broken static floor in this repo's own prototype example, hidden behind a rule that reported clean.

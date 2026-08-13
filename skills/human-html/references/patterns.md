@@ -309,7 +309,7 @@ Every artifact is AI-generated to some degree. A provenance footer captures the 
 </footer>
 ```
 
-Required fields per the AI-BOM / model-card synthesis: `@id` or `id`, `creator` (model + version), `promptHash` or `prompt`, `dateCreated`, `reviewer`. Prompts containing PII should be hashed and archived externally rather than embedded.
+Required fields per the AI-BOM / model-card synthesis: `@id` or `id`, `creator` (model + version), `promptHash` or `prompt`, `dateCreated`, `reviewer`, and `reviewState`. Prompts containing PII should be hashed and archived externally rather than embedded.
 
 ### The reviewer field starts empty, and says so
 
@@ -380,9 +380,11 @@ Keep it in `<details>`, collapsed. It is reference material for a reader who has
 
 Keep the visible list and the JSON-LD identical. They are the same fact written twice, one for a person and one for a script, and the failure mode is editing one and forgetting the other. `understanding-canonical.html` is the worked example, and a test asserts the two agree there.
 
-## BLUF compact opener mode (alternative to the 3-bullet answer-first opener)
+## BLUF compact opener mode (alternative to the four-bullet answer-first opener)
 
-The 3-bullet answer-first opener (Rule 1) is the default. For time-critical artifacts where 3 bullets is too much (an incident artifact emailed to a CTO; a yes/no decision needing a 30-second read), BLUF (Bottom Line Up Front) is the alternative. Same `data-summary="true"` marker, different body shape: one short sentence stating the decision or ask, then a one-sentence rationale.
+The four-bullet answer-first opener (Rule 1) is the default. For time-critical artifacts where four bullets is too much (an incident sent onward for a decision; a yes/no call needing a 30-second read), BLUF (Bottom Line Up Front) is the alternative. Same `data-summary="true"` marker, different body shape: one short sentence stating the decision or ask, one sentence of rationale, and one naming what would overturn it.
+
+BLUF may compress the opener. It may **not** drop the stopping claim, which is the sentence that lets a reader leave; a compact opener that never says what would change the conclusion buys brevity by making the reader audit the rest.
 
 ```html
 <section data-summary="true" class="lead-summary lead-bluf">
