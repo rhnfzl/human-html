@@ -401,13 +401,13 @@
       <h2>Required changes</h2>
       <ul>
         <li><strong>Cache TTL is hardcoded</strong> at <code>server/idempotency.py:42</code>. Move to <code>settings.IDEMPOTENCY_TTL_SECONDS</code> so we can tune it per environment without redeploying.</li>
-        <li>Above before/after: lift <code>tenant_id</code> out of the args dict into an explicit key field. Cleaner audit trail.</li>
       </ul>
     </section>
 
     <section id="optional" class="section">
       <h2>Optional changes</h2>
       <ul>
+        <li>Above before/after: lift <code>tenant_id</code> out of the args dict into an explicit key field. Cleaner audit trail, but it does not change behaviour, so it is not a merge blocker.</li>
         <li>Consider exposing a metric for cache hit / miss / cold-start at <code>server/idempotency.py:88</code>. Useful but not blocking.</li>
         <li>The docstring at <code>server/idempotency.py:1</code> would benefit from a one-paragraph deletion test note (if you delete this module, what reappears at every call site?).</li>
       </ul>

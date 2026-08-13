@@ -303,6 +303,7 @@ Every artifact is AI-generated to some degree. A provenance footer captures the 
       "creator": { "@type": "SoftwareApplication", "name": "claude-opus-4-7" },
       "promptHash": "<sha256 of prompt; or replace with full prompt if non-sensitive>",
       "reviewer": "Jordan Ellis",
+      "reviewState": "human-reviewed",
       "source": "/improve-codebase-architecture"
     }
   </script>
@@ -315,7 +316,7 @@ Required fields per the AI-BOM / model-card synthesis: `@id` or `id`, `creator` 
 
 **A scaffold ships `reviewer: "pending"` and renders "not yet reviewed by a human".** That is the honest default, and the reason it is the default is that the field is otherwise the easiest one in the artifact to fill with something plausible. Measured on a live lane of 197 artifacts: 89 carried a human name, 51 carried no reviewer field at all, 29 carried an *agent* name, 18 carried some spelling of "pending" across **nine** distinct spellings, and 10 shipped the unfilled placeholder, which is an author hand-rolling a state the schema never offered.
 
-Two things follow. First, replace it when a human has actually read the artifact, not when one is nominated: the field asserts that somebody read this before it was forwarded, and nothing else. Second, an agent name in this field is honest reporting rather than a mistake. A model did review it, and the schema has no word for that yet.
+Two things follow. First, replace it when a human has actually read the artifact, not when one is nominated: the field asserts that somebody read this before it was forwarded, and nothing else. Second, an agent name in this field is honest reporting rather than a mistake. A model did review it, and `reviewState: agent-reviewed` is the word for that.
 
 The examples under `examples/` carry real reviewer names on purpose. They show the end state of the lifecycle; the scaffold shows the start. An artifact that never gets the field replaced is telling the truth about itself.
 

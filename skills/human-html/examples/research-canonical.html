@@ -374,7 +374,7 @@
 
     <section id="synthesis" class="section">
       <h2>Synthesis</h2>
-      <p>Postgres + pgvector wins on three of four axes: lowest cost, data residency confirmed, no new vendor to onboard. Latency is acceptable (22ms vs Pinecone's 14ms; both well inside the 100ms target). The trade-off is operational: scaling vector indexes on a transactional Postgres needs care (separate read replica recommended at &gt; 5M vectors).</p>
+      <p>Postgres + pgvector wins on three of four axes: lowest cost, data residency confirmed, no new vendor to onboard. Latency looks acceptable at the size tested (22ms vs Pinecone's 14ms, p95 at 100k vectors, both well inside the 100ms target), though neither was measured under load, which is the open thread below. The trade-off is operational: scaling vector indexes on a transactional Postgres needs care (separate read replica recommended at &gt; 5M vectors).</p>
       <p>For Q3 ship-by-July: <strong>pgvector on existing RDS</strong>. Revisit at 5M+ vectors or if p95 drifts past 60ms.</p>
     </section>
 

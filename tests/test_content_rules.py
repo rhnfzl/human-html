@@ -558,6 +558,49 @@ class DocsMatchTheCodeTest(unittest.TestCase):
         )
 
 
+class ExamplesDoNotContradictThemselvesTest(unittest.TestCase):
+    """A reviewer found the flagship examples undercutting the branch's own thesis.
+
+    `review-canonical` said "the one required change" three times and listed two.
+    `status-canonical` asked a person who owned nothing to confirm a blocker while the
+    real owner went unnamed. Neither is reachable by a content rule, because both are
+    the answer-first opener disagreeing with the detail rather than a missing marker.
+    These two guards are narrow on purpose: they hold the shipped examples to the
+    counts they claim, and nothing more.
+    """
+
+    EXAMPLES = REPO / "skills/human-html/examples"
+
+    def _section_items(self, name: str, anchor: str) -> int:
+        text = (self.EXAMPLES / name).read_text(encoding="utf-8")
+        section = re.search(rf'<section[^>]*id="{anchor}".*?</section>', text, re.S)
+        assert section is not None, f"{name} has no #{anchor}"
+        return len(re.findall(r"<li\b", section.group(0)))
+
+    def test_review_examples_required_count_matches_its_claim(self):
+        text = (self.EXAMPLES / "review-canonical.html").read_text(encoding="utf-8")
+        claims_one = "the one required change" in text
+        self.assertTrue(claims_one, "the summary's wording changed; update this guard")
+        self.assertEqual(
+            self._section_items("review-canonical.html", "required"), 1,
+            "the summary says one required change; #required lists a different number",
+        )
+
+    def test_status_example_asks_only_real_owners_to_confirm(self):
+        text = (self.EXAMPLES / "status-canonical.html").read_text(encoding="utf-8")
+        summary = re.search(r'<section[^>]*data-summary="true".*?</section>', text, re.S)
+        assert summary is not None
+        asked = set(re.findall(r"\b(Priya|Marcus|Jordan)\b", summary.group(0)))
+        blockers = re.search(r'<section[^>]*id="blockers".*?</section>', text, re.S)
+        assert blockers is not None
+        owners = set(re.findall(r"\b(Priya|Marcus|Jordan)\b", blockers.group(0)))
+        self.assertTrue(
+            asked <= owners,
+            f"the summary asks {sorted(asked - owners)} to confirm a blocker they do not "
+            "own; an escalation path is not an owner",
+        )
+
+
 class ProseBudgetTest(unittest.TestCase):
     """The ceiling `required-section` never had, measured in words rather than bytes."""
 
@@ -670,6 +713,17 @@ class ReviewStateTest(unittest.TestCase):
             with self.subTest(state=state):
                 warns = self._provenance(f',"reviewState":"{state}"')
                 self.assertFalse([w for w in warns if "reviewState" in w], str(warns))
+
+    def test_a_non_string_state_warns(self):
+        """The isinstance guard used to gate the whole check, so a truthy non-string
+        satisfied the missing-field test and was skipped by the value test: silent both
+        ways. A JSON type slip is in scope for a field that exists because free text
+        produced nine spellings of one state."""
+        for literal, label in (("123", "number"), ("true", "boolean"),
+                               ('["human-reviewed"]', "list"), ('{"v":"x"}', "object")):
+            with self.subTest(label):
+                warns = self._provenance(f',"reviewState":{literal}')
+                self.assertTrue(any("reviewState" in w for w in warns), f"{label}: {warns}")
 
     def test_unknown_state_warns(self):
         warns = self._provenance(',"reviewState":"pending"')

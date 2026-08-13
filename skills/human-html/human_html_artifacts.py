@@ -1344,12 +1344,17 @@ def _provenance_field_warnings(rel: Path, parser: ArtifactHTMLParser) -> list[st
                     f"{rel}: provenance JSON-LD missing fields: {', '.join(missing)}"
                 )
             state = obj.get("reviewState")
-            if isinstance(state, str) and state and state not in _REVIEW_STATES:
+            # The isinstance guard used to gate the whole check, so a truthy non-string
+            # (123, true, ["human-reviewed"]) satisfied the missing-field test and was
+            # skipped by the value test: silent in both directions. A JSON type slip is
+            # squarely in scope for a field that exists because free text produced nine
+            # spellings of one state.
+            if state and (not isinstance(state, str) or state not in _REVIEW_STATES):
                 warnings.append(
-                    f'{rel}: provenance reviewState "{state}" is not one of '
+                    f"{rel}: provenance reviewState {state!r} is not one of "
                     f"{', '.join(_REVIEW_STATES)}. The field exists because a live lane "
                     'hand-rolled "pending" in nine distinct spellings, so an unnamed '
-                    "fifth value is the problem it was added to solve"
+                    "fourth value is the problem it was added to solve"
                 )
             warnings.extend(_source_files_warnings(rel, obj))
     return warnings

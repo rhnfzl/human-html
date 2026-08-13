@@ -322,7 +322,7 @@
       <ul>
         <li><strong>What this does for the user:</strong> Recap of where the Agent Service and MCP workstreams sit after this sprint, so anyone tracking the mobile launch knows what landed, what's stuck, and what's next.</li>
         <li><strong>Why it matters:</strong> Two parallel workstreams (chat resilience, data-pipeline rewrite) feed into the mobile launch. Slippage in either pushes the launch.</li>
-        <li><strong>What's being asked:</strong> Read the blockers list. If you own one (Priya, Marcus), confirm the unblocker action by Monday standup.</li>
+        <li><strong>What's being asked:</strong> Read the blockers list. If you own one (Priya, Jordan), confirm the unblocker action by Monday standup.</li>
               <li><strong>What would change this:</strong> the mobile date holds only while both blockers clear this week. If either is still open after Monday standup, the date moves and the rest of this report moves with it. <a href="#blockers">Blockers</a>.</li>
       </ul>
     </section>
@@ -381,7 +381,7 @@
       </div>
       <div class="callout callout-warning">
         <strong>Mobile auth header verification</strong>
-        <p>Mobile team's first integration test failed because the <code>X-Acme-Token</code> header is empty when the mobile client signs in via the dev SSO flow. Reproducing locally; fix likely in the SSO middleware.</p>
+        <p>Mobile team's first integration test failed because the <code>X-Acme-Token</code> header is empty when the mobile client signs in via the dev SSO flow. Jordan owns this one and is reproducing locally; the fix is likely in the SSO middleware. Least sure whether the dev SSO flow differs from production here, which would change who fixes it.</p>
       </div>
     </section>
 
