@@ -28,6 +28,8 @@ hha = importlib.util.module_from_spec(_spec)
 sys.modules["hha"] = hha
 _spec.loader.exec_module(hha)
 
+f_unowned = hha.find_unowned_judgment_headings
+
 # Read maps must be depth-based ("Quick read" / "Full read"), never labelled by job
 # title. This lives in the test rather than the validator on purpose: the decision was
 # to fix the examples, not to add another rule. It guards the shipped examples from
@@ -452,6 +454,27 @@ class ClaimOwnerTest(unittest.TestCase):
     def test_a_genuine_ancestor_still_owns_after_an_implicit_close(self):
         body = '<section data-owner="Ana Silva"><p>lead</p><h2>Decision</h2></section>'
         self.assertEqual(self._warn_rules(body), [])
+
+    def test_a_trailing_slash_on_a_non_void_element_does_not_close_it(self):
+        """HTML treats `<section/>` as a parse error and then ignores the slash, so the
+        section stays open and owns what follows. Treating it as opened-and-closed made
+        the rule disagree with every browser and warn on an owned section."""
+        self.assertEqual(f_unowned('<section data-owner="Ana"/><h2>Decision</h2><p>x</p>'), [])
+
+    def test_a_void_element_still_never_becomes_an_ancestor(self):
+        self.assertEqual(f_unowned('<br data-owner="Ana"/><h2>Decision</h2>'), ["Decision"])
+
+    def test_both_parsers_agree_on_duplicate_attributes(self):
+        """The first fix reached the judgment parser only; the artifact parser kept
+        last-wins, so the two disagreed about the same markup."""
+        for markup, expected in (
+            ('<section data-summary="true" data-summary="false"><h2>x</h2></section>', True),
+            ('<section data-summary="false" data-summary="true"><h2>x</h2></section>', False),
+        ):
+            with self.subTest(markup=markup[:48]):
+                parser = hha.ArtifactHTMLParser()
+                parser.feed(markup)
+                self.assertEqual(parser.has_summary_block, expected)
 
     def test_duplicate_owner_attributes_take_the_first(self):
         """A browser keeps the first; a dict comprehension keeps the last, which read an

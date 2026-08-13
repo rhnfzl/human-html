@@ -263,6 +263,21 @@ def _join_captured(chunks: list[str]) -> str:
     return _PUNCT_SPACE_RE.sub(r"\1", text).strip()
 
 
+def _first_wins_attrs(attrs) -> dict[str, str]:
+    """Attribute map with browser semantics: the FIRST duplicate wins.
+
+    A dict comprehension keeps the last, which disagrees with every browser and made
+    `data-owner="" data-owner="Ana"` read as owned (and the reverse invent a warning).
+    Both parsers share this so they cannot drift apart on the same question.
+    """
+    out: dict[str, str] = {}
+    for name, value in attrs:
+        name = name.lower()
+        if name not in out:
+            out[name] = value or ""
+    return out
+
+
 class ArtifactHTMLParser(HTMLParser):
     def __init__(self) -> None:
         super().__init__(convert_charrefs=False)
@@ -308,7 +323,7 @@ class ArtifactHTMLParser(HTMLParser):
         self._lead_buffer: list[str] = []
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
-        attr_map = {name.lower(): value or "" for name, value in attrs}
+        attr_map = _first_wins_attrs(attrs)
         tag_name = tag.lower()
         if attr_map.get("id"):
             self.ids.add(html.unescape(attr_map["id"]))
@@ -702,21 +717,6 @@ class _JudgmentOwnerParser(HTMLParser):
         self._heading_opted_in = False
 
     @staticmethod
-    def _attr_map(attrs) -> dict[str, str]:
-        """First occurrence wins, which is what a browser does.
-
-        A dict comprehension keeps the LAST, so `data-owner="" data-owner="Ana"` read as
-        owned while a browser reads it as empty, and reversing the values produced the
-        inverse false warning.
-        """
-        out: dict[str, str] = {}
-        for key, value in attrs:
-            key = key.lower()
-            if key not in out:
-                out[key] = value or ""
-        return out
-
-    @staticmethod
     def _owns(attrs: dict[str, str]) -> bool:
         return bool(html.unescape(attrs.get("data-owner", "")).strip())
 
@@ -741,7 +741,7 @@ class _JudgmentOwnerParser(HTMLParser):
 
     def handle_starttag(self, tag: str, attrs) -> None:
         tag = tag.lower()
-        attr_map = self._attr_map(attrs)
+        attr_map = _first_wins_attrs(attrs)
         if tag in ("h2", "h3"):
             self._close_implied(tag)
             # Snapshot at open: what encloses the heading is fixed by this point.
@@ -759,7 +759,16 @@ class _JudgmentOwnerParser(HTMLParser):
             self._stack.append((tag, owns, self._opts_in(attr_map)))
 
     def handle_startendtag(self, tag: str, attrs) -> None:
-        """A self-closing tag opens and closes at once, so it never becomes an ancestor."""
+        """Only a void element actually self-closes.
+
+        HTML treats a trailing slash on a non-void element as a parse error and then
+        ignores it, so `<section data-owner="Ana"/>` opens a section that stays open and
+        owns what follows. Treating it as opened-and-closed made the rule disagree with
+        every browser and warn on an owned section. Void elements keep the no-op, since
+        they never become an ancestor either way.
+        """
+        if tag.lower() not in _VOID_ELEMENTS:
+            self.handle_starttag(tag, attrs)
 
     def handle_endtag(self, tag: str) -> None:
         tag = tag.lower()
