@@ -255,8 +255,8 @@ class DynamicModeTest(unittest.TestCase):
         """The alias is gone, and this test is the inverse of the one it replaces.
 
         `data-audience="pm"` was accepted so pre-rename artifacts would keep validating.
-        Measured on a live lane of 165 artifacts, 124 carried it, 0 carried
-        `data-summary`, and the newest of the 124 was written that same week. The alias
+        Measured on a live lane of 197 artifacts, 158 carried it, 0 carried
+        `data-summary`, and the newest of the 158 was written that same week. The alias
         was not easing a migration, it was the reason none started: nothing ever told an
         author, or the model copying the previous artifact, that the marker names a job
         title in the markup. Segmenting the reader is one of the spine's absolutes.
@@ -327,9 +327,30 @@ class ClaimOwnerTest(unittest.TestCase):
         body = '<section id="j" data-owner="Ana Silva"><h2>Decision</h2><p>x</p></section>'
         self.assertEqual(self._warn_rules(body), [])
 
-    def test_silent_when_owner_appears_inside_the_section_body(self):
+    def test_owner_on_a_sibling_does_not_count(self):
+        """Ownership is an enclosing claim, not a nearby one. A `<p>` after the heading is
+        a sibling, so it cannot answer for the section."""
         body = '<section id="j"><h2>Decision</h2><p data-owner="Ana Silva">x</p></section>'
+        self.assertEqual(len(self._warn_rules(body)), 1)
+
+    def test_owner_on_an_ancestor_covers_a_nested_heading(self):
+        """Both reviewers reproduced the inverse under the old substring window: a `<div>`
+        closed before the heading was taken for its container, so an owned section still
+        warned."""
+        body = (
+            '<section id="j" data-owner="Ana Silva"><h2>Context</h2>'
+            '<div class="callout">note</div><h3>Decision</h3><p>x</p></section>'
+        )
         self.assertEqual(self._warn_rules(body), [])
+
+    def test_a_closed_sibling_cannot_lend_its_owner(self):
+        """The other half of the same reviewer finding: a preceding closed `<div>` with an
+        unrelated data-owner used to satisfy an unowned judgment section."""
+        body = (
+            '<section id="s"><h2>Context</h2><div data-owner="chart source"></div>'
+            "<h2>Decision</h2><p>x</p></section>"
+        )
+        self.assertEqual(len(self._warn_rules(body)), 1)
 
     def test_neighbouring_owner_does_not_satisfy_an_unowned_section(self):
         body = (
@@ -339,8 +360,50 @@ class ClaimOwnerTest(unittest.TestCase):
         self.assertEqual(len(self._warn_rules(body)), 1)
 
     def test_empty_owner_does_not_count(self):
-        body = '<section id="j" data-owner=""><h2>Decision</h2><p>x</p></section>'
+        for value in ('""', '" "', '"&nbsp;"'):
+            with self.subTest(value=value):
+                body = f'<section id="j" data-owner={value}><h2>Decision</h2><p>x</p></section>'
+                self.assertEqual(len(self._warn_rules(body)), 1)
+
+    def test_unquoted_owner_counts(self):
+        """Valid HTML, and the old regex required quotes."""
+        body = '<section id="j" data-owner=Ana><h2>Decision</h2><p>x</p></section>'
+        self.assertEqual(self._warn_rules(body), [])
+
+    def test_a_longer_attribute_name_does_not_count(self):
+        r"""`\bdata-owner` matched the tail of `data-source-data-owner`, because `-` is
+        not a word character."""
+        body = '<section data-source-data-owner="Ana"><h2>Decision</h2><p>x</p></section>'
         self.assertEqual(len(self._warn_rules(body)), 1)
+
+    def test_an_owner_in_a_comment_or_shown_as_text_does_not_count(self):
+        for body in (
+            '<!-- <section data-owner="Ana"> --><section><h2>Decision</h2><p>x</p></section>',
+            '<section><h2>Decision</h2><pre>&lt;section data-owner="Ana"&gt;</pre></section>',
+        ):
+            with self.subTest(body=body[:40]):
+                self.assertEqual(len(self._warn_rules(body)), 1)
+
+    def test_body_and_main_cannot_own_the_whole_page(self):
+        """One attribute high enough up would silently satisfy every section below it."""
+        art = _artifact('<section id="j"><h2>Decision</h2><p>x</p></section>').replace(
+            "<main>", '<main data-owner="Ana Silva">'
+        )
+        warnings = hha.content_shape_violations(
+            Path("a.html"), art, "2026-07-26", REPO, "decision"
+        )[1]
+        self.assertTrue(any("[rule=claim-owner]" in w for w in warnings))
+
+    def test_data_judgment_opts_a_non_matching_heading_in(self):
+        """The escape hatch for a section whose heading states the judgment rather than
+        naming it, e.g. "Lead with the narrow first stage" as a recommendation."""
+        body = (
+            '<section id="j" data-judgment="true">'
+            "<h2>Lead with the narrow first stage</h2><p>x</p></section>"
+        )
+        self.assertEqual(len(self._warn_rules(body)), 1)
+        owned = body.replace('data-judgment="true"', 'data-judgment="true" data-owner="Ana"')
+        self.assertEqual(self._warn_rules(owned), [])
 
     def test_non_judgment_headings_never_fire(self):
         for heading in ("Context", "Findings", "Where we are", "Next", "Open questions"):
@@ -437,7 +500,7 @@ class ReadTimeTest(unittest.TestCase):
 
 
 class ReviewStateTest(unittest.TestCase):
-    """Three named states, because a live lane hand-rolled "pending" in four spellings."""
+    """Three named states, because a live lane hand-rolled "pending" in nine distinct spellings."""
 
     def _provenance(self, extra: str) -> list[str]:
         body = (

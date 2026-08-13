@@ -313,7 +313,7 @@ Required fields per the AI-BOM / model-card synthesis: `@id` or `id`, `creator` 
 
 ### The reviewer field starts empty, and says so
 
-**A scaffold ships `reviewer: "pending"` and renders "not yet reviewed by a human".** That is the honest default, and the reason it is the default is that the field is otherwise the easiest one in the artifact to fill with something plausible. Measured on a live lane of 197 artifacts: 65 carried a human name, 29 carried an *agent* name, 10 shipped the unfilled placeholder, and 12 carried some spelling of "pending" across four different spellings, which is an author hand-rolling a state the schema never offered.
+**A scaffold ships `reviewer: "pending"` and renders "not yet reviewed by a human".** That is the honest default, and the reason it is the default is that the field is otherwise the easiest one in the artifact to fill with something plausible. Measured on a live lane of 197 artifacts: 89 carried a human name, 51 carried no reviewer field at all, 29 carried an *agent* name, 18 carried some spelling of "pending" across **nine** distinct spellings, and 10 shipped the unfilled placeholder, which is an author hand-rolling a state the schema never offered.
 
 Two things follow. First, replace it when a human has actually read the artifact, not when one is nominated: the field asserts that somebody read this before it was forwarded, and nothing else. Second, an agent name in this field is honest reporting rather than a mistake. A model did review it, and the schema has no word for that yet.
 
@@ -327,7 +327,7 @@ The examples under `examples/` carry real reviewer names on purpose. They show t
 | `agent-reviewed` | the agent, e.g. `Codex` | A model reviewed it. Honest, and previously unsayable |
 | `human-reviewed` | the person | A person read it before it was forwarded |
 
-Three values rather than a free-text field, because free text is exactly what produced four spellings of "pending" in one lane. The validator warns on a fourth value: an unnamed state is the problem the field was added to solve.
+Three values rather than a free-text field, because free text is exactly what produced nine distinct spellings of "pending" in one lane. The validator warns on a fourth value: an unnamed state is the problem the field was added to solve.
 
 `reviewer` and `reviewState` are both artifact-wide. Ownership of a specific recommendation, verdict, or decision is `data-owner` on that section (Rule 11), which is a different claim and usually a different person.
 

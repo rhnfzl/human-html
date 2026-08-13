@@ -137,12 +137,6 @@ _ROLE_READMAP_RE = re.compile(
     re.IGNORECASE | re.DOTALL,
 )
 
-# A non-empty data-owner marks who holds the claim. Like every rule in the mechanical
-# floor this is a marker check: it proves a name was written, never that the named person
-# agreed. The visible prose beside it is what a reader actually acts on.
-# The (?!\1) is load-bearing: without it `\S` happily matches the *closing* quote, so
-# an empty data-owner="" would satisfy the rule.
-_OWNER_RE = re.compile(r"""\bdata-owner\s*=\s*(['"])\s*(?!\1)\S""", re.IGNORECASE)
 
 # Walks h2 and h3 headings, both feed comparison-section detection.
 _HEADING_RE = re.compile(r"<h([23])\b[^>]*>(.*?)</h\1>", re.IGNORECASE | re.DOTALL)
@@ -320,9 +314,9 @@ class ArtifactHTMLParser(HTMLParser):
         # `data-summary="true"` marks the answer-first opener, and it is the only spelling.
         #
         # `data-audience="pm"` was the pre-rename marker and was kept as an accepted alias
-        # so already-shipped artifacts would keep validating. Measured on a live lane of 165
-        # artifacts, that kindness did the opposite of its purpose: 124 carried
-        # `data-audience`, 0 carried `data-summary`, and the newest of the 124 was written
+        # so already-shipped artifacts would keep validating. Measured on a live lane of 197
+        # artifacts, that kindness did the opposite of its purpose: 158 carried
+        # `data-audience`, 0 carried `data-summary`, and the newest of the 158 was written
         # the same week the count was taken. The alias was not easing a migration, it was
         # the reason no migration ever started, because nothing ever told an author (or the
         # model copying the previous artifact) that the marker names a job title in the
@@ -616,39 +610,103 @@ def find_comparison_violations(content: str) -> list[str]:
     return violations
 
 
-def find_unowned_judgment_headings(content: str) -> list[str]:
-    """Return headings of judgment sections that name nobody.
+# Elements that never open a scope, so they must not be pushed onto the ancestor stack.
+_VOID_ELEMENTS = frozenset(
+    "area base br col embed hr img input link meta param source track wbr".split()
+)
+# Ownership is not inherited from the page itself: an owner declared on <body> or <main>
+# would silently satisfy every judgment section in the artifact.
+_NON_OWNING_ANCESTORS = frozenset(("html", "body", "main"))
 
-    Same mechanic as `find_comparison_violations`: a heading regex selects the section,
-    then the section is searched for a marker. One difference, and it matters. An owner is
-    normally declared on the section's own opening tag, which sits *before* the heading, so
-    the search window starts at that tag instead of at the end of the heading. The window is
-    floored at the previous heading so a neighbouring section's owner cannot satisfy this one.
+
+class _JudgmentOwnerParser(HTMLParser):
+    """Find judgment headings whose enclosing section names no owner.
+
+    This is a real parse rather than a substring search, and the first version was the
+    substring search. Two independent reviews reproduced the same class of failure in it,
+    all of it traceable to `rfind` having no idea what an element is: a `<div>` closed
+    before the heading was mistaken for its container, so a genuinely owned section still
+    warned and an unrelated sibling's `data-owner` silently satisfied an unowned one; an
+    owner inside an HTML comment or shown as escaped text in a `<pre>` counted; and
+    `\\bdata-owner` matched the tail of `data-source-data-owner`.
+
+    The rule this implements: a heading is owned when the heading itself, or an element
+    enclosing it below `<main>`, carries a non-empty `data-owner`. Ancestors count so a
+    section owner covers a nested `<h3>` and so wrapping the heading in a `<header>`
+    changes nothing; `<body>` and `<main>` are excluded so one attribute cannot own the
+    whole page.
     """
-    matches = list(_HEADING_RE.finditer(content))
-    if not matches:
-        return []
-    violations: list[str] = []
-    for i, match in enumerate(matches):
-        heading = _strip_tags(match.group(2)).strip()
-        if not JUDGMENT_HEADING_RE.search(heading):
-            continue
-        current_level = int(match.group(1))
-        section_end = len(content)
-        for next_match in matches[i + 1 :]:
-            if int(next_match.group(1)) <= current_level:
-                section_end = next_match.start()
-                break
-        floor = matches[i - 1].end() if i else 0
-        container = max(
-            content.rfind("<section", floor, match.start()),
-            content.rfind("<div", floor, match.start()),
-        )
-        window_start = container if container != -1 else match.start()
-        window = _HTML_COMMENT_RE.sub("", content[window_start:section_end])
-        if not _OWNER_RE.search(window):
-            violations.append(heading)
-    return violations
+
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.violations: list[str] = []
+        self._stack: list[tuple[str, bool, bool]] = []  # (tag, owns, opts_in)
+        self._heading: list[str] | None = None
+        self._heading_owned = False
+        self._heading_opted_in = False
+
+    @staticmethod
+    def _owns(attrs: dict[str, str]) -> bool:
+        return bool(html.unescape(attrs.get("data-owner", "")).strip())
+
+    @staticmethod
+    def _opts_in(attrs: dict[str, str]) -> bool:
+        return attrs.get("data-judgment", "").strip().lower() == "true"
+
+    def handle_starttag(self, tag: str, attrs) -> None:
+        tag = tag.lower()
+        attr_map = {k.lower(): (v or "") for k, v in attrs}
+        if tag in ("h2", "h3"):
+            # Snapshot at open: what encloses the heading is fixed by this point.
+            self._heading = []
+            self._heading_owned = self._owns(attr_map) or any(
+                owns for _t, owns, _o in self._stack
+            )
+            self._heading_opted_in = self._opts_in(attr_map) or any(
+                opt for _t, _owns, opt in self._stack
+            )
+            return
+        if tag not in _VOID_ELEMENTS:
+            owns = self._owns(attr_map) and tag not in _NON_OWNING_ANCESTORS
+            self._stack.append((tag, owns, self._opts_in(attr_map)))
+
+    def handle_startendtag(self, tag: str, attrs) -> None:
+        """A self-closing tag opens and closes at once, so it never becomes an ancestor."""
+
+    def handle_endtag(self, tag: str) -> None:
+        tag = tag.lower()
+        if tag in ("h2", "h3"):
+            if self._heading is not None:
+                text = re.sub(r"\s+", " ", "".join(self._heading)).strip()
+                is_judgment = self._heading_opted_in or bool(
+                    JUDGMENT_HEADING_RE.search(text)
+                )
+                if text and is_judgment and not self._heading_owned:
+                    self.violations.append(text)
+                self._heading = None
+            return
+        # Unwind to the most recent matching open tag. Unbalanced markup pops nothing
+        # rather than corrupting the stack for everything that follows.
+        for i in range(len(self._stack) - 1, -1, -1):
+            if self._stack[i][0] == tag:
+                del self._stack[i:]
+                return
+
+    def handle_data(self, data: str) -> None:
+        if self._heading is not None:
+            self._heading.append(data)
+
+
+def find_unowned_judgment_headings(content: str) -> list[str]:
+    """Return the headings of judgment sections that name nobody."""
+    parser = _JudgmentOwnerParser()
+    try:
+        parser.feed(content)
+        parser.close()
+    except Exception:
+        # A malformed artifact is the file-contract layer's problem, not this rule's.
+        return parser.violations
+    return parser.violations
 
 
 _NON_PROSE_RE = re.compile(r"(?is)<(script|style|svg)\b.*?</\1\s*>")
@@ -1165,7 +1223,7 @@ def _provenance_field_warnings(rel: Path, parser: ArtifactHTMLParser) -> list[st
                 warnings.append(
                     f'{rel}: provenance reviewState "{state}" is not one of '
                     f"{', '.join(_REVIEW_STATES)}. The field exists because a live lane "
-                    'hand-rolled "pending" in four different spellings, so an unnamed '
+                    'hand-rolled "pending" in nine distinct spellings, so an unnamed '
                     "fifth value is the problem it was added to solve"
                 )
             warnings.extend(_source_files_warnings(rel, obj))
@@ -2690,6 +2748,7 @@ flowchart LR
     </section>
     <section id="actions" class="section" data-owner="&lt;name&gt;">
       <h2>Corrective actions</h2>
+      <p>&lt;name&gt; holds this plan, and is least sure about &lt;the threshold or assumption set from this incident alone&gt;.</p>
       <div class="table-scroll" role="region" aria-label="Corrective actions" tabindex="0">
       <table>
         <thead><tr><th>#</th><th>Action</th><th>Type</th><th>Owner</th><th>Due</th><th>Status</th></tr></thead>

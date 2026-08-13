@@ -73,7 +73,7 @@ The mechanic is the one the same-data control block already uses in `references/
 
 **Deliberately not validated.** A rule here would be satisfied by "nothing below changes this", written to clear the check and testing nothing, which is worse than an absent bullet because it claims a closure nobody looked for. Write it when the conclusion genuinely rests on something, and delete it when it does not. This lives in the ship checklist, not in `check`.
 
-Three bullets is the default, not the only compliant form. For a reader on a 30-second budget (an incident emailed to a director, a yes/no decision) the **BLUF** opener is an equally compliant alternative: the same `data-summary="true"` marker holding one sentence that states the decision or the ask, then one sentence of rationale. See "BLUF compact opener mode" in `references/patterns.md`. Both satisfy the contract in full; pick the one that fits the reader's time budget.
+Four bullets is the default, not the only compliant form. For a reader on a 30-second budget (an incident sent onward, a yes/no decision) the **BLUF** opener is an equally compliant alternative: the same `data-summary="true"` marker holding one sentence that states the decision or the ask, one sentence of rationale, and one naming what would overturn it. See "BLUF compact opener mode" in `references/patterns.md`. Both satisfy the contract in full; pick the one that fits the reader's time budget. What neither may drop is the stopping claim, because that is the sentence that lets the reader leave.
 
 Per-section plain-language leads (a 1-sentence opener inside each `<h2>` section) are strongly recommended but not validated - that's a writer's judgment call the validator can't reliably enforce.
 
@@ -219,6 +219,15 @@ A name on its own is bureaucracy. A name attached to a stated doubt tells a revi
 
 `status` is the deliberate gap. Its headings name no judgment, and its accountability is artifact-wide, which the metadata ribbon's `Owner` already carries.
 
+**`data-judgment="true"` is the escape hatch**, and a well-written artifact needs it more often than a lazy one. A heading that *states* its judgment rather than naming it ("Lead with the narrow first stage", "The pick, and what it costs") reads better and matches no keyword, so the rule cannot see it. Mark the section and it counts:
+
+```html
+<section id="pick" data-judgment="true" data-owner="Priya Nandakumar">
+  <h2>The pick, and what it costs</h2>
+```
+
+Both shipped examples that do this carry the marker, which is the only reason the rule reaches them.
+
 **Four places a name can appear, and they mean different things.** Leaving this undefined is why the field gets filled with whatever is plausible:
 
 | Where | What it asserts |
@@ -236,15 +245,18 @@ Like every rule in the mechanical floor, this is a marker check. It proves a nam
 
 This matters beyond taste. A skill that sorts readers into job titles only fits organisations that have those job titles, and most of the places these artifacts get read do not map cleanly onto them.
 
-**`data-audience` is retired, not aliased.** It was the pre-rename spelling of the answer-first marker and was kept as an accepted alias so already-shipped artifacts would keep validating. Measured on a live lane of 165 artifacts, that kindness did the opposite of its purpose:
+**`data-audience` is retired, not aliased.** It was the pre-rename spelling of the answer-first marker and was kept as an accepted alias so already-shipped artifacts would keep validating. Measured on a live lane, that kindness did the opposite of its purpose.
+
+The population for this count and every other one quoted in these rules: **197 files** matching `YYYY-MM-DD-*.html` in a single private lane, searched recursively, temporary files excluded. It is one lane written by one author, so treat it as a strong signal about this failure mode and not as a survey. Every distribution below sums to 197.
+
 
 | Marker | Artifacts |
 |---|---|
-| `data-audience` only | 124 |
+| `data-audience` only | 158 |
 | `data-summary` only | 0 |
 | both | 0 |
 
-Not one artifact migrated, and the newest of the 124 was written the same week the count was taken. The alias was not easing a transition, it was the reason none started, because nothing ever told an author (or the model copying the previous artifact) that the marker names a job title in the markup. So it now blocks, with a message that names the fix: replace `data-audience="pm"` with `data-summary="true"`. The summary itself does not change.
+Not one artifact migrated, and the newest of the 158 was written the same week the count was taken. The alias was not easing a transition, it was the reason none started, because nothing ever told an author (or the model copying the previous artifact) that the marker names a job title in the markup. So it now blocks, with a message that names the fix: replace `data-audience="pm"` with `data-summary="true"`. The summary itself does not change.
 
 Note the deliberate asymmetry with retired **rule IDs**, which keep answering to `<!-- human-html-disable: ... -->` forever. A suppression comment is an author's decision and must not silently invert. A retired content marker gets no such protection, because keeping it alive perpetuates the thing the rule exists to remove.
 

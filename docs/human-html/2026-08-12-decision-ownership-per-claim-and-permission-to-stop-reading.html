@@ -226,7 +226,12 @@
     .stripe::before { content:""; position:absolute; left:0; top:.35rem; bottom:.35rem; width:3px; border-radius:3px; background:var(--accent); }
     .stripe.crit::before{background:var(--crit);} .stripe.high::before{background:var(--high);} .stripe.warn::before{background:var(--warn);} .stripe.good::before{background:var(--good);}
     /* ---- keycard: big number + prose ---- */
-    .keycard { display:grid; grid-template-columns:auto 1fr; gap:var(--s-8); align-items:center; margin:var(--s-9) 0; padding:var(--s-8) var(--s-9); background:var(--surface); border:1px solid var(--line-strong); border-left:4px solid var(--sv,var(--accent)); border-radius:var(--radius); box-shadow:var(--shadow); }
+    .keycard { display:grid; grid-template-columns:auto minmax(0,1fr); gap:var(--s-8); align-items:center; margin:var(--s-9) 0; padding:var(--s-8) var(--s-9); background:var(--surface); border:1px solid var(--line-strong); border-left:4px solid var(--sv,var(--accent)); border-radius:var(--radius); box-shadow:var(--shadow); }
+    /* pinned so the component does not depend on having exactly two children: a third
+       used to wrap into column 1, whose `auto` width then grew to fit a paragraph and
+       starved the 1fr column to roughly one word per line. */
+    .keycard > * { grid-column:2; min-width:0; }
+    .keycard > :first-child:is(.big,.kind,.sev,.chip) { grid-column:1; grid-row:1/-1; }
     .keycard .big { font-family:var(--display); font-size:clamp(2.4rem,7vw,3.4rem); font-weight:800; line-height:.95; color:var(--sv,var(--accent)); font-variant-numeric:tabular-nums; }
     .keycard .big small { display:block; margin-top:var(--s-2); font-family:var(--mono); font-size:var(--fs-sm); font-weight:600; letter-spacing:.04em; text-transform:uppercase; color:var(--muted); }
     .keycard p b { color:var(--ink); }
@@ -252,6 +257,8 @@
     /* component responsive overrides live HERE (after the base rules, in the later-injected _EXTRA) so they win the cascade */
     @media (max-width:820px) {
       .keycard { grid-template-columns:1fr; gap:var(--s-5); }
+      /* single column now: release the placement or it conjures an implicit second one */
+      .keycard > *, .keycard > :first-child:is(.big,.kind,.sev,.chip) { grid-column:1; grid-row:auto; }
       .tiles, .metrics { grid-template-columns:1fr 1fr; }
     }
     @media (max-width:460px) { .tiles, .metrics { grid-template-columns:1fr; } }
@@ -382,7 +389,7 @@
       </table>
       </div>
       <p>The median artifact carries 10 <code>h2</code> sections against a kind skeleton of about 5, and only 18 of 197 sit at or under their skeleton. That is the mechanism: <code>required-section</code> is a floor with no ceiling, so each artifact accretes on the last. A reading guide is present on every recent artifact and does not interrupt it, which is the finding that matters, because it rules out navigation as the fix. A table of contents over seventeen sections says where everything is and never says what may be skipped.</p>
-      <p>Two supporting observations from the same corpus. The <code>reviewer</code> field holds a human name 65 times, an agent name 29 times, an unfilled placeholder 10 times, and some spelling of <em>pending</em> 12 times across four different spellings, which is an author hand-rolling a review state the schema does not offer. And <code>artifact-read-time</code> does not track length at all: 194 words claims five minutes, 4,701 words claims five minutes, and the longest artifact gives up and says <em>browse</em>.</p>
+      <p>Two supporting observations from the same corpus. The <code>reviewer</code> field holds a human name 89 times, no value at all 51 times, an agent name 29 times, some spelling of <em>pending</em> 18 times across nine distinct spellings, and an unfilled placeholder 10 times, which is an author hand-rolling a review state the schema does not offer. And <code>artifact-read-time</code> does not track length at all: 194 words claims five minutes, 4,701 words claims five minutes, and the longest artifact gives up and says <em>browse</em>.</p>
     </section>
     <section id="options" class="section">
       <h2>Current vs proposed</h2>
@@ -443,7 +450,7 @@
             <td data-label="Question">Does the review state get named values?</td>
             <td data-label="Who">Rehan Fazal</td>
             <td data-label="By">2026-09-01</td>
-            <td data-label="Lands"><strong>Leaning three values</strong>, covering unreviewed, agent-reviewed and human-reviewed. An agent name in <code>reviewer</code> is honest reporting the schema has no word for. Left alone, the four spellings of <em>pending</em> keep multiplying.</td>
+            <td data-label="Lands"><strong>Leaning three values</strong>, covering unreviewed, agent-reviewed and human-reviewed. An agent name in <code>reviewer</code> is honest reporting the schema has no word for. Left alone, the nine spellings of <em>pending</em> keep multiplying.</td>
           </tr>
         </tbody>
       </table>
