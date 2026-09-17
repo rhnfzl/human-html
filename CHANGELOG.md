@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- **The gallery's relative dates count calendar days, not elapsed milliseconds.** `rel()` divided `Date.now() - localMidnight(iso)` by 86,400,000 and floored it, so early on the morning after the clocks go forward, when local midnights sit 23 hours apart, yesterday's artifact read `today` and the day before read `1d ago`; a future-dated artifact fell into the same `days <= 0` branch and also read `today`. Both dates are now reduced to UTC day numbers before subtracting, so the difference is a whole number of days in every timezone, and a future date is named as `dated YYYY-MM-DD` rather than passed off as today. The gallery is a Python string that ships JavaScript, so the test lifts the date code out of the rendered index and runs it under node with a frozen clock at 00:30 on 30 March 2026 in Europe/Amsterdam; it is skipped, never passed, when node is absent, and the same test asserts the elapsed-time form has not come back. Reproduced against the old code before the fix: `today`, `today`, `1d ago` for 30, 29 and 28 March.
+- **The generated gallery says it is generated, and why `docs-index.json` sits beside it.** A review read the two as a duplicated catalogue that could drift. They cannot: `write_index` writes both from one scan in one call. The page never fetches the JSON, on purpose, so it still reads with JS off and from `file://` (Rule 9); the JSON is the few-KB manifest an agent reads instead of every artifact. One HTML comment at the top of `index.html` now states both facts, so the next reviewer does not have to rediscover them.
+
 ## 2.0.0 - 2026-08-13
 
 **Breaking.** `data-audience` is retired rather than aliased and now blocks, so a post-cutoff artifact still carrying the pre-rename summary marker fails until it is changed to `data-summary="true"`. Artifacts dated before `2026-05-25` are grandfathered and unaffected. The summary itself does not change, only the attribute.
