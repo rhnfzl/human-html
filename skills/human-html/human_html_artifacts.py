@@ -3514,6 +3514,36 @@ def simulate_no_js(html: str) -> str:
     return _NOSCRIPT_UNWRAP_RE.sub(r"\1", html)
 
 
+# Headless Chrome will not open a window narrower than this many CSS pixels: asked for
+# `--window-size=390,H` it lays the page out at 500 and the screenshot is a crop of the
+# left 390. A phone render made that way looks broken (text cut at the right edge) when the
+# page is fine, and it looked fine when the page overflowed at 390 for real. Measured on
+# Chrome 140 / macOS with a probe page that prints `innerWidth`: 390 -> 500, 500 -> 500.
+CHROME_MIN_WINDOW_WIDTH = 500
+_RENDER_FRAME_PATH = "/__human-html-frame__.html"
+
+
+def _render_plan(width: int, height: int, name: str) -> "tuple[str, int, str | None]":
+    """Decide how to render `name` at `width` CSS pixels.
+
+    Returns (path to navigate to, window width to ask Chrome for, wrapper HTML or None).
+    At or above the Chrome minimum the page is loaded directly. Below it, Chrome still
+    receives the requested width (the screenshot keeps that width even though the layout
+    viewport is widened to the minimum) and loads a wrapper whose only content is an
+    <iframe> of the requested width at the left edge: the frame is its own viewport, so
+    `innerWidth`, media queries and the layout audit inside it see the real width, and the
+    crop Chrome takes from the left edge is exactly the frame."""
+    if width >= CHROME_MIN_WINDOW_WIDTH:
+        return f"/{name}", width, None
+    frame = (
+        "<!doctype html><html><head><meta charset=\"utf-8\">"
+        "<style>html,body{margin:0;padding:0;background:#fff}"
+        f"iframe{{display:block;border:0;width:{width}px;height:{height}px}}</style>"
+        f"</head><body><iframe src=\"/{name}\" title=\"render frame\"></iframe></body></html>"
+    )
+    return _RENDER_FRAME_PATH, width, frame
+
+
 def cmd_render(
     path: str, out: "str | None", width: int, height: int, no_js: bool = False
 ) -> int:
@@ -3539,36 +3569,39 @@ def cmd_render(
     port = sock.getsockname()[1]
     sock.close()
 
+    navigate, window_width, frame_html = _render_plan(width, height, f.name)
+    # Pages served in place of files, so relative assets still resolve out of the real
+    # directory and nothing is written into the user's tree: the narrow-width frame, and
+    # with `no_js` the rewritten artifact.
+    served: dict[str, bytes] = {}
+    if frame_html is not None:
+        served[_RENDER_FRAME_PATH] = frame_html.encode("utf-8")
     if no_js:
-        # Serve the rewrite in place of the file, so relative assets still resolve out of
-        # the real directory and nothing is written into the user's tree.
-        payload = simulate_no_js(f.read_text(encoding="utf-8")).encode("utf-8")
-        target = f"/{f.name}"
+        served[f"/{f.name}"] = simulate_no_js(f.read_text(encoding="utf-8")).encode("utf-8")
 
-        class _Handler(SimpleHTTPRequestHandler):
-            def do_GET(self):  # noqa: N802 - base-class name
-                if self.path.split("?")[0] == target:
-                    self.send_response(200)
-                    self.send_header("Content-Type", "text/html; charset=utf-8")
-                    self.send_header("Content-Length", str(len(payload)))
-                    self.end_headers()
-                    self.wfile.write(payload)
-                    return
-                super().do_GET()
+    class _Handler(SimpleHTTPRequestHandler):
+        def do_GET(self):  # noqa: N802 - base-class name
+            payload = served.get(self.path.split("?")[0])
+            if payload is not None:
+                self.send_response(200)
+                self.send_header("Content-Type", "text/html; charset=utf-8")
+                self.send_header("Content-Length", str(len(payload)))
+                self.end_headers()
+                self.wfile.write(payload)
+                return
+            super().do_GET()
 
-            def log_message(self, format: str, *args) -> None:  # noqa: A002 - base signature
-                pass  # keep the probe quiet
+        def log_message(self, format: str, *args) -> None:  # noqa: A002 - base signature
+            pass  # keep the probe quiet
 
-        handler = functools.partial(_Handler, directory=str(f.parent))
-    else:
-        handler = functools.partial(SimpleHTTPRequestHandler, directory=str(f.parent))
+    handler = functools.partial(_Handler, directory=str(f.parent))
     srv = ThreadingHTTPServer(("127.0.0.1", port), handler)
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     r = None
     try:
-        url = f"http://127.0.0.1:{port}/{f.name}"
+        url = f"http://127.0.0.1:{port}{navigate}"
         r = subprocess.run([chrome, "--headless=new", "--disable-gpu", "--hide-scrollbars",
-                            f"--window-size={width},{height}", "--virtual-time-budget=8000",
+                            f"--window-size={window_width},{height}", "--virtual-time-budget=8000",
                             f"--screenshot={out}", url], capture_output=True, text=True, timeout=120)
     finally:
         srv.shutdown()
