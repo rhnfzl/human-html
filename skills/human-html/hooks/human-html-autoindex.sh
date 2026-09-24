@@ -27,7 +27,12 @@ if ! command -v jq >/dev/null 2>&1; then
   exit 0
 fi
 
-HOOK_CWD=$(jq -r '.cwd // empty' <<<"$INPUT")
+# Read fields through a PIPE, never a here-string. Bash writes a here-string into
+# a pipe before the reader starts, and under memory pressure a small pipe stalls
+# the write forever. A pipe feeds the reader as it writes, so it cannot stall.
+field() { printf '%s' "$INPUT" | jq -r "$1"; }
+
+HOOK_CWD=$(field '.cwd // empty')
 WORKSPACE_ROOT="${CLAUDE_PROJECT_DIR:-${CURSOR_PROJECT_DIR:-${CODEX_WORKSPACE:-${HOOK_CWD:-$(pwd)}}}}"
 ARTIFACT_DIR="$WORKSPACE_ROOT/docs/human-html"
 # Resolve this hook's real path so SCRIPT_PATH points at the installed skill
@@ -49,9 +54,9 @@ HOOK_SELF="$(resolve_self "${BASH_SOURCE[0]:-$0}")"
 SKILL_DIR="$(cd "$(dirname "$HOOK_SELF")/.." 2>/dev/null && pwd)"
 SCRIPT_PATH="$SKILL_DIR/human_html_artifacts.py"
 
-TOOL_NAME=$(jq -r '.tool_name // empty' <<<"$INPUT")
-TARGET_PATH=$(jq -r '.tool_input.file_path // .tool_input.path // empty' <<<"$INPUT")
-COMMAND_TEXT=$(jq -r '.command // .tool_input.command // .tool_input.cmd // .tool_input.shell_command // empty' <<<"$INPUT")
+TOOL_NAME=$(field '.tool_name // empty')
+TARGET_PATH=$(field '.tool_input.file_path // .tool_input.path // empty')
+COMMAND_TEXT=$(field '.command // .tool_input.command // .tool_input.cmd // .tool_input.shell_command // empty')
 
 case "$TOOL_NAME" in
   Write|Edit|MultiEdit|StrReplace|apply_patch|Bash|Shell|exec_command|functions.exec_command) : ;;
