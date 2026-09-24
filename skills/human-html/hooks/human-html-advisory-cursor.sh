@@ -41,7 +41,7 @@ fi
 
 HOOK_CWD=""
 if command -v jq >/dev/null 2>&1; then
-  HOOK_CWD=$(jq -r '.cwd // empty' <<<"$INPUT")
+  HOOK_CWD=$(printf '%s\n' "$INPUT" | jq -r '.cwd // empty')
 fi
 
 echo "$INPUT" | env CURSOR_PROJECT_DIR="${CURSOR_PROJECT_DIR:-$HOOK_CWD}" \

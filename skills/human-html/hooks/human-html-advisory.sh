@@ -51,15 +51,20 @@ SKILL_DIR="$(cd "$(dirname "$HOOK_SELF")/.." 2>/dev/null && pwd)"
 
 INPUT="$(cat)"
 
+# Read fields through a PIPE, never a here-string. Bash 5.3 writes a here-string into a
+# pipe before it starts the reader, and under memory pressure macOS keeps new pipes small,
+# so an Edit payload bigger than the pipe blocked here for the full 600 s hook timeout.
+field() { printf '%s' "$INPUT" | jq -r "$1"; }
+
 if ! command -v jq >/dev/null 2>&1; then
   exit 0
 fi
 
-HOOK_CWD=$(jq -r '.cwd // empty' <<<"$INPUT")
+HOOK_CWD=$(field '.cwd // empty')
 WORKSPACE_ROOT="${CLAUDE_PROJECT_DIR:-${CURSOR_PROJECT_DIR:-${CODEX_WORKSPACE:-${HOOK_CWD:-$(pwd)}}}}"
 
-TOOL_NAME=$(jq -r '.tool_name // empty' <<<"$INPUT")
-TARGET_PATH=$(jq -r '.tool_input.file_path // .tool_input.path // .tool_input.notebook_path // empty' <<<"$INPUT")
+TOOL_NAME=$(field '.tool_name // empty')
+TARGET_PATH=$(field '.tool_input.file_path // .tool_input.path // .tool_input.notebook_path // empty')
 
 case "$TOOL_NAME" in
   Edit|Write|MultiEdit|NotebookEdit|StrReplace) : ;;
@@ -142,23 +147,22 @@ if [ "$match" != "1" ]; then
   exit 0
 fi
 
-cat >&2 <<EOF
-human-html advisory: \`$REL\` looks like a human-in-loop artifact written in Markdown.
-
-The agreed contract (see ${SKILL_DIR}/SKILL.md):
-  * Markdown is fine for agent scratch, references, ticket notes, meetings, drafts.
-  * Human review surfaces (plan / review / architecture / understanding /
-    research / decision / prototype / status / incident) belong in
-    docs/human-html/ as HTML.
-
-If this file is for human review, consider:
-  python3 ${SKILL_DIR}/human_html_artifacts.py new <kind> "<title>"
-
-If this file is agent scratch or a durable reference, ignore this advisory.
-Hook exits 0; the write will proceed regardless.
-
-To add this file's directory to the workspace allowlist, append a glob to
-$WORKSPACE_ROOT/.human-html-allowlist.
-EOF
+printf '%s\n' \
+  "human-html advisory: \`$REL\` looks like a human-in-loop artifact written in Markdown." \
+  "" \
+  "The agreed contract (see ${SKILL_DIR}/SKILL.md):" \
+  "  * Markdown is fine for agent scratch, references, ticket notes, meetings, drafts." \
+  "  * Human review surfaces (plan / review / architecture / understanding /" \
+  "    research / decision / prototype / status / incident) belong in" \
+  "    docs/human-html/ as HTML." \
+  "" \
+  "If this file is for human review, consider:" \
+  "  python3 ${SKILL_DIR}/human_html_artifacts.py new <kind> \"<title>\"" \
+  "" \
+  "If this file is agent scratch or a durable reference, ignore this advisory." \
+  "Hook exits 0; the write will proceed regardless." \
+  "" \
+  "To add this file's directory to the workspace allowlist, append a glob to" \
+  "$WORKSPACE_ROOT/.human-html-allowlist." >&2
 
 exit 0
